@@ -79,6 +79,36 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
     return [...shuffled, correctMeaning].sort(() => Math.random() - 0.5);
   }, []);
 
+  // AI opponent names
+  const aiNames = ["小词霸", "单词达人", "词汇精灵", "学习小能手", "英语之星", "词汇王者"];
+
+  // Start match with AI opponent
+  const startMatchWithAI = async () => {
+    const matchWords = await fetchMatchWords();
+    if (matchWords.length === 0) {
+      toast.error("获取单词失败，请重试");
+      setMatchStatus("idle");
+      return;
+    }
+
+    const aiName = aiNames[Math.floor(Math.random() * aiNames.length)];
+    const aiLevel = Math.max(1, (profile?.level || 1) + Math.floor(Math.random() * 3) - 1);
+    
+    setOpponent({
+      id: "ai-opponent",
+      username: aiName,
+      level: aiLevel,
+      rank_tier: profile?.rank_tier || "bronze",
+      rank_stars: Math.floor(Math.random() * 3),
+      isAI: true,
+    });
+    setWords(matchWords);
+    setOptions(generateOptions(matchWords[0].meaning, matchWords));
+    setMatchStatus("found");
+    
+    setTimeout(() => setMatchStatus("playing"), 2000);
+  };
+
   // Start searching for a match
   const startSearch = async () => {
     if (!profile) {
@@ -129,7 +159,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         
         setTimeout(() => setMatchStatus("playing"), 2000);
       } else {
-        // Create new match
+        // Create new match and wait for opponent with timeout
         const { data: newMatch, error: createError } = await supabase
           .from("ranked_matches")
           .insert({
@@ -143,6 +173,18 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         if (createError) throw createError;
 
         setMatchId(newMatch.id);
+        
+        // Set timeout to match with AI after 5 seconds
+        const aiTimeout = setTimeout(async () => {
+          // Cancel the waiting match
+          await supabase
+            .from("ranked_matches")
+            .update({ status: "cancelled" })
+            .eq("id", newMatch.id);
+          
+          toast("未找到真人对手，已为您匹配AI对手");
+          startMatchWithAI();
+        }, 5000);
         
         // Subscribe to match updates
         const channel = supabase
@@ -159,6 +201,8 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
               const updatedMatch = payload.new as any;
               
               if (updatedMatch.status === "in_progress" && updatedMatch.player2_id) {
+                clearTimeout(aiTimeout);
+                
                 // Fetch opponent profile
                 const { data: opponentData } = await supabase
                   .from("profiles")
@@ -180,6 +224,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
           .subscribe();
 
         return () => {
+          clearTimeout(aiTimeout);
           supabase.removeChannel(channel);
         };
       }

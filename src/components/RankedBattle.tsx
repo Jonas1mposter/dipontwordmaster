@@ -50,6 +50,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
   const [showResult, setShowResult] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
+  const [showAIOption, setShowAIOption] = useState(false);
 
   // Fetch random words for the match
   const fetchMatchWords = useCallback(async () => {
@@ -174,17 +175,10 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
 
         setMatchId(newMatch.id);
         
-        // Set timeout to match with AI after 5 seconds
-        const aiTimeout = setTimeout(async () => {
-          // Cancel the waiting match
-          await supabase
-            .from("ranked_matches")
-            .update({ status: "cancelled" })
-            .eq("id", newMatch.id);
-          
-          toast("未找到真人对手，已为您匹配AI对手");
-          startMatchWithAI();
-        }, 5000);
+        // Set timeout to show AI option after 30 seconds
+        const aiTimeout = setTimeout(() => {
+          setShowAIOption(true);
+        }, 30000);
         
         // Subscribe to match updates
         const channel = supabase
@@ -245,6 +239,20 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
     }
     setMatchStatus("idle");
     setMatchId(null);
+    setShowAIOption(false);
+  };
+
+  // Choose to play with AI
+  const chooseAIBattle = async () => {
+    if (matchId) {
+      await supabase
+        .from("ranked_matches")
+        .update({ status: "cancelled" })
+        .eq("id", matchId);
+    }
+    setMatchId(null);
+    setShowAIOption(false);
+    startMatchWithAI();
   };
 
   // Handle answer selection
@@ -447,6 +455,17 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
             <Users className="w-4 h-4" />
             <span>正在寻找{profile?.grade}年级玩家</span>
           </div>
+          
+          {showAIOption && (
+            <div className="mb-4 p-4 bg-accent/10 rounded-xl border border-accent/20 animate-scale-in">
+              <p className="text-sm text-muted-foreground mb-3">暂未找到真人对手</p>
+              <Button variant="default" onClick={chooseAIBattle} className="w-full mb-2">
+                <Zap className="w-4 h-4 mr-2" />
+                与AI对战
+              </Button>
+            </div>
+          )}
+          
           <Button variant="outline" onClick={cancelSearch}>
             取消匹配
           </Button>

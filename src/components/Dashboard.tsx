@@ -29,10 +29,11 @@ interface DashboardProps {
 
 const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
-  const { user, profile, signOut, loading } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard">("home");
-  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch leaderboard data
   useEffect(() => {
@@ -56,7 +57,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     };
 
     fetchLeaderboard();
-  }, [grade]);
+  }, [grade, refreshKey]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -64,29 +65,16 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     onBack();
   };
 
-  // Mock data for levels and quests
-  const levels = [
-    { id: 1, name: "Unit 1 - 基础词汇", wordCount: 15, status: "completed" as const, stars: 3, energyCost: 1 },
-    { id: 2, name: "Unit 1 - 进阶词汇", wordCount: 15, status: "completed" as const, stars: 2, energyCost: 1 },
-    { id: 3, name: "Unit 2 - 日常用语", wordCount: 20, status: "available" as const, stars: 0, energyCost: 2 },
-    { id: 4, name: "Unit 2 - 学术词汇", wordCount: 20, status: "locked" as const, stars: 0, energyCost: 2 },
-    { id: 5, name: "Unit 3 - 动词短语", wordCount: 25, status: "locked" as const, stars: 0, energyCost: 3 },
-  ];
-
-  const quests = [
-    { id: "1", title: "每日学习", description: "完成3个关卡", progress: 2, target: 3, reward: { type: "xp" as const, amount: 100 }, completed: false },
-    { id: "2", title: "单词挑战", description: "正确拼写20个单词", progress: 20, target: 20, reward: { type: "coins" as const, amount: 50 }, completed: true },
-    { id: "3", title: "排位胜利", description: "在排位赛中获胜1次", progress: 0, target: 1, reward: { type: "energy" as const, amount: 5 }, completed: false },
-  ];
-
-  const handleSelectLevel = (levelId: number) => {
-    setSelectedLevel(levelId);
+  const handleSelectLevel = (levelId: string, levelName: string) => {
+    setSelectedLevel({ id: levelId, name: levelName });
     setActiveView("learn");
   };
 
   const handleBackFromLearning = () => {
     setSelectedLevel(null);
     setActiveView("home");
+    setRefreshKey(prev => prev + 1);
+    refreshProfile();
   };
 
   // Show ranked battle
@@ -112,24 +100,25 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         </div>
       );
     }
-    return <RankedBattle onBack={() => setActiveView("home")} />;
+    return <RankedBattle onBack={() => {
+      setActiveView("home");
+      setRefreshKey(prev => prev + 1);
+      refreshProfile();
+    }} />;
   }
 
-  if (activeView === "learn" && selectedLevel !== null) {
+  if (activeView === "learn" && selectedLevel) {
     return (
       <WordLearning
-        levelId={selectedLevel}
-        levelName={levels.find(l => l.id === selectedLevel)?.name || ""}
+        levelId={selectedLevel.id}
+        levelName={selectedLevel.name}
         onBack={handleBackFromLearning}
-        onComplete={() => {
-          setSelectedLevel(null);
-          setActiveView("home");
-        }}
+        onComplete={handleBackFromLearning}
       />
     );
   }
 
-  // Player data from profile or mock
+  // Player data from profile or default
   const playerData = profile ? {
     username: profile.username,
     level: profile.level,
@@ -229,7 +218,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
             {/* Left Column - Player Stats & Quests */}
             <div className="space-y-6">
               <PlayerStats {...playerData} />
-              <DailyQuest quests={quests} onClaimReward={(id) => console.log("Claimed:", id)} />
+              <DailyQuest key={refreshKey} onQuestUpdate={() => refreshProfile()} />
             </div>
 
             {/* Middle Column - Levels */}
@@ -237,10 +226,10 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-gaming text-xl">学习关卡</h2>
                 <Badge variant="energy">
-                  Unit {Math.floor(levels.filter(l => l.status === "completed").length / 2) + 1}
+                  {grade}年级
                 </Badge>
               </div>
-              <LevelProgress levels={levels} onSelectLevel={handleSelectLevel} />
+              <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
             </div>
           </div>
         )}
@@ -248,7 +237,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         {activeView === "learn" && (
           <div className="max-w-3xl mx-auto">
             <h2 className="font-gaming text-xl mb-6">选择关卡</h2>
-            <LevelProgress levels={levels} onSelectLevel={handleSelectLevel} />
+            <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
           </div>
         )}
 

@@ -14,6 +14,189 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_quests: {
+        Row: {
+          created_at: string
+          description: string
+          grade: number | null
+          id: string
+          is_active: boolean
+          quest_type: string
+          reward_amount: number
+          reward_type: string
+          target: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          grade?: number | null
+          id?: string
+          is_active?: boolean
+          quest_type: string
+          reward_amount: number
+          reward_type: string
+          target: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          grade?: number | null
+          id?: string
+          is_active?: boolean
+          quest_type?: string
+          reward_amount?: number
+          reward_type?: string
+          target?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      learning_progress: {
+        Row: {
+          correct_count: number
+          created_at: string
+          id: string
+          incorrect_count: number
+          last_reviewed_at: string | null
+          mastery_level: number
+          next_review_at: string | null
+          profile_id: string
+          updated_at: string
+          word_id: string
+        }
+        Insert: {
+          correct_count?: number
+          created_at?: string
+          id?: string
+          incorrect_count?: number
+          last_reviewed_at?: string | null
+          mastery_level?: number
+          next_review_at?: string | null
+          profile_id: string
+          updated_at?: string
+          word_id: string
+        }
+        Update: {
+          correct_count?: number
+          created_at?: string
+          id?: string
+          incorrect_count?: number
+          last_reviewed_at?: string | null
+          mastery_level?: number
+          next_review_at?: string | null
+          profile_id?: string
+          updated_at?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_progress_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: false
+            referencedRelation: "words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      level_progress: {
+        Row: {
+          attempts: number
+          best_score: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          level_id: string
+          profile_id: string
+          stars: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          best_score?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          level_id: string
+          profile_id: string
+          stars?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          best_score?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          level_id?: string
+          profile_id?: string
+          stars?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "level_progress_level_id_fkey"
+            columns: ["level_id"]
+            isOneToOne: false
+            referencedRelation: "levels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "level_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      levels: {
+        Row: {
+          created_at: string
+          description: string | null
+          energy_cost: number
+          grade: number
+          id: string
+          name: string
+          order_index: number
+          unit: number
+          word_count: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          energy_cost?: number
+          grade: number
+          id?: string
+          name: string
+          order_index: number
+          unit: number
+          word_count?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          energy_cost?: number
+          grade?: number
+          id?: string
+          name?: string
+          order_index?: number
+          unit?: number
+          word_count?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -176,6 +359,57 @@ export type Database = {
           start_date?: string
         }
         Relationships: []
+      }
+      user_quest_progress: {
+        Row: {
+          claimed: boolean
+          completed: boolean
+          created_at: string
+          id: string
+          profile_id: string
+          progress: number
+          quest_date: string
+          quest_id: string
+          updated_at: string
+        }
+        Insert: {
+          claimed?: boolean
+          completed?: boolean
+          created_at?: string
+          id?: string
+          profile_id: string
+          progress?: number
+          quest_date?: string
+          quest_id: string
+          updated_at?: string
+        }
+        Update: {
+          claimed?: boolean
+          completed?: boolean
+          created_at?: string
+          id?: string
+          profile_id?: string
+          progress?: number
+          quest_date?: string
+          quest_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_quest_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_quest_progress_quest_id_fkey"
+            columns: ["quest_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       words: {
         Row: {

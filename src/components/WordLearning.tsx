@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -10,26 +12,31 @@ import {
   CheckCircle,
   XCircle,
   Trophy,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface WordLearningProps {
-  levelId: number;
+  levelId: string;
   levelName: string;
   onBack: () => void;
   onComplete: () => void;
 }
 
 interface Word {
-  id: number;
+  id: string;
   word: string;
   meaning: string;
-  phonetic: string;
-  example: string;
+  phonetic: string | null;
+  example: string | null;
 }
 
 const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningProps) => {
+  const { profile, refreshProfile } = useAuth();
+  const [words, setWords] = useState<Word[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [mode, setMode] = useState<"flashcard" | "quiz">("flashcard");
   const [correctCount, setCorrectCount] = useState(0);
@@ -38,38 +45,134 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
 
-  // Mock word data
-  const words: Word[] = [
-    { id: 1, word: "magnificent", meaning: "壮丽的，宏伟的", phonetic: "/mæɡˈnɪfɪsənt/", example: "The view from the mountain was magnificent." },
-    { id: 2, word: "perseverance", meaning: "坚持不懈，毅力", phonetic: "/ˌpɜːsɪˈvɪərəns/", example: "Success requires perseverance and hard work." },
-    { id: 3, word: "phenomenon", meaning: "现象，奇迹", phonetic: "/fəˈnɒmɪnən/", example: "The Northern Lights are a natural phenomenon." },
-    { id: 4, word: "enthusiasm", meaning: "热情，热忱", phonetic: "/ɪnˈθjuːziæzəm/", example: "She showed great enthusiasm for the project." },
-    { id: 5, word: "consequence", meaning: "结果，后果", phonetic: "/ˈkɒnsɪkwəns/", example: "Every action has a consequence." },
-  ];
+  useEffect(() => {
+    const fetchWords = async () => {
+      if (!profile) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Get level info to find the unit
+        const { data: levelData, error: levelError } = await supabase
+          .from("levels")
+          .select("unit, grade")
+          .eq("id", levelId)
+          .single();
+
+        if (levelError) throw levelError;
+
+        // Fetch words for this level
+        const { data: wordsData, error: wordsError } = await supabase
+          .from("words")
+          .select("id, word, meaning, phonetic, example")
+          .eq("grade", levelData.grade)
+          .eq("unit", levelData.unit)
+          .limit(10);
+
+        if (wordsError) throw wordsError;
+
+        setWords(wordsData || []);
+      } catch (error) {
+        console.error("Error fetching words:", error);
+        toast.error("加载单词失败");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWords();
+  }, [levelId, profile]);
 
   const currentWord = words[currentIndex];
-  const progress = ((currentIndex + 1) / words.length) * 100;
+  const progress = words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
 
-  // Generate quiz options
   const getQuizOptions = () => {
+    if (!currentWord) return [];
     const meanings = words.map(w => w.meaning);
     const correctMeaning = currentWord.meaning;
     const otherMeanings = meanings.filter(m => m !== correctMeaning);
-    
-    // Shuffle and pick 3 wrong answers
     const shuffled = otherMeanings.sort(() => Math.random() - 0.5).slice(0, 3);
-    
-    // Add correct answer and shuffle again
     return [...shuffled, correctMeaning].sort(() => Math.random() - 0.5);
   };
 
-  const handleCorrect = () => {
+  const handleCorrect = async () => {
     setCorrectCount(prev => prev + 1);
+
+    // Update learning progress
+    if (profile && currentWord) {
+      try {
+        const { data: existing } = await supabase
+          .from("learning_progress")
+          .select("*")
+          .eq("profile_id", profile.id)
+          .eq("word_id", currentWord.id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("learning_progress")
+            .update({
+              correct_count: existing.correct_count + 1,
+              last_reviewed_at: new Date().toISOString(),
+              mastery_level: Math.min(5, existing.mastery_level + 1),
+            })
+            .eq("id", existing.id);
+        } else {
+          await supabase
+            .from("learning_progress")
+            .insert({
+              profile_id: profile.id,
+              word_id: currentWord.id,
+              correct_count: 1,
+              last_reviewed_at: new Date().toISOString(),
+              mastery_level: 1,
+            });
+        }
+      } catch (error) {
+        console.error("Error updating learning progress:", error);
+      }
+    }
+
     nextWord();
   };
 
-  const handleIncorrect = () => {
+  const handleIncorrect = async () => {
     setIncorrectCount(prev => prev + 1);
+
+    // Update learning progress
+    if (profile && currentWord) {
+      try {
+        const { data: existing } = await supabase
+          .from("learning_progress")
+          .select("*")
+          .eq("profile_id", profile.id)
+          .eq("word_id", currentWord.id)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("learning_progress")
+            .update({
+              incorrect_count: existing.incorrect_count + 1,
+              last_reviewed_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+        } else {
+          await supabase
+            .from("learning_progress")
+            .insert({
+              profile_id: profile.id,
+              word_id: currentWord.id,
+              incorrect_count: 1,
+              last_reviewed_at: new Date().toISOString(),
+            });
+        }
+      } catch (error) {
+        console.error("Error updating learning progress:", error);
+      }
+    }
+
     nextWord();
   };
 
@@ -79,16 +182,140 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         setCurrentIndex(prev => prev + 1);
       }, 500);
     } else {
-      // Calculate rewards
-      const accuracy = correctCount / words.length;
-      const baseXp = 50;
-      const bonusXp = Math.floor(accuracy * 50);
-      const baseCoins = 20;
-      const bonusCoins = accuracy === 1 ? 30 : Math.floor(accuracy * 20);
-      
-      setXpEarned(baseXp + bonusXp);
-      setCoinsEarned(baseCoins + bonusCoins);
-      setShowResult(true);
+      finishLevel();
+    }
+  };
+
+  const finishLevel = async () => {
+    const totalAnswered = correctCount + incorrectCount + 1; // +1 for current
+    const finalCorrect = correctCount + (currentIndex === words.length - 1 ? 1 : 0);
+    const accuracy = finalCorrect / words.length;
+    
+    const baseXp = 50;
+    const bonusXp = Math.floor(accuracy * 50);
+    const baseCoins = 20;
+    const bonusCoins = accuracy === 1 ? 30 : Math.floor(accuracy * 20);
+    
+    setXpEarned(baseXp + bonusXp);
+    setCoinsEarned(baseCoins + bonusCoins);
+    setShowResult(true);
+
+    if (profile) {
+      try {
+        // Calculate stars
+        const stars = accuracy >= 0.9 ? 3 : accuracy >= 0.7 ? 2 : accuracy >= 0.5 ? 1 : 0;
+
+        // Update level progress
+        const { data: existingProgress } = await supabase
+          .from("level_progress")
+          .select("*")
+          .eq("profile_id", profile.id)
+          .eq("level_id", levelId)
+          .maybeSingle();
+
+        if (existingProgress) {
+          await supabase
+            .from("level_progress")
+            .update({
+              status: "completed",
+              stars: Math.max(existingProgress.stars, stars),
+              best_score: Math.max(existingProgress.best_score, Math.round(accuracy * 100)),
+              attempts: existingProgress.attempts + 1,
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", existingProgress.id);
+        } else {
+          await supabase
+            .from("level_progress")
+            .insert({
+              profile_id: profile.id,
+              level_id: levelId,
+              status: "completed",
+              stars,
+              best_score: Math.round(accuracy * 100),
+              attempts: 1,
+              completed_at: new Date().toISOString(),
+            });
+        }
+
+        // Update profile
+        await supabase
+          .from("profiles")
+          .update({
+            xp: profile.xp + baseXp + bonusXp,
+            coins: profile.coins + baseCoins + bonusCoins,
+          })
+          .eq("id", profile.id);
+
+        // Update daily quest progress
+        const today = new Date().toISOString().split("T")[0];
+        
+        // Find learn quest
+        const { data: learnQuest } = await supabase
+          .from("daily_quests")
+          .select("*")
+          .eq("quest_type", "learn")
+          .single();
+
+        if (learnQuest) {
+          const { data: questProgress } = await supabase
+            .from("user_quest_progress")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .eq("quest_id", learnQuest.id)
+            .eq("quest_date", today)
+            .maybeSingle();
+
+          const newProgress = (questProgress?.progress || 0) + 1;
+          const completed = newProgress >= learnQuest.target;
+
+          await supabase
+            .from("user_quest_progress")
+            .upsert({
+              profile_id: profile.id,
+              quest_id: learnQuest.id,
+              quest_date: today,
+              progress: newProgress,
+              completed,
+              claimed: questProgress?.claimed || false,
+            });
+        }
+
+        // Find words quest
+        const { data: wordsQuest } = await supabase
+          .from("daily_quests")
+          .select("*")
+          .eq("quest_type", "words")
+          .single();
+
+        if (wordsQuest) {
+          const { data: questProgress } = await supabase
+            .from("user_quest_progress")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .eq("quest_id", wordsQuest.id)
+            .eq("quest_date", today)
+            .maybeSingle();
+
+          const newProgress = (questProgress?.progress || 0) + finalCorrect;
+          const completed = newProgress >= wordsQuest.target;
+
+          await supabase
+            .from("user_quest_progress")
+            .upsert({
+              profile_id: profile.id,
+              quest_id: wordsQuest.id,
+              quest_date: today,
+              progress: newProgress,
+              completed,
+              claimed: questProgress?.claimed || false,
+            });
+        }
+
+        await refreshProfile();
+      } catch (error) {
+        console.error("Error finishing level:", error);
+      }
     }
   };
 
@@ -100,6 +327,26 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     return 0;
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (words.length === 0) {
+    return (
+      <div className="min-h-screen bg-background bg-grid-pattern flex flex-col items-center justify-center p-6">
+        <p className="text-muted-foreground mb-4">暂无单词数据</p>
+        <Button variant="outline" onClick={onBack}>
+          <ChevronLeft className="w-4 h-4 mr-2" />
+          返回
+        </Button>
+      </div>
+    );
+  }
+
   if (showResult) {
     const stars = getStars();
     const accuracy = Math.round((correctCount / words.length) * 100);
@@ -107,7 +354,6 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     return (
       <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center animate-scale-in">
-          {/* Trophy Icon */}
           <div className={cn(
             "w-24 h-24 mx-auto mb-6 rounded-2xl flex items-center justify-center shadow-lg",
             stars >= 2 
@@ -117,12 +363,9 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             <Trophy className="w-12 h-12 text-primary-foreground" />
           </div>
 
-          <h2 className="font-gaming text-3xl mb-2 text-glow-purple">
-            关卡完成！
-          </h2>
+          <h2 className="font-gaming text-3xl mb-2 text-glow-purple">关卡完成！</h2>
           <p className="text-muted-foreground mb-6">{levelName}</p>
 
-          {/* Stars */}
           <div className="flex justify-center gap-2 mb-8">
             {[1, 2, 3].map((star) => (
               <Star
@@ -133,12 +376,10 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
                     ? "text-accent fill-accent drop-shadow-lg"
                     : "text-muted-foreground/30"
                 )}
-                style={{ animationDelay: `${star * 0.2}s` }}
               />
             ))}
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-success/10 rounded-xl p-4 border border-success/20">
               <CheckCircle className="w-6 h-6 text-success mx-auto mb-2" />
@@ -152,13 +393,11 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             </div>
           </div>
 
-          {/* Accuracy */}
           <div className="bg-card rounded-xl p-4 border border-border/50 mb-6">
             <div className="text-sm text-muted-foreground mb-2">正确率</div>
             <div className="font-gaming text-4xl text-primary">{accuracy}%</div>
           </div>
 
-          {/* Rewards */}
           <div className="flex justify-center gap-4 mb-8">
             <Badge variant="xp" className="text-base px-4 py-2">
               <Star className="w-4 h-4 mr-2" />
@@ -169,9 +408,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             </Badge>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-4">
-            <Button variant="outline" className="flex-1" onClick={onBack}>
+            <Button variant="outline" className="flex-1" onClick={onComplete}>
               <ChevronLeft className="w-4 h-4 mr-2" />
               返回
             </Button>
@@ -192,22 +430,16 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
 
   return (
     <div className="min-h-screen bg-background bg-grid-pattern">
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="hover:bg-primary/10"
-            >
+            <Button variant="ghost" size="sm" onClick={onBack}>
               <ChevronLeft className="w-4 h-4 mr-1" />
               返回
             </Button>
             <Badge variant="energy">
               <Zap className="w-3 h-3 mr-1" />
-              -2 能量
+              消耗能量
             </Badge>
           </div>
 
@@ -223,7 +455,6 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         </div>
       </header>
 
-      {/* Mode Toggle */}
       <div className="container mx-auto px-4 py-4">
         <div className="flex justify-center gap-2">
           <Button
@@ -243,21 +474,21 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         </div>
       </div>
 
-      {/* Word Card */}
       <main className="container mx-auto px-4 py-8">
-        <WordCard
-          key={currentWord.id}
-          word={currentWord.word}
-          meaning={currentWord.meaning}
-          phonetic={currentWord.phonetic}
-          example={currentWord.example}
-          options={mode === "quiz" ? getQuizOptions() : undefined}
-          onCorrect={handleCorrect}
-          onIncorrect={handleIncorrect}
-          mode={mode}
-        />
+        {currentWord && (
+          <WordCard
+            key={currentWord.id}
+            word={currentWord.word}
+            meaning={currentWord.meaning}
+            phonetic={currentWord.phonetic || undefined}
+            example={currentWord.example || undefined}
+            options={mode === "quiz" ? getQuizOptions() : undefined}
+            onCorrect={handleCorrect}
+            onIncorrect={handleIncorrect}
+            mode={mode}
+          />
+        )}
 
-        {/* Score Display */}
         <div className="flex justify-center gap-8 mt-8">
           <div className="flex items-center gap-2 text-success">
             <CheckCircle className="w-5 h-5" />

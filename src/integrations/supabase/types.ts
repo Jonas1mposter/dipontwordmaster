@@ -14,7 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          coins: number
+          created_at: string
+          energy: number
+          grade: number
+          id: string
+          level: number
+          losses: number
+          max_energy: number
+          rank_points: number
+          rank_stars: number
+          rank_tier: Database["public"]["Enums"]["rank_tier"]
+          streak: number
+          updated_at: string
+          user_id: string
+          username: string
+          wins: number
+          xp: number
+          xp_to_next_level: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          coins?: number
+          created_at?: string
+          energy?: number
+          grade: number
+          id?: string
+          level?: number
+          losses?: number
+          max_energy?: number
+          rank_points?: number
+          rank_stars?: number
+          rank_tier?: Database["public"]["Enums"]["rank_tier"]
+          streak?: number
+          updated_at?: string
+          user_id: string
+          username: string
+          wins?: number
+          xp?: number
+          xp_to_next_level?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          coins?: number
+          created_at?: string
+          energy?: number
+          grade?: number
+          id?: string
+          level?: number
+          losses?: number
+          max_energy?: number
+          rank_points?: number
+          rank_stars?: number
+          rank_tier?: Database["public"]["Enums"]["rank_tier"]
+          streak?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+          wins?: number
+          xp?: number
+          xp_to_next_level?: number
+        }
+        Relationships: []
+      }
+      ranked_matches: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          grade: number
+          id: string
+          player1_id: string
+          player1_score: number
+          player2_id: string | null
+          player2_score: number
+          started_at: string | null
+          status: string
+          winner_id: string | null
+          words: Json
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          grade: number
+          id?: string
+          player1_id: string
+          player1_score?: number
+          player2_id?: string | null
+          player2_score?: number
+          started_at?: string | null
+          status?: string
+          winner_id?: string | null
+          words?: Json
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          grade?: number
+          id?: string
+          player1_id?: string
+          player1_score?: number
+          player2_id?: string | null
+          player2_score?: number
+          started_at?: string | null
+          status?: string
+          winner_id?: string | null
+          words?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ranked_matches_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ranked_matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ranked_matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seasons: {
+        Row: {
+          created_at: string
+          end_date: string
+          grade: number
+          id: string
+          is_active: boolean
+          name: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          grade: number
+          id?: string
+          is_active?: boolean
+          name: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          grade?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          start_date?: string
+        }
+        Relationships: []
+      }
+      words: {
+        Row: {
+          created_at: string
+          difficulty: number
+          example: string | null
+          grade: number
+          id: string
+          meaning: string
+          phonetic: string | null
+          unit: number
+          word: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty?: number
+          example?: string | null
+          grade: number
+          id?: string
+          meaning: string
+          phonetic?: string | null
+          unit?: number
+          word: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: number
+          example?: string | null
+          grade?: number
+          id?: string
+          meaning?: string
+          phonetic?: string | null
+          unit?: number
+          word?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +221,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      rank_tier:
+        | "bronze"
+        | "silver"
+        | "gold"
+        | "platinum"
+        | "diamond"
+        | "champion"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +354,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      rank_tier: [
+        "bronze",
+        "silver",
+        "gold",
+        "platinum",
+        "diamond",
+        "champion",
+      ],
+    },
   },
 } as const

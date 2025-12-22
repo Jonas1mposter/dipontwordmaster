@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import Leaderboard from "./Leaderboard";
 import DailyQuest from "./DailyQuest";
 import WordLearning from "./WordLearning";
+import RankedBattle from "./RankedBattle";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Swords, 
   BookOpen, 
@@ -13,8 +17,10 @@ import {
   Settings, 
   LogOut,
   ChevronLeft,
-  Sparkles
+  Sparkles,
+  User
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface DashboardProps {
   grade: 7 | 8;
@@ -22,22 +28,43 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ grade, onBack }: DashboardProps) => {
+  const navigate = useNavigate();
+  const { user, profile, signOut, loading } = useAuth();
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard">("home");
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
 
-  // Mock data
-  const playerData = {
-    username: "学霸小明",
-    level: 15,
-    xp: 2450,
-    xpToNextLevel: 3000,
-    energy: 8,
-    maxEnergy: 10,
-    coins: 12500,
-    streak: 7,
-    rank: grade === 7 ? "Gold" : "Platinum",
+  // Fetch leaderboard data
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("grade", grade)
+        .order("rank_points", { ascending: false })
+        .limit(10);
+
+      if (data) {
+        setLeaderboardData(data.map((p, index) => ({
+          rank: index + 1,
+          username: p.username,
+          level: p.level,
+          xp: p.xp,
+          tier: p.rank_tier.charAt(0).toUpperCase() + p.rank_tier.slice(1),
+        })));
+      }
+    };
+
+    fetchLeaderboard();
+  }, [grade]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("已退出登录");
+    onBack();
   };
 
+  // Mock data for levels and quests
   const levels = [
     { id: 1, name: "Unit 1 - 基础词汇", wordCount: 15, status: "completed" as const, stars: 3, energyCost: 1 },
     { id: 2, name: "Unit 1 - 进阶词汇", wordCount: 15, status: "completed" as const, stars: 2, energyCost: 1 },
@@ -46,19 +73,10 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     { id: 5, name: "Unit 3 - 动词短语", wordCount: 25, status: "locked" as const, stars: 0, energyCost: 3 },
   ];
 
-  const leaderboardData = [
-    { rank: 1, username: "词汇王者", level: 28, xp: 45600, tier: "Diamond" },
-    { rank: 2, username: "英语达人", level: 25, xp: 38900, tier: "Diamond" },
-    { rank: 3, username: "单词猎人", level: 23, xp: 35200, tier: "Platinum" },
-    { rank: 4, username: "学霸小明", level: 15, xp: 24500, tier: "Gold" },
-    { rank: 5, username: "努力的小张", level: 14, xp: 22100, tier: "Gold" },
-    { rank: 6, username: "进步中", level: 12, xp: 18900, tier: "Silver" },
-  ];
-
   const quests = [
     { id: "1", title: "每日学习", description: "完成3个关卡", progress: 2, target: 3, reward: { type: "xp" as const, amount: 100 }, completed: false },
     { id: "2", title: "单词挑战", description: "正确拼写20个单词", progress: 20, target: 20, reward: { type: "coins" as const, amount: 50 }, completed: true },
-    { id: "3", title: "连续学习", description: "保持7天学习记录", progress: 7, target: 7, reward: { type: "energy" as const, amount: 5 }, completed: true },
+    { id: "3", title: "排位胜利", description: "在排位赛中获胜1次", progress: 0, target: 1, reward: { type: "energy" as const, amount: 5 }, completed: false },
   ];
 
   const handleSelectLevel = (levelId: number) => {
@@ -70,6 +88,32 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     setSelectedLevel(null);
     setActiveView("home");
   };
+
+  // Show ranked battle
+  if (activeView === "battle") {
+    if (!user) {
+      return (
+        <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
+          <div className="text-center">
+            <Swords className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h2 className="font-gaming text-2xl mb-4">登录后参与排位赛</h2>
+            <p className="text-muted-foreground mb-6">与同年级玩家实时对战！</p>
+            <div className="flex gap-4 justify-center">
+              <Button variant="outline" onClick={() => setActiveView("home")}>
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                返回
+              </Button>
+              <Button variant="hero" onClick={() => navigate("/auth")}>
+                <User className="w-4 h-4 mr-2" />
+                登录 / 注册
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return <RankedBattle onBack={() => setActiveView("home")} />;
+  }
 
   if (activeView === "learn" && selectedLevel !== null) {
     return (
@@ -84,6 +128,29 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
       />
     );
   }
+
+  // Player data from profile or mock
+  const playerData = profile ? {
+    username: profile.username,
+    level: profile.level,
+    xp: profile.xp,
+    xpToNextLevel: profile.xp_to_next_level,
+    energy: profile.energy,
+    maxEnergy: profile.max_energy,
+    coins: profile.coins,
+    streak: profile.streak,
+    rank: profile.rank_tier.charAt(0).toUpperCase() + profile.rank_tier.slice(1),
+  } : {
+    username: "游客",
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 100,
+    energy: 10,
+    maxEnergy: 10,
+    coins: 0,
+    streak: 0,
+    rank: "Bronze",
+  };
 
   return (
     <div className="min-h-screen bg-background bg-grid-pattern">
@@ -109,12 +176,22 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon">
-                <Settings className="w-5 h-5" />
-              </Button>
-              <Button variant="ghost" size="icon">
-                <LogOut className="w-5 h-5" />
-              </Button>
+              {!user && (
+                <Button variant="hero" size="sm" onClick={() => navigate("/auth")}>
+                  <User className="w-4 h-4 mr-2" />
+                  登录
+                </Button>
+              )}
+              {user && (
+                <>
+                  <Button variant="ghost" size="icon">
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={handleSignOut}>
+                    <LogOut className="w-5 h-5" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -175,26 +252,9 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
           </div>
         )}
 
-        {activeView === "battle" && (
-          <div className="max-w-2xl mx-auto text-center py-12">
-            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-primary to-neon-pink rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
-              <Swords className="w-12 h-12 text-primary-foreground" />
-            </div>
-            <h2 className="font-gaming text-2xl mb-4 text-glow-purple">排位赛</h2>
-            <p className="text-muted-foreground mb-8">
-              每周二、四晚 19:00-21:00 开放<br />
-              与同年级玩家实时对战，提升段位！
-            </p>
-            <Badge variant="gold" className="text-lg px-6 py-2">
-              <Trophy className="w-5 h-5 mr-2" />
-              当前段位：{playerData.rank}
-            </Badge>
-          </div>
-        )}
-
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
-            <Leaderboard entries={leaderboardData} currentUser="学霸小明" />
+            <Leaderboard entries={leaderboardData} currentUser={profile?.username} />
           </div>
         )}
       </main>

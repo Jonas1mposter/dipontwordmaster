@@ -51,6 +51,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
   const [isWinner, setIsWinner] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const [showAIOption, setShowAIOption] = useState(false);
+  const [waitingMatchId, setWaitingMatchId] = useState<string | null>(null);
 
   // Fetch random words for the match
   const fetchMatchWords = useCallback(async () => {
@@ -119,6 +120,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
 
     setMatchStatus("searching");
     setSearchTime(0);
+    setShowAIOption(false);
 
     try {
       // Check for existing waiting matches
@@ -160,7 +162,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         
         setTimeout(() => setMatchStatus("playing"), 2000);
       } else {
-        // Create new match and wait for opponent with timeout
+        // Create new match and wait for opponent
         const { data: newMatch, error: createError } = await supabase
           .from("ranked_matches")
           .insert({
@@ -174,53 +176,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         if (createError) throw createError;
 
         setMatchId(newMatch.id);
-        
-        // Set timeout to show AI option after 30 seconds
-        const aiTimeout = setTimeout(() => {
-          setShowAIOption(true);
-        }, 30000);
-        
-        // Subscribe to match updates
-        const channel = supabase
-          .channel(`match-${newMatch.id}`)
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "ranked_matches",
-              filter: `id=eq.${newMatch.id}`,
-            },
-            async (payload) => {
-              const updatedMatch = payload.new as any;
-              
-              if (updatedMatch.status === "in_progress" && updatedMatch.player2_id) {
-                clearTimeout(aiTimeout);
-                
-                // Fetch opponent profile
-                const { data: opponentData } = await supabase
-                  .from("profiles")
-                  .select("*")
-                  .eq("id", updatedMatch.player2_id)
-                  .single();
-
-                setOpponent(opponentData);
-                setWords(updatedMatch.words || []);
-                if (updatedMatch.words?.length > 0) {
-                  setOptions(generateOptions(updatedMatch.words[0].meaning, updatedMatch.words));
-                }
-                setMatchStatus("found");
-                
-                setTimeout(() => setMatchStatus("playing"), 2000);
-              }
-            }
-          )
-          .subscribe();
-
-        return () => {
-          clearTimeout(aiTimeout);
-          supabase.removeChannel(channel);
-        };
+        setWaitingMatchId(newMatch.id);
       }
     } catch (error) {
       console.error("Match error:", error);
@@ -228,6 +184,66 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
       setMatchStatus("idle");
     }
   };
+
+  // Subscribe to match updates when waiting
+  useEffect(() => {
+    if (!waitingMatchId || matchStatus !== "searching") return;
+
+    console.log("Setting up realtime subscription for match:", waitingMatchId);
+    
+    const channel = supabase
+      .channel(`match-${waitingMatchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ranked_matches",
+          filter: `id=eq.${waitingMatchId}`,
+        },
+        async (payload) => {
+          console.log("Match update received:", payload);
+          const updatedMatch = payload.new as any;
+          
+          if (updatedMatch.status === "in_progress" && updatedMatch.player2_id) {
+            console.log("Opponent found, fetching profile...");
+            
+            // Fetch opponent profile
+            const { data: opponentData } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", updatedMatch.player2_id)
+              .single();
+
+            console.log("Opponent data:", opponentData);
+            
+            setOpponent(opponentData);
+            setWords(updatedMatch.words || []);
+            if (updatedMatch.words?.length > 0) {
+              setOptions(generateOptions(updatedMatch.words[0].meaning, updatedMatch.words));
+            }
+            setWaitingMatchId(null);
+            setMatchStatus("found");
+            
+            setTimeout(() => setMatchStatus("playing"), 2000);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("Subscription status:", status);
+      });
+
+    // Set timeout to show AI option after 30 seconds
+    const aiTimeout = setTimeout(() => {
+      setShowAIOption(true);
+    }, 30000);
+
+    return () => {
+      console.log("Cleaning up subscription for match:", waitingMatchId);
+      clearTimeout(aiTimeout);
+      supabase.removeChannel(channel);
+    };
+  }, [waitingMatchId, matchStatus, generateOptions]);
 
   // Cancel search
   const cancelSearch = async () => {
@@ -239,6 +255,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
     }
     setMatchStatus("idle");
     setMatchId(null);
+    setWaitingMatchId(null);
     setShowAIOption(false);
   };
 
@@ -251,6 +268,7 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         .eq("id", matchId);
     }
     setMatchId(null);
+    setWaitingMatchId(null);
     setShowAIOption(false);
     startMatchWithAI();
   };

@@ -79,7 +79,6 @@ const ProfileCard = () => {
       }));
       setUserBadges(badges);
 
-      // Set equipped badges
       const equipped: (BadgeData | null)[] = [null, null, null];
       badges.forEach((b) => {
         if (b.equipped_slot !== null && b.equipped_slot >= 0 && b.equipped_slot < 3) {
@@ -108,15 +107,12 @@ const ProfileCard = () => {
         rank_position: unc.rank_position,
       }));
       setUserNameCards(cards);
-
-      // Set equipped name card
       const equipped = cards.find((c) => c.is_equipped);
       setEquippedNameCard(equipped || null);
     }
   };
 
   const handleEquipBadge = async (badge: BadgeData, slot: number) => {
-    // Unequip badge from current slot if exists
     const currentBadge = equippedBadges[slot];
     if (currentBadge) {
       await supabase
@@ -126,7 +122,6 @@ const ProfileCard = () => {
         .eq("badge_id", currentBadge.id);
     }
 
-    // If badge is already equipped in another slot, unequip it
     const existingSlot = equippedBadges.findIndex((b) => b?.id === badge.id);
     if (existingSlot !== -1 && existingSlot !== slot) {
       await supabase
@@ -136,7 +131,6 @@ const ProfileCard = () => {
         .eq("badge_id", badge.id);
     }
 
-    // Equip new badge
     await supabase
       .from("user_badges")
       .update({ equipped_slot: slot })
@@ -163,13 +157,11 @@ const ProfileCard = () => {
   };
 
   const handleEquipNameCard = async (card: NameCardData) => {
-    // Unequip all cards first
     await supabase
       .from("user_name_cards")
       .update({ is_equipped: false })
       .eq("profile_id", profile!.id);
 
-    // Equip selected card
     await supabase
       .from("user_name_cards")
       .update({ is_equipped: true })
@@ -179,6 +171,17 @@ const ProfileCard = () => {
     fetchUserNameCards();
     setNameCardDialogOpen(false);
     toast.success("名片已装备");
+  };
+
+  const handleUnequipNameCard = async () => {
+    await supabase
+      .from("user_name_cards")
+      .update({ is_equipped: false })
+      .eq("profile_id", profile!.id);
+
+    fetchUserNameCards();
+    setNameCardDialogOpen(false);
+    toast.success("名片已卸下");
   };
 
   const getRarityColor = (rarity: string) => {
@@ -198,89 +201,30 @@ const ProfileCard = () => {
   if (!profile) return null;
 
   return (
-    <Card 
-      variant="gaming" 
-      className={cn(
-        "overflow-hidden relative",
-        equippedNameCard && `bg-gradient-to-br ${equippedNameCard.background_gradient}`
-      )}
-    >
-      {/* 背景图片区域 */}
-      <div className={cn(
-        "h-32 relative",
-        !equippedNameCard && "bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20"
-      )}>
-        {/* 名片选择按钮 */}
-        <Dialog open={nameCardDialogOpen} onOpenChange={setNameCardDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
-            >
-              <Camera className="w-4 h-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>选择名片</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-3 max-h-[60vh] overflow-y-auto">
-              {userNameCards.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
-                  暂无名片，在排行榜前10名可获得专属名片
-                </div>
-              ) : (
-                userNameCards.map((card) => {
-                  const IconComp = getIconComponent(card.icon || "Award");
-                  return (
-                    <Card
-                      key={card.id}
-                      className={cn(
-                        "cursor-pointer transition-all hover:scale-[1.02]",
-                        `bg-gradient-to-r ${card.background_gradient}`,
-                        card.is_equipped && "ring-2 ring-white"
-                      )}
-                      onClick={() => handleEquipNameCard(card)}
-                    >
-                      <CardContent className="p-4 flex items-center gap-3 text-white">
-                        <IconComp className="w-8 h-8" />
-                        <div className="flex-1">
-                          <div className="font-gaming text-lg">{card.name}</div>
-                          <div className="text-sm opacity-80">{card.description}</div>
-                          {card.rank_position && (
-                            <Badge variant="secondary" className="mt-1">
-                              第{card.rank_position}名
-                            </Badge>
-                          )}
-                        </div>
-                        {card.is_equipped && <Check className="w-6 h-6" />}
-                      </CardContent>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* 名片名称显示 */}
-        {equippedNameCard && (
-          <div className="absolute bottom-2 left-4 text-white/90 font-gaming text-sm flex items-center gap-2">
-            {(() => {
-              const IconComp = getIconComponent(equippedNameCard.icon || "Award");
-              return <IconComp className="w-4 h-4" />;
-            })()}
-            {equippedNameCard.name}
-            {equippedNameCard.rank_position && ` #${equippedNameCard.rank_position}`}
-          </div>
-        )}
+    <Card variant="gaming" className="overflow-hidden">
+      {/* 图片区（可自己上传） */}
+      <div className="h-40 bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20 relative flex items-center justify-center">
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-4xl font-gaming text-primary-foreground shadow-lg shadow-primary/30 border-4 border-background">
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt="avatar" className="w-full h-full rounded-full object-cover" />
+          ) : (
+            profile.username.charAt(0).toUpperCase()
+          )}
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
+          onClick={() => toast.info("头像上传功能开发中")}
+        >
+          <Camera className="w-4 h-4" />
+        </Button>
       </div>
 
-      <CardContent className="p-6 pt-4">
+      <CardContent className="p-6">
         {/* 勋章区域 */}
         <div className="mb-6">
-          <div className="text-xs text-muted-foreground mb-3">勋章（解锁后可选择三个进行佩戴）</div>
+          <div className="text-xs text-muted-foreground mb-3 text-center">勋章（解锁后可选择三个进行佩戴）</div>
           <div className="flex justify-center gap-4">
             {[0, 1, 2].map((slot) => {
               const badge = equippedBadges[slot];
@@ -377,16 +321,96 @@ const ProfileCard = () => {
           </div>
         </div>
 
+        {/* 名片区域 */}
+        <Dialog open={nameCardDialogOpen} onOpenChange={setNameCardDialogOpen}>
+          <DialogTrigger asChild>
+            <div className="mb-6 cursor-pointer">
+              <div className="text-xs text-muted-foreground mb-2 text-center">名片（可佩戴自己获得的名片）</div>
+              {equippedNameCard ? (
+                <Card className={cn(
+                  "transition-all hover:scale-[1.02]",
+                  `bg-gradient-to-r ${equippedNameCard.background_gradient}`
+                )}>
+                  <CardContent className="p-4 flex items-center gap-3 text-white">
+                    {(() => {
+                      const IconComp = getIconComponent(equippedNameCard.icon || "Award");
+                      return <IconComp className="w-8 h-8" />;
+                    })()}
+                    <div className="flex-1">
+                      <div className="font-gaming text-lg">{equippedNameCard.name}</div>
+                      <div className="text-sm opacity-80">{equippedNameCard.description}</div>
+                    </div>
+                    {equippedNameCard.rank_position && (
+                      <Badge variant="secondary">第{equippedNameCard.rank_position}名</Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-all">
+                  <CardContent className="p-6 flex flex-col items-center justify-center text-muted-foreground">
+                    <Award className="w-8 h-8 mb-2 opacity-50" />
+                    <span className="text-sm">点击选择名片</span>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>选择名片</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-3 max-h-[60vh] overflow-y-auto">
+              {equippedNameCard && (
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={handleUnequipNameCard}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  卸下当前名片
+                </Button>
+              )}
+              {userNameCards.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  暂无名片，在排行榜前10名可获得专属名片
+                </div>
+              ) : (
+                userNameCards.map((card) => {
+                  const IconComp = getIconComponent(card.icon || "Award");
+                  return (
+                    <Card
+                      key={card.id}
+                      className={cn(
+                        "cursor-pointer transition-all hover:scale-[1.02]",
+                        `bg-gradient-to-r ${card.background_gradient}`,
+                        card.is_equipped && "ring-2 ring-white"
+                      )}
+                      onClick={() => handleEquipNameCard(card)}
+                    >
+                      <CardContent className="p-4 flex items-center gap-3 text-white">
+                        <IconComp className="w-8 h-8" />
+                        <div className="flex-1">
+                          <div className="font-gaming text-lg">{card.name}</div>
+                          <div className="text-sm opacity-80">{card.description}</div>
+                        </div>
+                        {card.rank_position && (
+                          <Badge variant="secondary">第{card.rank_position}名</Badge>
+                        )}
+                        {card.is_equipped && <Check className="w-6 h-6" />}
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* 用户名 */}
         <div className="border-t border-border/50 pt-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-xl font-gaming text-primary-foreground shadow-lg">
-              {profile.username.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div className="font-gaming text-lg">{profile.username}</div>
-              <div className="text-sm text-muted-foreground">Lv.{profile.level}</div>
-            </div>
+          <div className="text-center">
+            <div className="font-gaming text-xl">{profile.username}</div>
+            <div className="text-sm text-muted-foreground">Lv.{profile.level}</div>
           </div>
         </div>
       </CardContent>

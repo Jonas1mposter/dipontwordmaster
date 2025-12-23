@@ -492,37 +492,112 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
     );
   }
 
-  // Found opponent
+  // Found opponent - Show both profiles
   if (matchStatus === "found") {
     return (
-      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center">
-        <div className="text-center animate-scale-in">
-          <h2 className="font-gaming text-2xl mb-8 text-glow-gold">对手找到！</h2>
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl animate-scale-in">
+          <h2 className="font-gaming text-2xl mb-8 text-glow-gold text-center">对手找到！</h2>
           
-          <div className="flex items-center justify-center gap-8">
-            {/* Me */}
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-2xl font-gaming text-primary-foreground shadow-lg shadow-primary/30 mb-2">
-                {profile?.username.charAt(0).toUpperCase()}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            {/* My Profile Card */}
+            <Card variant="gaming" className="overflow-hidden">
+              <div className="h-24 bg-gradient-to-br from-primary/30 via-accent/20 to-primary/30 relative">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-2xl font-gaming text-primary-foreground shadow-lg border-4 border-background">
+                    {profile?.username.charAt(0).toUpperCase()}
+                  </div>
+                </div>
               </div>
-              <p className="font-semibold">{profile?.username}</p>
-              <Badge variant="xp" className="mt-1">Lv.{profile?.level}</Badge>
-            </div>
+              <CardContent className="p-4 text-center">
+                <h3 className="font-gaming text-lg text-primary mb-1">{profile?.username}</h3>
+                <Badge variant="xp" className="mb-3">Lv.{profile?.level}</Badge>
+                
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-secondary/50 rounded-lg p-2">
+                    <Trophy className="w-4 h-4 text-accent mx-auto mb-1" />
+                    <div className="font-gaming text-accent">
+                      {profile?.rank_tier && (profile.rank_tier.charAt(0).toUpperCase() + profile.rank_tier.slice(1))}
+                    </div>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-2">
+                    <Star className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+                    <div className="font-gaming">{profile?.rank_stars || 0}星</div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                  <div className="bg-success/10 rounded-lg p-2 border border-success/20">
+                    <div className="font-gaming text-success text-lg">{profile?.wins || 0}</div>
+                    <div className="text-muted-foreground">胜场</div>
+                  </div>
+                  <div className="bg-destructive/10 rounded-lg p-2 border border-destructive/20">
+                    <div className="font-gaming text-destructive text-lg">{profile?.losses || 0}</div>
+                    <div className="text-muted-foreground">败场</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* VS */}
-            <div className="font-gaming text-3xl text-accent">VS</div>
-
-            {/* Opponent */}
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-2xl font-gaming text-primary-foreground shadow-lg shadow-neon-blue/30 mb-2">
-                {opponent?.username?.charAt(0).toUpperCase() || "?"}
+            <div className="flex flex-col items-center justify-center py-8">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent to-amber-600 flex items-center justify-center shadow-lg shadow-accent/30 animate-pulse">
+                <span className="font-gaming text-3xl text-background">VS</span>
               </div>
-              <p className="font-semibold">{opponent?.username || "对手"}</p>
-              <Badge variant="xp" className="mt-1">Lv.{opponent?.level || 1}</Badge>
+              <p className="text-muted-foreground mt-4 text-sm">比赛即将开始...</p>
+              <div className="flex gap-1 mt-2">
+                {[1, 2, 3].map((i) => (
+                  <div 
+                    key={i} 
+                    className="w-2 h-2 rounded-full bg-primary animate-bounce"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
 
-          <p className="text-muted-foreground mt-8">比赛即将开始...</p>
+            {/* Opponent Profile Card */}
+            <Card variant="gaming" className="overflow-hidden">
+              <div className="h-24 bg-gradient-to-br from-neon-blue/30 via-neon-cyan/20 to-neon-blue/30 relative">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-2xl font-gaming text-primary-foreground shadow-lg border-4 border-background">
+                    {opponent?.username?.charAt(0).toUpperCase() || "?"}
+                  </div>
+                </div>
+                {opponent?.isAI && (
+                  <Badge className="absolute top-2 right-2 bg-accent/80">AI</Badge>
+                )}
+              </div>
+              <CardContent className="p-4 text-center">
+                <h3 className="font-gaming text-lg text-neon-blue mb-1">{opponent?.username || "对手"}</h3>
+                <Badge variant="xp" className="mb-3">Lv.{opponent?.level || 1}</Badge>
+                
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-secondary/50 rounded-lg p-2">
+                    <Trophy className="w-4 h-4 text-accent mx-auto mb-1" />
+                    <div className="font-gaming text-accent">
+                      {opponent?.rank_tier && (opponent.rank_tier.charAt(0).toUpperCase() + opponent.rank_tier.slice(1))}
+                    </div>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-2">
+                    <Star className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+                    <div className="font-gaming">{opponent?.rank_stars || 0}星</div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                  <div className="bg-success/10 rounded-lg p-2 border border-success/20">
+                    <div className="font-gaming text-success text-lg">{opponent?.wins || 0}</div>
+                    <div className="text-muted-foreground">胜场</div>
+                  </div>
+                  <div className="bg-destructive/10 rounded-lg p-2 border border-destructive/20">
+                    <div className="font-gaming text-destructive text-lg">{opponent?.losses || 0}</div>
+                    <div className="text-muted-foreground">败场</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );

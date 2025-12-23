@@ -118,9 +118,11 @@ const Auth = () => {
 
       <Card variant="glow" className="w-full max-w-md relative z-10 animate-scale-in">
         <CardHeader className="text-center pb-2">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-primary via-neon-pink to-neon-blue rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
-            <Sparkles className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="狄邦单词通" 
+            className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg shadow-primary/30"
+          />
           <CardTitle className="text-2xl text-glow-purple">
             {isLogin ? "登录" : "注册"}
           </CardTitle>

@@ -150,6 +150,11 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               >
                 <ChevronLeft className="w-5 h-5" />
               </Button>
+              <img 
+                src="/logo.png" 
+                alt="狄邦单词通" 
+                className="w-10 h-10 rounded-lg shadow-md"
+              />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>
                 <Badge variant={grade === 7 ? "outline" : "champion"} className="text-xs mt-1">

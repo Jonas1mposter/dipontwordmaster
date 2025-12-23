@@ -11,6 +11,7 @@ import DailyQuest from "./DailyQuest";
 import WordLearning from "./WordLearning";
 import RankedBattle from "./RankedBattle";
 import ProfileCard from "./ProfileCard";
+import BadgeDisplay from "./BadgeDisplay";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -270,8 +271,9 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         )}
 
         {activeView === "profile" && profile && (
-          <div className="max-w-lg mx-auto">
+          <div className="max-w-2xl mx-auto space-y-6">
             <ProfileCard />
+            <BadgeDisplay />
           </div>
         )}
       </main>

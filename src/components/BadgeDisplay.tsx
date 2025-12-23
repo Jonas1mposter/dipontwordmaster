@@ -42,7 +42,7 @@ const categoryLabels: Record<string, string> = {
 
 const BadgeDisplay = () => {
   const { profile } = useAuth();
-  const { checkAndAwardBadges } = useBadgeChecker();
+  const { checkAndAwardBadges } = useBadgeChecker(profile);
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

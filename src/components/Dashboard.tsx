@@ -39,7 +39,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
-  const { checkAndAwardBadges } = useBadgeChecker();
+  const { checkAndAwardBadges } = useBadgeChecker(profile);
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);

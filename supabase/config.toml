@@ -1,1 +1,4 @@
 project_id = "ibhvjdnucfmdfmlmnlif"
+
+[functions.award-leaderboard-cards]
+verify_jwt = false

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw } from 'lucide-react';
 
 interface ParsedWord {
   word: string;
@@ -48,6 +48,7 @@ export default function Admin() {
 
   // Word stats
   const [wordStats, setWordStats] = useState<{grade: number, count: number}[]>([]);
+  const [awardingCards, setAwardingCards] = useState(false);
 
   const loading = authLoading || roleLoading;
 
@@ -286,7 +287,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               用户管理
@@ -294,6 +295,10 @@ export default function Admin() {
             <TabsTrigger value="words" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               词汇导入
+            </TabsTrigger>
+            <TabsTrigger value="rewards" className="flex items-center gap-2">
+              <Award className="w-4 h-4" />
+              奖励发放
             </TabsTrigger>
           </TabsList>
 
@@ -473,6 +478,69 @@ abstract - 抽象的`}
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Rewards Tab */}
+          <TabsContent value="rewards">
+            <Card className="card-glow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="w-5 h-5 text-accent" />
+                  排行榜名片发放
+                </CardTitle>
+                <CardDescription>
+                  自动给各排行榜前10名发放专属名片
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-white">
+                    <CardContent className="p-4">
+                      <div className="font-gaming text-lg">狄邦财富大亨</div>
+                      <div className="text-sm opacity-80">狄邦豆排行榜前10名</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white">
+                    <CardContent className="p-4">
+                      <div className="font-gaming text-lg">狄邦排位大师</div>
+                      <div className="text-sm opacity-80">排位胜利排行榜前10名</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-white">
+                    <CardContent className="p-4">
+                      <div className="font-gaming text-lg">狄邦至高巅峰</div>
+                      <div className="text-sm opacity-80">经验值排行榜前10名</div>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                <Button 
+                  onClick={async () => {
+                    setAwardingCards(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke('award-leaderboard-cards');
+                      if (error) throw error;
+                      toast.success(data.message || '名片发放成功');
+                    } catch (err) {
+                      console.error('Award cards error:', err);
+                      toast.error('发放失败');
+                    } finally {
+                      setAwardingCards(false);
+                    }
+                  }}
+                  disabled={awardingCards}
+                  className="w-full"
+                  size="lg"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${awardingCards ? 'animate-spin' : ''}`} />
+                  {awardingCards ? '发放中...' : '立即发放排行榜名片'}
+                </Button>
+                
+                <p className="text-sm text-muted-foreground text-center">
+                  点击后将自动给7年级和8年级各排行榜前10名发放对应名片
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

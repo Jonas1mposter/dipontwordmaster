@@ -116,23 +116,23 @@ const WordCard = ({
   }
 
   return (
-    <div className="perspective-1000 max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto" style={{ perspective: "1000px" }}>
       <div
         onClick={handleFlip}
-        className={cn(
-          "relative w-full h-80 cursor-pointer transition-transform duration-500 transform-style-3d",
-          isFlipped && "rotate-y-180"
-        )}
-        style={{ transformStyle: "preserve-3d" }}
+        className="relative w-full h-80 cursor-pointer transition-transform duration-500"
+        style={{ 
+          transformStyle: "preserve-3d",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
+        }}
       >
         {/* Front */}
         <Card
           variant="glow"
-          className={cn(
-            "absolute inset-0 p-8 flex flex-col items-center justify-center backface-hidden",
-            isFlipped && "invisible"
-          )}
-          style={{ backfaceVisibility: "hidden" }}
+          className="absolute inset-0 p-8 flex flex-col items-center justify-center"
+          style={{ 
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden"
+          }}
         >
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-4xl font-gaming text-glow-purple">{word}</h2>
@@ -158,12 +158,10 @@ const WordCard = ({
         {/* Back */}
         <Card
           variant="gold"
-          className={cn(
-            "absolute inset-0 p-8 flex flex-col items-center justify-center",
-            !isFlipped && "invisible"
-          )}
+          className="absolute inset-0 p-8 flex flex-col items-center justify-center"
           style={{ 
             backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)"
           }}
         >

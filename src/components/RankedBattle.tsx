@@ -171,6 +171,57 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setTimeout(() => setMatchStatus("playing"), 2000);
   };
 
+  // Try to join an existing match
+  const tryJoinExistingMatch = async (): Promise<boolean> => {
+    if (!profile) return false;
+    
+    const matchWords = await fetchMatchWords();
+    if (matchWords.length === 0) return false;
+
+    // Get all waiting matches from other players in same grade
+    const { data: waitingMatches } = await supabase
+      .from("ranked_matches")
+      .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
+      .eq("status", "waiting")
+      .eq("grade", profile.grade)
+      .neq("player1_id", profile.id)
+      .order("created_at", { ascending: true })
+      .limit(5);
+
+    if (!waitingMatches || waitingMatches.length === 0) return false;
+
+    // Try to join each match until one succeeds
+    for (const matchToJoin of waitingMatches) {
+      console.log("Attempting to join match:", matchToJoin.id);
+      
+      const { data: updatedMatch, error: joinError } = await supabase
+        .from("ranked_matches")
+        .update({
+          player2_id: profile.id,
+          status: "in_progress",
+          words: matchWords,
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", matchToJoin.id)
+        .eq("status", "waiting")
+        .select()
+        .single();
+
+      if (!joinError && updatedMatch) {
+        console.log("Successfully joined match:", updatedMatch.id);
+        setMatchId(matchToJoin.id);
+        setOpponent(matchToJoin.player1);
+        setWords(matchWords);
+        setOptions(generateOptions(matchWords[0].meaning, matchWords));
+        setMatchStatus("found");
+        setTimeout(() => setMatchStatus("playing"), 2000);
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   // Start searching for a match
   const startSearch = async () => {
     if (!profile) {
@@ -190,47 +241,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("player1_id", profile.id)
         .eq("status", "waiting");
 
-      // Check if there's already a waiting match we can join
-      const { data: existingMatches } = await supabase
-        .from("ranked_matches")
-        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-        .eq("status", "waiting")
-        .eq("grade", profile.grade)
-        .neq("player1_id", profile.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (existingMatches && existingMatches.length > 0) {
-        const matchToJoin = existingMatches[0];
-        console.log("Found existing match to join:", matchToJoin.id);
-        
-        const matchWords = await fetchMatchWords();
-        
-        // Try to join it atomically
-        const { data: updatedMatch, error: joinError } = await supabase
-          .from("ranked_matches")
-          .update({
-            player2_id: profile.id,
-            status: "in_progress",
-            words: matchWords,
-            started_at: new Date().toISOString(),
-          })
-          .eq("id", matchToJoin.id)
-          .eq("status", "waiting")
-          .select()
-          .single();
-
-        if (!joinError && updatedMatch) {
-          console.log("Successfully joined match:", updatedMatch.id);
-          setMatchId(matchToJoin.id);
-          setOpponent(matchToJoin.player1);
-          setWords(matchWords);
-          setOptions(generateOptions(matchWords[0].meaning, matchWords));
-          setMatchStatus("found");
-          setTimeout(() => setMatchStatus("playing"), 2000);
-          return;
-        }
-      }
+      // Try to join an existing match first
+      const joined = await tryJoinExistingMatch();
+      if (joined) return;
 
       // No match to join, create our own and wait
       const { data: newMatch, error: createError } = await supabase
@@ -248,6 +261,20 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       console.log("Created new match, waiting for opponent:", newMatch.id);
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
+
+      // Immediately try again to join after creating (handles race condition)
+      setTimeout(async () => {
+        const joinedAfterCreate = await tryJoinExistingMatch();
+        if (joinedAfterCreate) {
+          // Cancel our waiting match since we joined another
+          await supabase
+            .from("ranked_matches")
+            .update({ status: "cancelled" })
+            .eq("id", newMatch.id);
+          setWaitingMatchId(null);
+        }
+      }, 500);
+
     } catch (error) {
       console.error("Match error:", error);
       toast.error("匹配失败，请重试");
@@ -262,12 +289,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     console.log("Setting up realtime subscription and polling for match:", waitingMatchId);
     let isActive = true;
     
-    // Poll for other waiting matches (in case both users created at similar times)
+    // More aggressive polling for matches
     const pollInterval = setInterval(async () => {
       if (!isActive) return;
       
       try {
         // Check for other waiting matches to join
+        const matchWords = await fetchMatchWords();
+        if (matchWords.length === 0) return;
+
         const { data: waitingMatches } = await supabase
           .from("ranked_matches")
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
@@ -281,8 +311,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         if (waitingMatches && waitingMatches.length > 0 && isActive) {
           const matchToJoin = waitingMatches[0];
           console.log("Found waiting match via polling:", matchToJoin.id);
-          
-          const matchWords = await fetchMatchWords();
           
           // Try to join it
           const { data: updatedMatch, error: joinError } = await supabase
@@ -300,6 +328,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
           if (!joinError && updatedMatch && isActive) {
             console.log("Successfully joined match via polling:", updatedMatch.id);
+            isActive = false;
             
             // Cancel our waiting match
             await supabase
@@ -319,7 +348,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       } catch (error) {
         console.error("Polling error:", error);
       }
-    }, 1500);
+    }, 800); // Faster polling - every 800ms
     
     // Realtime subscription for when someone joins OUR match
     const channel = supabase

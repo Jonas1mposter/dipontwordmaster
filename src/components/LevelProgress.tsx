@@ -38,14 +38,28 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
   useEffect(() => {
     const fetchWords = async () => {
       try {
-        // 获取该年级的所有单词
-        const { data: wordsData, error: wordsError } = await supabase
-          .from("words")
-          .select("id, word, meaning")
-          .eq("grade", grade)
-          .order("word", { ascending: true });
+        // 获取该年级的所有单词（分批获取以突破1000条限制）
+        let allWords: Word[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        
+        while (true) {
+          const { data: wordsData, error: wordsError } = await supabase
+            .from("words")
+            .select("id, word, meaning")
+            .eq("grade", grade)
+            .order("word", { ascending: true })
+            .range(from, from + batchSize - 1);
 
-        if (wordsError) throw wordsError;
+          if (wordsError) throw wordsError;
+          
+          if (!wordsData || wordsData.length === 0) break;
+          
+          allWords = [...allWords, ...wordsData];
+          
+          if (wordsData.length < batchSize) break;
+          from += batchSize;
+        }
 
         // 获取用户的学习进度
         let progressMap: Record<string, { mastery_level: number }> = {};
@@ -65,7 +79,7 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
 
         // 按首字母分组
         const letterGroups: Record<string, Word[]> = {};
-        wordsData?.forEach((word) => {
+        allWords.forEach((word) => {
           const firstLetter = word.word.charAt(0).toUpperCase();
           if (!letterGroups[firstLetter]) {
             letterGroups[firstLetter] = [];

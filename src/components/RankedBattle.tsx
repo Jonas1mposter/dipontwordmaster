@@ -255,12 +255,73 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   };
 
-  // Subscribe to match updates via Realtime
+  // Subscribe to match updates via Realtime AND poll for other waiting matches
   useEffect(() => {
-    if (!waitingMatchId || matchStatus !== "searching") return;
+    if (!waitingMatchId || matchStatus !== "searching" || !profile) return;
 
-    console.log("Setting up realtime subscription for match:", waitingMatchId);
+    console.log("Setting up realtime subscription and polling for match:", waitingMatchId);
+    let isActive = true;
     
+    // Poll for other waiting matches (in case both users created at similar times)
+    const pollInterval = setInterval(async () => {
+      if (!isActive) return;
+      
+      try {
+        // Check for other waiting matches to join
+        const { data: waitingMatches } = await supabase
+          .from("ranked_matches")
+          .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
+          .eq("status", "waiting")
+          .eq("grade", profile.grade)
+          .neq("player1_id", profile.id)
+          .neq("id", waitingMatchId)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (waitingMatches && waitingMatches.length > 0 && isActive) {
+          const matchToJoin = waitingMatches[0];
+          console.log("Found waiting match via polling:", matchToJoin.id);
+          
+          const matchWords = await fetchMatchWords();
+          
+          // Try to join it
+          const { data: updatedMatch, error: joinError } = await supabase
+            .from("ranked_matches")
+            .update({
+              player2_id: profile.id,
+              status: "in_progress",
+              words: matchWords,
+              started_at: new Date().toISOString(),
+            })
+            .eq("id", matchToJoin.id)
+            .eq("status", "waiting")
+            .select()
+            .single();
+
+          if (!joinError && updatedMatch && isActive) {
+            console.log("Successfully joined match via polling:", updatedMatch.id);
+            
+            // Cancel our waiting match
+            await supabase
+              .from("ranked_matches")
+              .update({ status: "cancelled" })
+              .eq("id", waitingMatchId);
+
+            setMatchId(matchToJoin.id);
+            setOpponent(matchToJoin.player1);
+            setWords(matchWords);
+            setOptions(generateOptions(matchWords[0].meaning, matchWords));
+            setWaitingMatchId(null);
+            setMatchStatus("found");
+            setTimeout(() => setMatchStatus("playing"), 2000);
+          }
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    }, 1500);
+    
+    // Realtime subscription for when someone joins OUR match
     const channel = supabase
       .channel(`match-updates-${waitingMatchId}`)
       .on(
@@ -275,8 +336,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           console.log("Match update received via Realtime:", payload);
           const updatedMatch = payload.new as any;
           
-          if (updatedMatch.status === "in_progress" && updatedMatch.player2_id) {
+          if (updatedMatch.status === "in_progress" && updatedMatch.player2_id && isActive) {
             console.log("Opponent found via realtime!");
+            isActive = false;
             
             // Fetch opponent profile
             const { data: opponentData } = await supabase
@@ -317,10 +379,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     return () => {
       console.log("Cleaning up subscription for match:", waitingMatchId);
+      isActive = false;
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
       clearTimeout(aiTimeout);
     };
-  }, [waitingMatchId, matchStatus, generateOptions]);
+  }, [waitingMatchId, matchStatus, profile, generateOptions, fetchMatchWords]);
 
   // Cancel search
   const cancelSearch = async () => {

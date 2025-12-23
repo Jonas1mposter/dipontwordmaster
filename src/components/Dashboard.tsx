@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
+import { useBadgeChecker } from "@/hooks/useBadgeChecker";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import LeaderboardTabs from "./LeaderboardTabs";
@@ -38,6 +39,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
+  const { checkAndAwardBadges } = useBadgeChecker();
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -61,6 +63,8 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     setActiveView("home");
     setRefreshKey(prev => prev + 1);
     refreshProfile();
+    // Check for new badges after learning
+    setTimeout(() => checkAndAwardBadges(), 500);
   };
 
   // Handle friend battle start
@@ -98,6 +102,8 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         setRefreshKey(prev => prev + 1);
         refreshProfile();
         setFriendBattleMatchId(null);
+        // Check for new badges after battle
+        setTimeout(() => checkAndAwardBadges(), 500);
       }}
       initialMatchId={friendBattleMatchId}
     />;

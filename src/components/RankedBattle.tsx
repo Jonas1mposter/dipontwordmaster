@@ -31,11 +31,12 @@ interface Word {
 
 interface RankedBattleProps {
   onBack: () => void;
+  initialMatchId?: string | null;
 }
 
 type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 
-const RankedBattle = ({ onBack }: RankedBattleProps) => {
+const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const [matchStatus, setMatchStatus] = useState<MatchStatus>("idle");
   const [matchId, setMatchId] = useState<string | null>(null);
@@ -53,6 +54,35 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
   const [showAIOption, setShowAIOption] = useState(false);
   const [waitingMatchId, setWaitingMatchId] = useState<string | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
+
+  // Handle initial match from friend challenge
+  useEffect(() => {
+    if (initialMatchId && profile) {
+      setMatchId(initialMatchId);
+      setMatchStatus("playing");
+      
+      // Fetch match data
+      supabase
+        .from("ranked_matches")
+        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+        .eq("id", initialMatchId)
+        .single()
+        .then(({ data: match }) => {
+          if (match) {
+            const opp = match.player1_id === profile.id ? match.player2 : match.player1;
+            setOpponent(opp);
+            const matchWords = (match.words as any[]).map((w: any) => ({
+              id: w.id,
+              word: w.word,
+              meaning: w.meaning,
+              phonetic: w.phonetic,
+            }));
+            setWords(matchWords);
+            setOptions(generateOptions(matchWords[0].meaning, matchWords));
+          }
+        });
+    }
+  }, [initialMatchId, profile]);
 
   // Track online presence
   useEffect(() => {

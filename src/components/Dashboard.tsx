@@ -11,6 +11,7 @@ import DailyQuest from "./DailyQuest";
 import WordLearning from "./WordLearning";
 import RankedBattle from "./RankedBattle";
 import ProfileCard from "./ProfileCard";
+import { FriendsPanel } from "./friends/FriendsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Swords, 
@@ -21,7 +22,8 @@ import {
   ChevronLeft,
   Sparkles,
   User,
-  Crown
+  Crown,
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,9 +36,10 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
 
   // Empty placeholder for removed leaderboard fetch
 
@@ -56,6 +59,12 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     setActiveView("home");
     setRefreshKey(prev => prev + 1);
     refreshProfile();
+  };
+
+  // Handle friend battle start
+  const handleFriendBattleStart = (matchId: string) => {
+    setFriendBattleMatchId(matchId);
+    setActiveView("battle");
   };
 
   // Show ranked battle
@@ -81,11 +90,15 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         </div>
       );
     }
-    return <RankedBattle onBack={() => {
-      setActiveView("home");
-      setRefreshKey(prev => prev + 1);
-      refreshProfile();
-    }} />;
+    return <RankedBattle 
+      onBack={() => {
+        setActiveView("home");
+        setRefreshKey(prev => prev + 1);
+        refreshProfile();
+        setFriendBattleMatchId(null);
+      }}
+      initialMatchId={friendBattleMatchId}
+    />;
   }
 
   if (activeView === "learn" && selectedLevel) {
@@ -186,6 +199,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               { id: "home", label: "主页", icon: Sparkles },
               { id: "learn", label: "闯关", icon: BookOpen },
               { id: "battle", label: "排位赛", icon: Swords },
+              { id: "friends", label: "好友", icon: Users },
               { id: "leaderboard", label: "排行榜", icon: Trophy },
               { id: "profile", label: "个人", icon: User },
             ].map((tab) => (
@@ -237,6 +251,16 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
             <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} />
+          </div>
+        )}
+
+        {activeView === "friends" && profile && (
+          <div className="max-w-2xl mx-auto">
+            <FriendsPanel
+              currentProfileId={profile.id}
+              currentGrade={profile.grade}
+              onBattleStart={handleFriendBattleStart}
+            />
           </div>
         )}
 

@@ -123,13 +123,21 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
     setShowAIOption(false);
 
     try {
-      // Check for existing waiting matches
+      // First, cancel any old waiting matches from this user
+      await supabase
+        .from("ranked_matches")
+        .update({ status: "cancelled" })
+        .eq("player1_id", profile.id)
+        .eq("status", "waiting");
+
+      // Check for existing waiting matches from OTHER players
       const { data: existingMatches, error: searchError } = await supabase
         .from("ranked_matches")
         .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
         .eq("status", "waiting")
         .eq("grade", profile.grade)
         .neq("player1_id", profile.id)
+        .order("created_at", { ascending: true })
         .limit(1);
 
       if (searchError) {
@@ -150,7 +158,8 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
             words: matchWords,
             started_at: new Date().toISOString(),
           })
-          .eq("id", match.id);
+          .eq("id", match.id)
+          .eq("status", "waiting"); // Ensure match is still waiting
 
         if (joinError) throw joinError;
 

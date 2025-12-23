@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
-  User, Camera, Award, Crown, Coins, Swords, TrendingUp, 
+  User, Award, Crown, Coins, Swords, TrendingUp, 
   BookOpen, Flame, Star, Check, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import AvatarUpload from "./AvatarUpload";
 
 interface BadgeData {
   id: string;
@@ -202,16 +203,13 @@ const ProfileCard = () => {
 
   return (
     <Card variant="gaming" className="overflow-hidden">
-      {/* 图片区（可自己上传，无要求） */}
-      <div className="h-48 bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20 relative">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
-          onClick={() => toast.info("头像上传功能开发中")}
-        >
-          <Camera className="w-4 h-4" />
-        </Button>
+      {/* 头像区域 */}
+      <div className="h-48 bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20 relative flex items-center justify-center">
+        <AvatarUpload 
+          currentAvatarUrl={profile.avatar_url} 
+          username={profile.username}
+          size="lg"
+        />
         
         {/* 勋章区域 - 覆盖在图片底部 */}
         <div className="absolute bottom-0 left-0 right-0 translate-y-1/2">

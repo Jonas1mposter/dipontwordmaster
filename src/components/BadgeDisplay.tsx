@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useBadgeChecker } from "@/hooks/useBadgeChecker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Award, Lock } from "lucide-react";
+import { Award, Lock, RefreshCw } from "lucide-react";
 
 interface BadgeItem {
   id: string;
@@ -40,48 +42,57 @@ const categoryLabels: Record<string, string> = {
 
 const BadgeDisplay = () => {
   const { profile } = useAuth();
+  const { checkAndAwardBadges } = useBadgeChecker();
   const [badges, setBadges] = useState<BadgeItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchBadges = useCallback(async () => {
+    // Fetch all badges
+    const { data: allBadges, error: badgesError } = await supabase
+      .from("badges")
+      .select("*")
+      .order("rarity", { ascending: false });
+
+    if (badgesError) {
+      console.error("Error fetching badges:", badgesError);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch user's earned badges if logged in
+    let earnedBadgeIds: string[] = [];
+    if (profile) {
+      const { data: userBadges } = await supabase
+        .from("user_badges")
+        .select("badge_id, earned_at")
+        .eq("profile_id", profile.id);
+
+      if (userBadges) {
+        earnedBadgeIds = userBadges.map(ub => ub.badge_id);
+      }
+    }
+
+    // Mark earned badges
+    const badgesWithStatus = allBadges?.map(badge => ({
+      ...badge,
+      earned: earnedBadgeIds.includes(badge.id),
+    })) || [];
+
+    setBadges(badgesWithStatus);
+    setLoading(false);
+  }, [profile]);
 
   useEffect(() => {
-    const fetchBadges = async () => {
-      // Fetch all badges
-      const { data: allBadges, error: badgesError } = await supabase
-        .from("badges")
-        .select("*")
-        .order("rarity", { ascending: false });
-
-      if (badgesError) {
-        console.error("Error fetching badges:", badgesError);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch user's earned badges if logged in
-      let earnedBadgeIds: string[] = [];
-      if (profile) {
-        const { data: userBadges } = await supabase
-          .from("user_badges")
-          .select("badge_id, earned_at")
-          .eq("profile_id", profile.id);
-
-        if (userBadges) {
-          earnedBadgeIds = userBadges.map(ub => ub.badge_id);
-        }
-      }
-
-      // Mark earned badges
-      const badgesWithStatus = allBadges?.map(badge => ({
-        ...badge,
-        earned: earnedBadgeIds.includes(badge.id),
-      })) || [];
-
-      setBadges(badgesWithStatus);
-      setLoading(false);
-    };
-
     fetchBadges();
-  }, [profile]);
+  }, [fetchBadges]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await checkAndAwardBadges();
+    await fetchBadges();
+    setRefreshing(false);
+  };
 
   const earnedCount = badges.filter(b => b.earned).length;
 
@@ -105,9 +116,21 @@ const BadgeDisplay = () => {
             <Award className="h-5 w-5 text-primary" />
             成就勋章
           </CardTitle>
-          <Badge variant="secondary" className="text-xs">
-            {earnedCount}/{badges.length} 已获得
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="h-8 px-2"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1", refreshing && "animate-spin")} />
+              {refreshing ? "检查中" : "刷新"}
+            </Button>
+            <Badge variant="secondary" className="text-xs">
+              {earnedCount}/{badges.length} 已获得
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

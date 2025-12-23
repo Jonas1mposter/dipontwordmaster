@@ -41,9 +41,11 @@ const GradeSelector = ({ onSelectGrade }: GradeSelectorProps) => {
 
       {/* Logo & Title */}
       <div className="text-center mb-12 relative z-10">
-        <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-primary via-neon-pink to-neon-blue rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 animate-float">
-          <span className="text-4xl font-gaming text-primary-foreground">D</span>
-        </div>
+        <img 
+          src="/logo.png" 
+          alt="狄邦单词通" 
+          className="w-24 h-24 mx-auto mb-6 rounded-2xl shadow-lg shadow-primary/30 animate-float"
+        />
         <h1 className="text-4xl md:text-5xl font-gaming mb-3 text-glow-purple">
           狄邦单词通
         </h1>

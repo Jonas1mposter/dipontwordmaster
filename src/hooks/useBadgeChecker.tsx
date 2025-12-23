@@ -1,6 +1,5 @@
-import { useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 interface BadgeCondition {
@@ -18,6 +17,15 @@ interface UserStats {
   coins: number;
   rankTier: string;
   perfectMatches: number;
+}
+
+interface Profile {
+  id: string;
+  wins?: number;
+  losses?: number;
+  streak?: number;
+  coins?: number;
+  rank_tier?: string;
 }
 
 // Badge IDs from database
@@ -99,104 +107,100 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
   },
 ];
 
-export const useBadgeChecker = () => {
-  const { profile } = useAuth();
+export const checkAndAwardBadges = async (profile: Profile | null) => {
+  if (!profile) return;
 
-  const checkAndAwardBadges = useCallback(async () => {
-    if (!profile) return;
+  try {
+    // Fetch user stats
+    const [
+      { data: learningProgress },
+      { data: userBadges },
+      { data: rankedMatches },
+    ] = await Promise.all([
+      supabase
+        .from("learning_progress")
+        .select("id")
+        .eq("profile_id", profile.id),
+      supabase
+        .from("user_badges")
+        .select("badge_id")
+        .eq("profile_id", profile.id),
+      supabase
+        .from("ranked_matches")
+        .select("winner_id, player1_id, player2_id, player1_score, player2_score")
+        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .eq("status", "completed"),
+    ]);
 
-    try {
-      // Fetch user stats
-      const [
-        { data: learningProgress },
-        { data: userBadges },
-        { data: rankedMatches },
-      ] = await Promise.all([
-        supabase
-          .from("learning_progress")
-          .select("id")
-          .eq("profile_id", profile.id),
-        supabase
-          .from("user_badges")
-          .select("badge_id")
-          .eq("profile_id", profile.id),
-        supabase
-          .from("ranked_matches")
-          .select("winner_id, player1_id, player2_id, player1_score, player2_score")
-          .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
-          .eq("status", "completed"),
-      ]);
+    const earnedBadgeIds = userBadges?.map((ub) => ub.badge_id) || [];
+    const wordsLearned = learningProgress?.length || 0;
 
-      const earnedBadgeIds = userBadges?.map((ub) => ub.badge_id) || [];
-      const wordsLearned = learningProgress?.length || 0;
-
-      // Calculate battle stats
-      let totalWins = 0;
-      let perfectMatches = 0;
-      
-      rankedMatches?.forEach((match) => {
-        if (match.winner_id === profile.id) {
-          totalWins++;
-          // Check if it was a perfect match (opponent scored 0)
-          if (match.player1_id === profile.id && match.player2_score === 0) {
-            perfectMatches++;
-          } else if (match.player2_id === profile.id && match.player1_score === 0) {
-            perfectMatches++;
-          }
-        }
-      });
-
-      // Calculate win streak from profile
-      const winStreak = profile.streak || 0;
-
-      const userStats: UserStats = {
-        wordsLearned,
-        totalWins: profile.wins || 0,
-        totalLosses: profile.losses || 0,
-        winStreak,
-        streak: profile.streak || 0,
-        coins: profile.coins || 0,
-        rankTier: profile.rank_tier || "bronze",
-        perfectMatches,
-      };
-
-      // Check each badge condition
-      const badgesToAward: { id: string; name: string }[] = [];
-
-      for (const condition of BADGE_CONDITIONS) {
-        if (!earnedBadgeIds.includes(condition.badgeId) && condition.check(userStats)) {
-          badgesToAward.push({ id: condition.badgeId, name: condition.name });
+    // Calculate battle stats
+    let totalWins = 0;
+    let perfectMatches = 0;
+    
+    rankedMatches?.forEach((match) => {
+      if (match.winner_id === profile.id) {
+        totalWins++;
+        // Check if it was a perfect match (opponent scored 0)
+        if (match.player1_id === profile.id && match.player2_score === 0) {
+          perfectMatches++;
+        } else if (match.player2_id === profile.id && match.player1_score === 0) {
+          perfectMatches++;
         }
       }
+    });
 
-      // Award new badges
-      if (badgesToAward.length > 0) {
-        const insertData = badgesToAward.map((badge) => ({
-          profile_id: profile.id,
-          badge_id: badge.id,
-        }));
+    // Calculate win streak from profile
+    const winStreak = profile.streak || 0;
 
-        const { error } = await supabase.from("user_badges").insert(insertData);
+    const userStats: UserStats = {
+      wordsLearned,
+      totalWins: profile.wins || 0,
+      totalLosses: profile.losses || 0,
+      winStreak,
+      streak: profile.streak || 0,
+      coins: profile.coins || 0,
+      rankTier: profile.rank_tier || "bronze",
+      perfectMatches,
+    };
 
-        if (!error) {
-          // Show toast for each new badge
-          badgesToAward.forEach((badge) => {
-            toast.success(`🎉 解锁新成就: ${badge.name}!`, {
-              duration: 5000,
-            });
-          });
-        }
+    // Check each badge condition
+    const badgesToAward: { id: string; name: string }[] = [];
+
+    for (const condition of BADGE_CONDITIONS) {
+      if (!earnedBadgeIds.includes(condition.badgeId) && condition.check(userStats)) {
+        badgesToAward.push({ id: condition.badgeId, name: condition.name });
       }
-    } catch (error) {
-      console.error("Error checking badges:", error);
     }
+
+    // Award new badges
+    if (badgesToAward.length > 0) {
+      const insertData = badgesToAward.map((badge) => ({
+        profile_id: profile.id,
+        badge_id: badge.id,
+      }));
+
+      const { error } = await supabase.from("user_badges").insert(insertData);
+
+      if (!error) {
+        // Show toast for each new badge
+        badgesToAward.forEach((badge) => {
+          toast.success(`🎉 解锁新成就: ${badge.name}!`, {
+            duration: 5000,
+          });
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error checking badges:", error);
+  }
+};
+
+export const useBadgeChecker = (profile: Profile | null) => {
+  const checkBadges = useCallback(async () => {
+    await checkAndAwardBadges(profile);
   }, [profile]);
 
-  useEffect(() => {
-    if (profile) {
-      checkAndAwardBadges();
-    }
-  }, [profile, checkAndAwardBadges]);
-
-  return { checkAndAwardBadges };
+  return { checkAndAwardBadges: checkBadges };
 };

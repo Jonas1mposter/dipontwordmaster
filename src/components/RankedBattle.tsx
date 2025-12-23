@@ -741,6 +741,35 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         {/* Header */}
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
           <div className="container mx-auto px-4 py-3">
+            {/* Top row with exit button */}
+            <div className="flex items-center justify-between mb-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  if (confirm("确定要退出比赛吗？退出将判负")) {
+                    setMatchStatus("finished");
+                    setIsWinner(false);
+                    setOpponentScore(words.length);
+                  }
+                }}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                退出
+              </Button>
+              
+              <div className={cn(
+                "px-4 py-2 rounded-xl font-gaming text-lg",
+                timeLeft <= 10 ? "bg-destructive/20 text-destructive animate-pulse" : "bg-accent/20 text-accent"
+              )}>
+                <Clock className="w-4 h-4 inline mr-2" />
+                {timeLeft}s
+              </div>
+              
+              <div className="w-16" /> {/* Spacer for balance */}
+            </div>
+            
             {/* Scores */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -750,13 +779,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 <span className="font-gaming text-xl text-primary">{myScore}</span>
               </div>
               
-              <div className={cn(
-                "px-4 py-2 rounded-xl font-gaming text-lg",
-                timeLeft <= 10 ? "bg-destructive/20 text-destructive animate-pulse" : "bg-accent/20 text-accent"
-              )}>
-                <Clock className="w-4 h-4 inline mr-2" />
-                {timeLeft}s
-              </div>
+              <span className="font-gaming text-muted-foreground">VS</span>
               
               <div className="flex items-center gap-2">
                 <span className="font-gaming text-xl text-neon-blue">{opponentScore}</span>

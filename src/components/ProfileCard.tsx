@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
-  BookOpen, Flame, Star, Check, X, Palette
+  BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,8 +45,20 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Star,
 };
 
+// 预设背景选项
+const backgroundOptions = [
+  { id: "default", gradient: "from-primary/20 via-accent/10 to-primary/20", name: "默认" },
+  { id: "sunset", gradient: "from-orange-500/30 via-pink-500/20 to-purple-500/30", name: "日落" },
+  { id: "ocean", gradient: "from-blue-500/30 via-cyan-500/20 to-teal-500/30", name: "海洋" },
+  { id: "forest", gradient: "from-green-500/30 via-emerald-500/20 to-lime-500/30", name: "森林" },
+  { id: "galaxy", gradient: "from-purple-600/40 via-indigo-500/30 to-blue-600/40", name: "星空" },
+  { id: "fire", gradient: "from-red-500/40 via-orange-500/30 to-yellow-500/40", name: "烈焰" },
+  { id: "aurora", gradient: "from-green-400/30 via-blue-500/30 to-purple-500/30", name: "极光" },
+  { id: "gold", gradient: "from-yellow-400/40 via-amber-500/30 to-orange-400/40", name: "黄金" },
+];
+
 const ProfileCard = () => {
-  const { profile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
   const [userNameCards, setUserNameCards] = useState<NameCardData[]>([]);
   const [equippedBadges, setEquippedBadges] = useState<(BadgeData | null)[]>([null, null, null]);
@@ -54,11 +66,23 @@ const ProfileCard = () => {
   const [badgeDialogOpen, setBadgeDialogOpen] = useState(false);
   const [nameCardDialogOpen, setNameCardDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number>(0);
+  const [bgDialogOpen, setBgDialogOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 背景状态
+  const [backgroundType, setBackgroundType] = useState<string>("gradient");
+  const [backgroundValue, setBackgroundValue] = useState<string>("default");
 
   useEffect(() => {
     if (profile?.id) {
       fetchUserBadges();
       fetchUserNameCards();
+      // 加载用户保存的背景设置
+      if ((profile as any).background_type) {
+        setBackgroundType((profile as any).background_type);
+        setBackgroundValue((profile as any).background_value || "default");
+      }
     }
   }, [profile?.id]);
 
@@ -184,6 +208,112 @@ const ProfileCard = () => {
     toast.success("名片已卸下");
   };
 
+  const handleSelectGradient = async (bgId: string) => {
+    setBackgroundType("gradient");
+    setBackgroundValue(bgId);
+    setBgDialogOpen(false);
+
+    // 保存到数据库
+    await supabase
+      .from("profiles")
+      .update({ 
+        background_type: "gradient", 
+        background_value: bgId 
+      })
+      .eq("id", profile!.id);
+
+    const bg = backgroundOptions.find(b => b.id === bgId);
+    toast.success(`已切换为${bg?.name || "默认"}背景`);
+  };
+
+  const handleUploadBackground = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0 || !user) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+
+    if (!fileExt || !allowedExts.includes(fileExt)) {
+      toast.error("请上传 JPG、PNG、GIF 或 WebP 格式的图片");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("图片大小不能超过 5MB");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      // 删除旧的背景图片
+      if (backgroundType === "image" && backgroundValue) {
+        const oldPath = backgroundValue.split('/profile-backgrounds/')[1];
+        if (oldPath) {
+          await supabase.storage.from('profile-backgrounds').remove([oldPath]);
+        }
+      }
+
+      // 上传新背景
+      const { error: uploadError } = await supabase.storage
+        .from('profile-backgrounds')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // 获取公共 URL
+      const { data: urlData } = supabase.storage
+        .from('profile-backgrounds')
+        .getPublicUrl(fileName);
+
+      const newBgUrl = urlData.publicUrl;
+
+      // 更新 profile
+      await supabase
+        .from('profiles')
+        .update({ 
+          background_type: 'image', 
+          background_value: newBgUrl 
+        })
+        .eq('id', profile!.id);
+
+      setBackgroundType("image");
+      setBackgroundValue(newBgUrl);
+      setBgDialogOpen(false);
+      toast.success("背景上传成功！");
+    } catch (error: any) {
+      console.error("Error uploading background:", error);
+      toast.error("上传失败，请重试");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveCustomBackground = async () => {
+    if (backgroundType === "image" && backgroundValue) {
+      const oldPath = backgroundValue.split('/profile-backgrounds/')[1];
+      if (oldPath) {
+        await supabase.storage.from('profile-backgrounds').remove([oldPath]);
+      }
+    }
+
+    await supabase
+      .from('profiles')
+      .update({ 
+        background_type: 'gradient', 
+        background_value: 'default' 
+      })
+      .eq('id', profile!.id);
+
+    setBackgroundType("gradient");
+    setBackgroundValue("default");
+    toast.success("已恢复默认背景");
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case "common": return "text-gray-400";
@@ -198,30 +328,37 @@ const ProfileCard = () => {
     return iconMap[iconName] || Award;
   };
 
+  const getBackgroundStyle = () => {
+    if (backgroundType === "image" && backgroundValue) {
+      return {
+        backgroundImage: `url(${backgroundValue})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      };
+    }
+    return {};
+  };
+
+  const getBackgroundGradient = () => {
+    if (backgroundType === "gradient") {
+      const bg = backgroundOptions.find(b => b.id === backgroundValue);
+      return bg?.gradient || backgroundOptions[0].gradient;
+    }
+    return "";
+  };
+
   if (!profile) return null;
-
-  // 预设背景选项
-  const backgroundOptions = [
-    { id: "default", gradient: "from-primary/20 via-accent/10 to-primary/20", name: "默认" },
-    { id: "sunset", gradient: "from-orange-500/30 via-pink-500/20 to-purple-500/30", name: "日落" },
-    { id: "ocean", gradient: "from-blue-500/30 via-cyan-500/20 to-teal-500/30", name: "海洋" },
-    { id: "forest", gradient: "from-green-500/30 via-emerald-500/20 to-lime-500/30", name: "森林" },
-    { id: "galaxy", gradient: "from-purple-600/40 via-indigo-500/30 to-blue-600/40", name: "星空" },
-    { id: "fire", gradient: "from-red-500/40 via-orange-500/30 to-yellow-500/40", name: "烈焰" },
-    { id: "aurora", gradient: "from-green-400/30 via-blue-500/30 to-purple-500/30", name: "极光" },
-    { id: "gold", gradient: "from-yellow-400/40 via-amber-500/30 to-orange-400/40", name: "黄金" },
-  ];
-
-  const [selectedBackground, setSelectedBackground] = useState(backgroundOptions[0]);
-  const [bgDialogOpen, setBgDialogOpen] = useState(false);
 
   return (
     <Card variant="gaming" className="overflow-hidden">
       {/* 背景区域 - 可自定义 */}
-      <div className={cn(
-        "h-48 relative flex items-center justify-center bg-gradient-to-br",
-        selectedBackground.gradient
-      )}>
+      <div 
+        className={cn(
+          "h-48 relative flex items-center justify-center",
+          backgroundType === "gradient" && `bg-gradient-to-br ${getBackgroundGradient()}`
+        )}
+        style={getBackgroundStyle()}
+      >
         {/* 自定义背景按钮 */}
         <Dialog open={bgDialogOpen} onOpenChange={setBgDialogOpen}>
           <DialogTrigger asChild>
@@ -229,30 +366,74 @@ const ProfileCard = () => {
               <Palette className="w-4 h-4 text-foreground/70" />
             </button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>选择背景</DialogTitle>
+              <DialogTitle>自定义背景</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-3">
-              {backgroundOptions.map((bg) => (
-                <button
-                  key={bg.id}
-                  className={cn(
-                    "h-20 rounded-lg bg-gradient-to-br transition-all",
-                    bg.gradient,
-                    selectedBackground.id === bg.id 
-                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background" 
-                      : "hover:opacity-80"
-                  )}
-                  onClick={() => {
-                    setSelectedBackground(bg);
-                    setBgDialogOpen(false);
-                    toast.success(`已切换为${bg.name}背景`);
-                  }}
+            
+            {/* 上传自定义图片 */}
+            <div className="space-y-3">
+              <div className="text-sm font-medium text-muted-foreground">上传图片</div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleUploadBackground}
+                className="hidden"
+                disabled={uploading}
+              />
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
                 >
-                  <span className="text-sm font-medium text-foreground/80 drop-shadow-md">{bg.name}</span>
-                </button>
-              ))}
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      上传中...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      选择图片
+                    </>
+                  )}
+                </Button>
+                {backgroundType === "image" && (
+                  <Button 
+                    variant="destructive" 
+                    size="icon"
+                    onClick={handleRemoveCustomBackground}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">支持 JPG、PNG、GIF、WebP，最大 5MB</p>
+            </div>
+
+            {/* 预设渐变背景 */}
+            <div className="space-y-3 mt-4">
+              <div className="text-sm font-medium text-muted-foreground">预设背景</div>
+              <div className="grid grid-cols-2 gap-3">
+                {backgroundOptions.map((bg) => (
+                  <button
+                    key={bg.id}
+                    className={cn(
+                      "h-16 rounded-lg bg-gradient-to-br transition-all",
+                      bg.gradient,
+                      backgroundType === "gradient" && backgroundValue === bg.id 
+                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background" 
+                        : "hover:opacity-80"
+                    )}
+                    onClick={() => handleSelectGradient(bg.id)}
+                  >
+                    <span className="text-sm font-medium text-foreground/80 drop-shadow-md">{bg.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </DialogContent>
         </Dialog>

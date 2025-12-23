@@ -52,6 +52,36 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
   const [searchTime, setSearchTime] = useState(0);
   const [showAIOption, setShowAIOption] = useState(false);
   const [waitingMatchId, setWaitingMatchId] = useState<string | null>(null);
+  const [onlineCount, setOnlineCount] = useState(0);
+
+  // Track online presence
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase.channel(`ranked-lobby-grade-${profile.grade}`, {
+      config: { presence: { key: profile.id } }
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const count = Object.keys(state).length;
+        setOnlineCount(count);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: profile.id,
+            username: profile.username,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile]);
 
   // Fetch random words for the match
   const fetchMatchWords = useCallback(async () => {
@@ -478,9 +508,15 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
           <p className="text-muted-foreground mb-4">
             搜索时间: {searchTime}秒
           </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-6">
-            <Users className="w-4 h-4" />
-            <span>正在寻找{profile?.grade}年级玩家</span>
+          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-6">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              <span>正在寻找{profile?.grade}年级玩家</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1 bg-success/20 rounded-full border border-success/30">
+              <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
+              <span className="text-success font-medium">{onlineCount} 人在线</span>
+            </div>
           </div>
           
           {showAIOption && (

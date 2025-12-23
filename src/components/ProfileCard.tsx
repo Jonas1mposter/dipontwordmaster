@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
-  BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2, Pencil
+  BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2, Pencil,
+  HandMetal, Sprout, BookOpenCheck, Library, Compass, GraduationCap, Sword, Medal, Gem, Trophy, Zap, LucideIcon
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,7 @@ interface NameCardData {
   rank_position?: number | null;
 }
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+const iconMap: Record<string, LucideIcon> = {
   User,
   BookOpen,
   Flame,
@@ -45,6 +46,17 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Swords,
   TrendingUp,
   Star,
+  HandMetal,
+  Sprout,
+  BookOpenCheck,
+  Library,
+  Compass,
+  GraduationCap,
+  Sword,
+  Medal,
+  Gem,
+  Trophy,
+  Zap,
 };
 
 // 预设背景选项

@@ -356,31 +356,43 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     setSelectedOption(selectedMeaning);
     const isCorrect = selectedMeaning === words[currentWordIndex].meaning;
+    const newScore = isCorrect ? myScore + 1 : myScore;
 
     if (isCorrect) {
-      setMyScore(prev => prev + 1);
+      setMyScore(newScore);
     }
 
     setTimeout(() => {
+      // End match immediately if someone reaches 10 correct
+      if (newScore >= 10) {
+        finishMatch(newScore);
+        return;
+      }
+      
       if (currentWordIndex < words.length - 1) {
         setCurrentWordIndex(prev => prev + 1);
         setSelectedOption(null);
         setOptions(generateOptions(words[currentWordIndex + 1].meaning, words));
       } else {
-        finishMatch();
+        finishMatch(newScore);
       }
     }, 800);
   };
 
   // Finish match
-  const finishMatch = async () => {
+  const finishMatch = async (finalScore?: number) => {
     setMatchStatus("finished");
     
+    const playerScore = finalScore ?? myScore;
+    
     // Simulate opponent score (in real app, this would come from real-time updates)
-    const simulatedOpponentScore = Math.floor(Math.random() * (words.length + 1));
+    // If player reached 10, opponent gets random score less than 10
+    const simulatedOpponentScore = playerScore >= 10 
+      ? Math.floor(Math.random() * 10) 
+      : Math.floor(Math.random() * (words.length + 1));
     setOpponentScore(simulatedOpponentScore);
     
-    const won = myScore > simulatedOpponentScore;
+    const won = playerScore > simulatedOpponentScore;
     setIsWinner(won);
 
     if (profile && matchId) {
@@ -388,7 +400,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       await supabase
         .from("ranked_matches")
         .update({
-          player1_score: myScore,
+          player1_score: playerScore,
           player2_score: simulatedOpponentScore,
           winner_id: won ? profile.id : opponent?.id,
           status: "completed",

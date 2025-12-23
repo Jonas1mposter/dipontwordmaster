@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
-  BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2
+  BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2, Pencil
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,7 +69,10 @@ const ProfileCard = () => {
   const [nameCardDialogOpen, setNameCardDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number>(0);
   const [bgDialogOpen, setBgDialogOpen] = useState(false);
+  const [profileEditDialogOpen, setProfileEditDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 背景状态
@@ -78,6 +83,7 @@ const ProfileCard = () => {
     if (profile?.id) {
       fetchUserBadges();
       fetchUserNameCards();
+      setEditUsername(profile.username);
       // 加载用户保存的背景设置
       if ((profile as any).background_type) {
         setBackgroundType((profile as any).background_type);
@@ -314,6 +320,36 @@ const ProfileCard = () => {
     toast.success("已恢复默认背景");
   };
 
+  const handleSaveProfile = async () => {
+    if (!editUsername.trim()) {
+      toast.error("用户名不能为空");
+      return;
+    }
+    if (editUsername.trim().length > 20) {
+      toast.error("用户名不能超过20个字符");
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ username: editUsername.trim() })
+        .eq('id', profile!.id);
+
+      if (error) throw error;
+
+      await refreshProfile();
+      setProfileEditDialogOpen(false);
+      toast.success("个人信息已更新");
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      toast.error("更新失败，请重试");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case "common": return "text-gray-400";
@@ -546,10 +582,51 @@ const ProfileCard = () => {
       {/* 底部区域：用户名 + 名片区 */}
       <div className="border-t border-border/50">
         <div className="flex">
-          {/* 用户名区域 */}
-          <div className="flex-1 p-4 flex items-center">
-            <div className="font-gaming text-lg">{profile.username}</div>
-          </div>
+          {/* 用户名区域 - 可编辑 */}
+          <Dialog open={profileEditDialogOpen} onOpenChange={(open) => {
+            setProfileEditDialogOpen(open);
+            if (open) setEditUsername(profile.username);
+          }}>
+            <DialogTrigger asChild>
+              <div className="flex-1 p-4 flex items-center gap-2 cursor-pointer hover:bg-secondary/30 transition-all">
+                <div className="font-gaming text-lg">{profile.username}</div>
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </DialogTrigger>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>编辑个人信息</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username">用户名</Label>
+                  <Input
+                    id="username"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    placeholder="输入用户名"
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-muted-foreground">最多20个字符</p>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setProfileEditDialogOpen(false)}>
+                    取消
+                  </Button>
+                  <Button onClick={handleSaveProfile} disabled={savingProfile}>
+                    {savingProfile ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        保存中...
+                      </>
+                    ) : (
+                      "保存"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* 名片区域 */}
           <Dialog open={nameCardDialogOpen} onOpenChange={setNameCardDialogOpen}>

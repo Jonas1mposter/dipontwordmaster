@@ -215,20 +215,18 @@ const LearningStats = () => {
             <CardTitle className="text-sm font-gaming text-foreground">掌握程度分布</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-48">
+            <div className="h-56">
               {data.masteryDistribution.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={data.masteryDistribution}
                       cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={70}
+                      cy="45%"
+                      innerRadius={35}
+                      outerRadius={60}
                       paddingAngle={4}
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={{ stroke: 'hsl(215, 20%, 65%)' }}
                     >
                       {data.masteryDistribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -242,6 +240,16 @@ const LearningStats = () => {
                         color: 'hsl(210, 40%, 98%)',
                       }}
                       formatter={(value: number) => [`${value} 个单词`, '数量']}
+                    />
+                    <Legend 
+                      verticalAlign="bottom"
+                      height={36}
+                      formatter={(value, entry: any) => {
+                        const item = data.masteryDistribution.find(d => d.name === value);
+                        const total = data.masteryDistribution.reduce((sum, d) => sum + d.value, 0);
+                        const percent = item && total > 0 ? Math.round((item.value / total) * 100) : 0;
+                        return <span style={{ color: 'hsl(215, 20%, 65%)', fontSize: '12px' }}>{value} {percent}%</span>;
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>

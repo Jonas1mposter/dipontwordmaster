@@ -190,66 +190,22 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("player1_id", profile.id)
         .eq("status", "waiting");
 
-      // Check for existing waiting matches from OTHER players
-      const { data: allWaitingMatches, error: searchError } = await supabase
+      // Create new match and wait for opponent
+      const { data: newMatch, error: createError } = await supabase
         .from("ranked_matches")
-        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-        .eq("status", "waiting")
-        .eq("grade", profile.grade)
-        .neq("player1_id", profile.id);
-      
-      // Randomly select one match from available matches
-      const existingMatches = allWaitingMatches && allWaitingMatches.length > 0
-        ? [allWaitingMatches[Math.floor(Math.random() * allWaitingMatches.length)]]
-        : [];
+        .insert({
+          player1_id: profile.id,
+          grade: profile.grade,
+          status: "waiting",
+        })
+        .select()
+        .single();
 
-      if (searchError) {
-        console.error("Search error:", searchError);
-        throw searchError;
-      }
+      if (createError) throw createError;
 
-      if (existingMatches && existingMatches.length > 0) {
-        // Join existing match
-        const match = existingMatches[0];
-        const matchWords = await fetchMatchWords();
-        
-        const { error: joinError } = await supabase
-          .from("ranked_matches")
-          .update({
-            player2_id: profile.id,
-            status: "in_progress",
-            words: matchWords,
-            started_at: new Date().toISOString(),
-          })
-          .eq("id", match.id)
-          .eq("status", "waiting"); // Ensure match is still waiting
-
-        if (joinError) throw joinError;
-
-        setMatchId(match.id);
-        setOpponent(match.player1);
-        setWords(matchWords);
-        setOptions(generateOptions(matchWords[0].meaning, matchWords));
-        setMatchStatus("found");
-        
-        setTimeout(() => setMatchStatus("playing"), 2000);
-      } else {
-        // Create new match and wait for opponent
-        const { data: newMatch, error: createError } = await supabase
-          .from("ranked_matches")
-          .insert({
-            player1_id: profile.id,
-            grade: profile.grade,
-            status: "waiting",
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-
-        setMatchId(newMatch.id);
-        setWaitingMatchId(newMatch.id);
-      }
+      console.log("Created new match:", newMatch.id);
+      setMatchId(newMatch.id);
+      setWaitingMatchId(newMatch.id);
     } catch (error) {
       console.error("Match error:", error);
       toast.error("匹配失败，请重试");
@@ -257,7 +213,119 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   };
 
-  // Subscribe to match updates when waiting
+  // Polling to find and join matches
+  useEffect(() => {
+    if (!waitingMatchId || matchStatus !== "searching" || !profile) return;
+
+    let isActive = true;
+
+    const pollForMatches = async () => {
+      while (isActive && matchStatus === "searching") {
+        try {
+          // Check if our match was joined by someone
+          const { data: ourMatch } = await supabase
+            .from("ranked_matches")
+            .select("*")
+            .eq("id", waitingMatchId)
+            .single();
+
+          if (ourMatch && ourMatch.status === "in_progress" && ourMatch.player2_id) {
+            // Someone joined our match!
+            console.log("Someone joined our match!");
+            const { data: opponentData } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", ourMatch.player2_id)
+              .single();
+
+            setOpponent(opponentData);
+            const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
+              id: w.id,
+              word: w.word,
+              meaning: w.meaning,
+              phonetic: w.phonetic,
+            })) || [];
+            setWords(matchWords);
+            if (matchWords.length > 0) {
+              setOptions(generateOptions(matchWords[0].meaning, matchWords));
+            }
+            setWaitingMatchId(null);
+            setMatchStatus("found");
+            setTimeout(() => setMatchStatus("playing"), 2000);
+            return;
+          }
+
+          // Try to find and join another waiting match
+          const { data: waitingMatches } = await supabase
+            .from("ranked_matches")
+            .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
+            .eq("status", "waiting")
+            .eq("grade", profile.grade)
+            .neq("player1_id", profile.id);
+
+          if (waitingMatches && waitingMatches.length > 0) {
+            // Pick a random match to join
+            const matchToJoin = waitingMatches[Math.floor(Math.random() * waitingMatches.length)];
+            console.log("Found a match to join:", matchToJoin.id);
+            
+            const matchWords = await fetchMatchWords();
+            
+            // Try to join it
+            const { data: updatedMatch, error: joinError } = await supabase
+              .from("ranked_matches")
+              .update({
+                player2_id: profile.id,
+                status: "in_progress",
+                words: matchWords,
+                started_at: new Date().toISOString(),
+              })
+              .eq("id", matchToJoin.id)
+              .eq("status", "waiting") // Ensure still waiting
+              .select()
+              .single();
+
+            if (!joinError && updatedMatch) {
+              console.log("Successfully joined match:", updatedMatch.id);
+              
+              // Cancel our waiting match since we joined another
+              await supabase
+                .from("ranked_matches")
+                .update({ status: "cancelled" })
+                .eq("id", waitingMatchId);
+
+              setMatchId(matchToJoin.id);
+              setOpponent(matchToJoin.player1);
+              setWords(matchWords);
+              setOptions(generateOptions(matchWords[0].meaning, matchWords));
+              setWaitingMatchId(null);
+              setMatchStatus("found");
+              setTimeout(() => setMatchStatus("playing"), 2000);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+
+        // Wait 1 second before next poll
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    };
+
+    pollForMatches();
+
+    // Set timeout to show AI option after 30 seconds
+    const aiTimeout = setTimeout(() => {
+      setShowAIOption(true);
+    }, 30000);
+
+    return () => {
+      isActive = false;
+      clearTimeout(aiTimeout);
+    };
+  }, [waitingMatchId, matchStatus, profile, generateOptions, fetchMatchWords]);
+
+  // Subscribe to match updates when waiting (backup for realtime)
   useEffect(() => {
     if (!waitingMatchId || matchStatus !== "searching") return;
 
@@ -278,7 +346,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           const updatedMatch = payload.new as any;
           
           if (updatedMatch.status === "in_progress" && updatedMatch.player2_id) {
-            console.log("Opponent found, fetching profile...");
+            console.log("Opponent found via realtime!");
             
             // Fetch opponent profile
             const { data: opponentData } = await supabase
@@ -305,14 +373,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         console.log("Subscription status:", status);
       });
 
-    // Set timeout to show AI option after 30 seconds
-    const aiTimeout = setTimeout(() => {
-      setShowAIOption(true);
-    }, 30000);
-
     return () => {
       console.log("Cleaning up subscription for match:", waitingMatchId);
-      clearTimeout(aiTimeout);
       supabase.removeChannel(channel);
     };
   }, [waitingMatchId, matchStatus, generateOptions]);

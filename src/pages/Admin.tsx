@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminRole } from '@/hooks/useAdminRole';
@@ -8,12 +8,25 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Trash2, Shield } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen } from 'lucide-react';
 
 interface ParsedWord {
   word: string;
   meaning: string;
+}
+
+interface UserProfile {
+  id: string;
+  user_id: string;
+  username: string;
+  level: number;
+  grade: number;
+  rank_tier: string;
+  created_at: string;
+  isAdmin?: boolean;
 }
 
 export default function Admin() {
@@ -21,6 +34,7 @@ export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, loading: roleLoading } = useAdminRole();
   
+  // Import state
   const [rawText, setRawText] = useState('');
   const [grade, setGrade] = useState('8');
   const [unit, setUnit] = useState('1');
@@ -28,7 +42,100 @@ export default function Admin() {
   const [parsedWords, setParsedWords] = useState<ParsedWord[]>([]);
   const [importing, setImporting] = useState(false);
 
+  // User management state
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // Word stats
+  const [wordStats, setWordStats] = useState<{grade: number, count: number}[]>([]);
+
   const loading = authLoading || roleLoading;
+
+  // Fetch users and their roles
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      // Get all profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      // Get all admin roles
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) throw rolesError;
+
+      const adminUserIds = new Set(roles?.filter(r => r.role === 'admin').map(r => r.user_id) || []);
+
+      const usersWithRoles = profiles?.map(p => ({
+        ...p,
+        isAdmin: adminUserIds.has(p.user_id)
+      })) || [];
+
+      setUsers(usersWithRoles);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      toast.error('获取用户列表失败');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Fetch word stats
+  const fetchWordStats = async () => {
+    const { data, error } = await supabase
+      .from('words')
+      .select('grade');
+    
+    if (data) {
+      const stats: Record<number, number> = {};
+      data.forEach(w => {
+        stats[w.grade] = (stats[w.grade] || 0) + 1;
+      });
+      setWordStats(Object.entries(stats).map(([g, c]) => ({ grade: parseInt(g), count: c })));
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers();
+      fetchWordStats();
+    }
+  }, [isAdmin]);
+
+  // Toggle admin role
+  const toggleAdmin = async (userId: string, currentIsAdmin: boolean) => {
+    try {
+      if (currentIsAdmin) {
+        // Remove admin role
+        const { error } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('role', 'admin');
+        
+        if (error) throw error;
+        toast.success('已移除管理员权限');
+      } else {
+        // Add admin role
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: 'admin' });
+        
+        if (error) throw error;
+        toast.success('已授予管理员权限');
+      }
+      fetchUsers();
+    } catch (err) {
+      console.error('Error toggling admin:', err);
+      toast.error('操作失败');
+    }
+  };
 
   // 解析文本格式: "word - meaning" 每行一个
   const parseText = () => {
@@ -103,6 +210,7 @@ export default function Admin() {
       toast.success(`成功导入 ${successCount} 个单词`);
       setRawText('');
       setParsedWords([]);
+      fetchWordStats();
     } catch (err) {
       console.error('Import error:', err);
       toast.error('导入失败');
@@ -155,129 +263,218 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background bg-grid-pattern">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-gaming text-glow-purple">管理员后台</h1>
-            <p className="text-muted-foreground text-sm">批量导入词汇数据</p>
+          <div className="flex-1">
+            <h1 className="text-2xl font-gaming text-glow-purple flex items-center gap-2">
+              <Crown className="w-6 h-6 text-accent" />
+              超级管理员后台
+            </h1>
+            <p className="text-muted-foreground text-sm">管理用户和词汇数据</p>
+          </div>
+          <div className="flex gap-2">
+            {wordStats.map(stat => (
+              <Badge key={stat.grade} variant="outline">
+                {stat.grade}年级: {stat.count}词
+              </Badge>
+            ))}
           </div>
         </div>
 
-        {/* Import Section */}
-        <Card className="card-glow mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="w-5 h-5 text-primary" />
-              批量导入单词
-            </CardTitle>
-            <CardDescription>
-              每行一个单词，格式：word - 释义
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Settings */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-2 block">年级</label>
-                <Select value={grade} onValueChange={setGrade}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">7年级</SelectItem>
-                    <SelectItem value="8">8年级</SelectItem>
-                    <SelectItem value="9">9年级</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-2 block">单元</label>
-                <Input 
-                  type="number" 
-                  min="1" 
-                  max="20"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-2 block">难度</label>
-                <Select value={difficulty} onValueChange={setDifficulty}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">简单</SelectItem>
-                    <SelectItem value="2">中等</SelectItem>
-                    <SelectItem value="3">困难</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              用户管理
+            </TabsTrigger>
+            <TabsTrigger value="words" className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              词汇导入
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Text Input */}
-            <Textarea
-              placeholder={`粘贴单词列表，每行一个，格式如下：
+          {/* Users Tab */}
+          <TabsContent value="users">
+            <Card className="card-glow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  用户列表
+                </CardTitle>
+                <CardDescription>
+                  共 {users.length} 个注册用户
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingUsers ? (
+                  <div className="text-center py-8 text-muted-foreground">加载中...</div>
+                ) : (
+                  <div className="space-y-2">
+                    {users.map((u) => (
+                      <div 
+                        key={u.id}
+                        className="flex items-center justify-between py-3 px-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            {u.isAdmin ? (
+                              <Crown className="w-5 h-5 text-accent" />
+                            ) : (
+                              <User className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{u.username}</span>
+                              {u.isAdmin && (
+                                <Badge className="bg-accent text-accent-foreground">管理员</Badge>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {u.grade}年级 · Lv.{u.level} · {u.rank_tier}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {u.user_id !== user?.id && (
+                            <Button
+                              variant={u.isAdmin ? "destructive" : "outline"}
+                              size="sm"
+                              onClick={() => toggleAdmin(u.user_id, !!u.isAdmin)}
+                            >
+                              {u.isAdmin ? '移除管理员' : '设为管理员'}
+                            </Button>
+                          )}
+                          {u.user_id === user?.id && (
+                            <Badge variant="outline">当前用户</Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Words Tab */}
+          <TabsContent value="words">
+            <Card className="card-glow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-primary" />
+                  批量导入单词
+                </CardTitle>
+                <CardDescription>
+                  每行一个单词，格式：word - 释义
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Settings */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">年级</label>
+                    <Select value={grade} onValueChange={setGrade}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">7年级</SelectItem>
+                        <SelectItem value="8">8年级</SelectItem>
+                        <SelectItem value="9">9年级</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">单元</label>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      max="20"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-2 block">难度</label>
+                    <Select value={difficulty} onValueChange={setDifficulty}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">简单</SelectItem>
+                        <SelectItem value="2">中等</SelectItem>
+                        <SelectItem value="3">困难</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Text Input */}
+                <Textarea
+                  placeholder={`粘贴单词列表，每行一个，格式如下：
 ability - 能力
 above - 在……上方
 abstract - 抽象的`}
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              className="min-h-[200px] font-mono text-sm"
-            />
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  className="min-h-[200px] font-mono text-sm"
+                />
 
-            {/* Action Buttons */}
-            <div className="flex gap-2">
-              <Button onClick={parseText} disabled={!rawText.trim()}>
-                <FileText className="w-4 h-4 mr-2" />
-                解析文本
-              </Button>
-              {parsedWords.length > 0 && (
-                <>
-                  <Button 
-                    variant="default" 
-                    onClick={importWords}
-                    disabled={importing}
-                    className="bg-success hover:bg-success/90"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    {importing ? '导入中...' : `导入 ${parsedWords.length} 个单词`}
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <Button onClick={parseText} disabled={!rawText.trim()}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    解析文本
                   </Button>
-                  <Button variant="outline" onClick={clearParsed}>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    清空
-                  </Button>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  {parsedWords.length > 0 && (
+                    <>
+                      <Button 
+                        variant="default" 
+                        onClick={importWords}
+                        disabled={importing}
+                        className="bg-success hover:bg-success/90"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {importing ? '导入中...' : `导入 ${parsedWords.length} 个单词`}
+                      </Button>
+                      <Button variant="outline" onClick={clearParsed}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        清空
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Preview */}
-        {parsedWords.length > 0 && (
-          <Card className="card-glow">
-            <CardHeader>
-              <CardTitle>预览 ({parsedWords.length} 个单词)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-h-[400px] overflow-y-auto space-y-1">
-                {parsedWords.map((word, index) => (
-                  <div 
-                    key={index}
-                    className="flex justify-between items-center py-2 px-3 rounded-lg bg-secondary/50 hover:bg-secondary"
-                  >
-                    <span className="font-medium text-foreground">{word.word}</span>
-                    <span className="text-muted-foreground">{word.meaning}</span>
+            {/* Preview */}
+            {parsedWords.length > 0 && (
+              <Card className="card-glow mt-6">
+                <CardHeader>
+                  <CardTitle>预览 ({parsedWords.length} 个单词)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="max-h-[400px] overflow-y-auto space-y-1">
+                    {parsedWords.map((word, index) => (
+                      <div 
+                        key={index}
+                        className="flex justify-between items-center py-2 px-3 rounded-lg bg-secondary/50 hover:bg-secondary"
+                      >
+                        <span className="font-medium text-foreground">{word.word}</span>
+                        <span className="text-muted-foreground">{word.meaning}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

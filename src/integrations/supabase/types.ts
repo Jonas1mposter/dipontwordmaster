@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      badges: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          name: string
+          rarity: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          icon: string
+          id?: string
+          name: string
+          rarity?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          name?: string
+          rarity?: string
+        }
+        Relationships: []
+      }
       daily_quests: {
         Row: {
           created_at: string
@@ -197,6 +227,39 @@ export type Database = {
         }
         Relationships: []
       }
+      name_cards: {
+        Row: {
+          background_gradient: string
+          category: string
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          rarity: string
+        }
+        Insert: {
+          background_gradient: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          rarity?: string
+        }
+        Update: {
+          background_gradient?: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          rarity?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -359,6 +422,87 @@ export type Database = {
           start_date?: string
         }
         Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string
+          equipped_slot: number | null
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string
+          equipped_slot?: number | null
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string
+          equipped_slot?: number | null
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_badges_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_name_cards: {
+        Row: {
+          earned_at: string
+          id: string
+          is_equipped: boolean
+          name_card_id: string
+          profile_id: string
+          rank_position: number | null
+        }
+        Insert: {
+          earned_at?: string
+          id?: string
+          is_equipped?: boolean
+          name_card_id: string
+          profile_id: string
+          rank_position?: number | null
+        }
+        Update: {
+          earned_at?: string
+          id?: string
+          is_equipped?: boolean
+          name_card_id?: string
+          profile_id?: string
+          rank_position?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_name_cards_name_card_id_fkey"
+            columns: ["name_card_id"]
+            isOneToOne: false
+            referencedRelation: "name_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_name_cards_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_quest_progress: {
         Row: {

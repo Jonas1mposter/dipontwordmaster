@@ -161,14 +161,17 @@ const RankedBattle = ({ onBack }: RankedBattleProps) => {
         .eq("status", "waiting");
 
       // Check for existing waiting matches from OTHER players
-      const { data: existingMatches, error: searchError } = await supabase
+      const { data: allWaitingMatches, error: searchError } = await supabase
         .from("ranked_matches")
         .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
         .eq("status", "waiting")
         .eq("grade", profile.grade)
-        .neq("player1_id", profile.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
+        .neq("player1_id", profile.id);
+      
+      // Randomly select one match from available matches
+      const existingMatches = allWaitingMatches && allWaitingMatches.length > 0
+        ? [allWaitingMatches[Math.floor(Math.random() * allWaitingMatches.length)]]
+        : [];
 
       if (searchError) {
         console.error("Search error:", searchError);

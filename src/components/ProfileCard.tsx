@@ -5,13 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
-  BookOpen, Flame, Star, Check, X
+  BookOpen, Flame, Star, Check, X, Palette
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import AvatarUpload from "./AvatarUpload";
 
 interface BadgeData {
   id: string;
@@ -201,15 +200,62 @@ const ProfileCard = () => {
 
   if (!profile) return null;
 
+  // 预设背景选项
+  const backgroundOptions = [
+    { id: "default", gradient: "from-primary/20 via-accent/10 to-primary/20", name: "默认" },
+    { id: "sunset", gradient: "from-orange-500/30 via-pink-500/20 to-purple-500/30", name: "日落" },
+    { id: "ocean", gradient: "from-blue-500/30 via-cyan-500/20 to-teal-500/30", name: "海洋" },
+    { id: "forest", gradient: "from-green-500/30 via-emerald-500/20 to-lime-500/30", name: "森林" },
+    { id: "galaxy", gradient: "from-purple-600/40 via-indigo-500/30 to-blue-600/40", name: "星空" },
+    { id: "fire", gradient: "from-red-500/40 via-orange-500/30 to-yellow-500/40", name: "烈焰" },
+    { id: "aurora", gradient: "from-green-400/30 via-blue-500/30 to-purple-500/30", name: "极光" },
+    { id: "gold", gradient: "from-yellow-400/40 via-amber-500/30 to-orange-400/40", name: "黄金" },
+  ];
+
+  const [selectedBackground, setSelectedBackground] = useState(backgroundOptions[0]);
+  const [bgDialogOpen, setBgDialogOpen] = useState(false);
+
   return (
     <Card variant="gaming" className="overflow-hidden">
-      {/* 头像区域 */}
-      <div className="h-48 bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20 relative flex items-center justify-center">
-        <AvatarUpload 
-          currentAvatarUrl={profile.avatar_url} 
-          username={profile.username}
-          size="lg"
-        />
+      {/* 背景区域 - 可自定义 */}
+      <div className={cn(
+        "h-48 relative flex items-center justify-center bg-gradient-to-br",
+        selectedBackground.gradient
+      )}>
+        {/* 自定义背景按钮 */}
+        <Dialog open={bgDialogOpen} onOpenChange={setBgDialogOpen}>
+          <DialogTrigger asChild>
+            <button className="absolute top-3 right-3 p-2 rounded-full bg-background/50 backdrop-blur-sm hover:bg-background/70 transition-all">
+              <Palette className="w-4 h-4 text-foreground/70" />
+            </button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>选择背景</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-3">
+              {backgroundOptions.map((bg) => (
+                <button
+                  key={bg.id}
+                  className={cn(
+                    "h-20 rounded-lg bg-gradient-to-br transition-all",
+                    bg.gradient,
+                    selectedBackground.id === bg.id 
+                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background" 
+                      : "hover:opacity-80"
+                  )}
+                  onClick={() => {
+                    setSelectedBackground(bg);
+                    setBgDialogOpen(false);
+                    toast.success(`已切换为${bg.name}背景`);
+                  }}
+                >
+                  <span className="text-sm font-medium text-foreground/80 drop-shadow-md">{bg.name}</span>
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
         
         {/* 勋章区域 - 覆盖在图片底部 */}
         <div className="absolute bottom-0 left-0 right-0 translate-y-1/2">

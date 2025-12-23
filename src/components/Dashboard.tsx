@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminRole } from "@/hooks/useAdminRole";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import Leaderboard from "./Leaderboard";
@@ -18,7 +19,8 @@ import {
   LogOut,
   ChevronLeft,
   Sparkles,
-  User
+  User,
+  Crown
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +32,7 @@ interface DashboardProps {
 const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
   const { user, profile, signOut, refreshProfile } = useAuth();
+  const { isAdmin } = useAdminRole();
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
@@ -173,6 +176,17 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               )}
               {user && (
                 <>
+                  {isAdmin && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => navigate('/admin')}
+                      className="border-accent text-accent hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Crown className="w-4 h-4 mr-2" />
+                      后台
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon">
                     <Settings className="w-5 h-5" />
                   </Button>

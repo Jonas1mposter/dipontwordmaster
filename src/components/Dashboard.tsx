@@ -6,10 +6,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
-import Leaderboard from "./Leaderboard";
+import LeaderboardTabs from "./LeaderboardTabs";
 import DailyQuest from "./DailyQuest";
 import WordLearning from "./WordLearning";
 import RankedBattle from "./RankedBattle";
+import ProfileCard from "./ProfileCard";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Swords, 
@@ -33,34 +34,11 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const navigate = useNavigate();
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
-  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Fetch leaderboard data
-  useEffect(() => {
-    const fetchLeaderboard = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("grade", grade)
-        .order("rank_points", { ascending: false })
-        .limit(10);
-
-      if (data) {
-        setLeaderboardData(data.map((p, index) => ({
-          rank: index + 1,
-          username: p.username,
-          level: p.level,
-          xp: p.xp,
-          tier: p.rank_tier.charAt(0).toUpperCase() + p.rank_tier.slice(1),
-        })));
-      }
-    };
-
-    fetchLeaderboard();
-  }, [grade, refreshKey]);
+  // Empty placeholder for removed leaderboard fetch
 
   const handleSignOut = async () => {
     await signOut();
@@ -209,6 +187,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               { id: "learn", label: "闯关", icon: BookOpen },
               { id: "battle", label: "排位赛", icon: Swords },
               { id: "leaderboard", label: "排行榜", icon: Trophy },
+              { id: "profile", label: "个人", icon: User },
             ].map((tab) => (
               <Button
                 key={tab.id}
@@ -257,7 +236,13 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
 
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
-            <Leaderboard entries={leaderboardData} currentUser={profile?.username} />
+            <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} />
+          </div>
+        )}
+
+        {activeView === "profile" && profile && (
+          <div className="max-w-lg mx-auto">
+            <ProfileCard />
           </div>
         )}
       </main>

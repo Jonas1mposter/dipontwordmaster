@@ -53,26 +53,52 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       }
 
       try {
-        // Get level info to find the unit
-        const { data: levelData, error: levelError } = await supabase
-          .from("levels")
-          .select("unit, grade")
-          .eq("id", levelId)
-          .single();
+        // 检查是否是字母关卡格式 (如 "A-1")
+        const letterMatch = levelId.match(/^([A-Z])-(\d+)$/);
+        
+        if (letterMatch) {
+          // 字母关卡格式
+          const letter = letterMatch[1];
+          const subLevelIndex = parseInt(letterMatch[2]) - 1;
+          const WORDS_PER_LEVEL = 10;
 
-        if (levelError) throw levelError;
+          // 获取该年级所有以该字母开头的单词
+          const { data: wordsData, error: wordsError } = await supabase
+            .from("words")
+            .select("id, word, meaning, phonetic, example")
+            .eq("grade", profile.grade)
+            .ilike("word", `${letter}%`)
+            .order("word", { ascending: true });
 
-        // Fetch words for this level
-        const { data: wordsData, error: wordsError } = await supabase
-          .from("words")
-          .select("id, word, meaning, phonetic, example")
-          .eq("grade", levelData.grade)
-          .eq("unit", levelData.unit)
-          .limit(10);
+          if (wordsError) throw wordsError;
 
-        if (wordsError) throw wordsError;
+          // 分割成小关卡并获取当前关卡的单词
+          const startIndex = subLevelIndex * WORDS_PER_LEVEL;
+          const endIndex = startIndex + WORDS_PER_LEVEL;
+          const subLevelWords = wordsData?.slice(startIndex, endIndex) || [];
 
-        setWords(wordsData || []);
+          setWords(subLevelWords);
+        } else {
+          // 旧的关卡格式 (兼容)
+          const { data: levelData, error: levelError } = await supabase
+            .from("levels")
+            .select("unit, grade")
+            .eq("id", levelId)
+            .single();
+
+          if (levelError) throw levelError;
+
+          const { data: wordsData, error: wordsError } = await supabase
+            .from("words")
+            .select("id, word, meaning, phonetic, example")
+            .eq("grade", levelData.grade)
+            .eq("unit", levelData.unit)
+            .limit(10);
+
+          if (wordsError) throw wordsError;
+
+          setWords(wordsData || []);
+        }
       } catch (error) {
         console.error("Error fetching words:", error);
         toast.error("加载单词失败");
@@ -205,38 +231,44 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         // Calculate stars
         const stars = accuracy >= 0.9 ? 3 : accuracy >= 0.7 ? 2 : accuracy >= 0.5 ? 1 : 0;
 
-        // Update level progress
-        const { data: existingProgress } = await supabase
-          .from("level_progress")
-          .select("*")
-          .eq("profile_id", profile.id)
-          .eq("level_id", levelId)
-          .maybeSingle();
+        // 检查是否是字母关卡格式
+        const letterMatch = levelId.match(/^([A-Z])-(\d+)$/);
+        
+        if (!letterMatch) {
+          // 旧的关卡格式才更新 level_progress
+          const { data: existingProgress } = await supabase
+            .from("level_progress")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .eq("level_id", levelId)
+            .maybeSingle();
 
-        if (existingProgress) {
-          await supabase
-            .from("level_progress")
-            .update({
-              status: "completed",
-              stars: Math.max(existingProgress.stars, stars),
-              best_score: Math.max(existingProgress.best_score, Math.round(accuracy * 100)),
-              attempts: existingProgress.attempts + 1,
-              completed_at: new Date().toISOString(),
-            })
-            .eq("id", existingProgress.id);
-        } else {
-          await supabase
-            .from("level_progress")
-            .insert({
-              profile_id: profile.id,
-              level_id: levelId,
-              status: "completed",
-              stars,
-              best_score: Math.round(accuracy * 100),
-              attempts: 1,
-              completed_at: new Date().toISOString(),
-            });
+          if (existingProgress) {
+            await supabase
+              .from("level_progress")
+              .update({
+                status: "completed",
+                stars: Math.max(existingProgress.stars, stars),
+                best_score: Math.max(existingProgress.best_score, Math.round(accuracy * 100)),
+                attempts: existingProgress.attempts + 1,
+                completed_at: new Date().toISOString(),
+              })
+              .eq("id", existingProgress.id);
+          } else {
+            await supabase
+              .from("level_progress")
+              .insert({
+                profile_id: profile.id,
+                level_id: levelId,
+                status: "completed",
+                stars,
+                best_score: Math.round(accuracy * 100),
+                attempts: 1,
+                completed_at: new Date().toISOString(),
+              });
+          }
         }
+        // 字母关卡的进度已经通过 learning_progress 更新了
 
         // Update profile
         await supabase

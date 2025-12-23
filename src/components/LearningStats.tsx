@@ -215,44 +215,57 @@ const LearningStats = () => {
             <CardTitle className="text-sm font-gaming text-foreground">掌握程度分布</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-56">
+            <div className="h-64">
               {data.masteryDistribution.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={data.masteryDistribution}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={35}
-                      outerRadius={60}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {data.masteryDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: 'hsl(230, 25%, 12%)',
-                        border: '1px solid hsl(265, 89%, 66%)',
-                        borderRadius: '8px',
-                        color: 'hsl(210, 40%, 98%)',
-                      }}
-                      formatter={(value: number) => [`${value} 个单词`, '数量']}
-                    />
-                    <Legend 
-                      verticalAlign="bottom"
-                      height={36}
-                      formatter={(value, entry: any) => {
-                        const item = data.masteryDistribution.find(d => d.name === value);
-                        const total = data.masteryDistribution.reduce((sum, d) => sum + d.value, 0);
-                        const percent = item && total > 0 ? Math.round((item.value / total) * 100) : 0;
-                        return <span style={{ color: 'hsl(215, 20%, 65%)', fontSize: '12px' }}>{value} {percent}%</span>;
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div className="flex flex-col h-full">
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={data.masteryDistribution}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={30}
+                          outerRadius={55}
+                          paddingAngle={4}
+                          dataKey="value"
+                          label={false}
+                        >
+                          {data.masteryDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(230, 25%, 12%)',
+                            border: '1px solid hsl(265, 89%, 66%)',
+                            borderRadius: '8px',
+                            color: 'hsl(210, 40%, 98%)',
+                          }}
+                          formatter={(value: number) => [`${value} 个单词`, '数量']}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* Custom Legend */}
+                  <div className="flex flex-wrap justify-center gap-3 pt-2">
+                    {data.masteryDistribution.map((item, index) => {
+                      const total = data.masteryDistribution.reduce((sum, d) => sum + d.value, 0);
+                      const percent = total > 0 ? Math.round((item.value / total) * 100) : 0;
+                      return (
+                        <div key={index} className="flex items-center gap-1.5">
+                          <div 
+                            className="w-3 h-3 rounded-sm" 
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {item.name} {percent}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground">
                   暂无学习数据

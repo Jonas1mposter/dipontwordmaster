@@ -530,7 +530,7 @@ export const SettingsSheet = () => {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">开发者</span>
-                <span>狄邦教育</span>
+                <span>Jonas 8A2</span>
               </div>
             </div>
           </div>

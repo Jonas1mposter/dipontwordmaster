@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import WordCard from "./WordCard";
+import QuizCard, { QuizType } from "./QuizCard";
 import { 
   ChevronLeft, 
   Star, 
@@ -13,10 +14,19 @@ import {
   XCircle,
   Trophy,
   RotateCcw,
-  Loader2
+  Loader2,
+  Shuffle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const QUIZ_TYPES: { type: QuizType; label: string; icon: string }[] = [
+  { type: "meaning", label: "选择释义", icon: "📖" },
+  { type: "reverse", label: "选择单词", icon: "🔤" },
+  { type: "spelling", label: "拼写单词", icon: "✍️" },
+  { type: "listening", label: "听音拼写", icon: "🎧" },
+  { type: "fillBlank", label: "填空", icon: "📝" },
+];
 
 interface WordLearningProps {
   levelId: string;
@@ -44,6 +54,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [showResult, setShowResult] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
+  const [quizType, setQuizType] = useState<QuizType>("meaning");
+  const [randomQuizMode, setRandomQuizMode] = useState(false);
 
   useEffect(() => {
     const fetchWords = async () => {
@@ -113,14 +125,34 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const currentWord = words[currentIndex];
   const progress = words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
 
-  const getQuizOptions = () => {
+  // Get options for meaning quiz (Chinese meanings)
+  const getMeaningOptions = useMemo(() => {
     if (!currentWord) return [];
     const meanings = words.map(w => w.meaning);
     const correctMeaning = currentWord.meaning;
     const otherMeanings = meanings.filter(m => m !== correctMeaning);
     const shuffled = otherMeanings.sort(() => Math.random() - 0.5).slice(0, 3);
     return [...shuffled, correctMeaning].sort(() => Math.random() - 0.5);
-  };
+  }, [currentWord, words]);
+
+  // Get options for reverse quiz (English words)
+  const getWordOptions = useMemo(() => {
+    if (!currentWord) return [];
+    const wordsList = words.map(w => w.word);
+    const correctWord = currentWord.word;
+    const otherWords = wordsList.filter(w => w !== correctWord);
+    const shuffled = otherWords.sort(() => Math.random() - 0.5).slice(0, 3);
+    return [...shuffled, correctWord].sort(() => Math.random() - 0.5);
+  }, [currentWord, words]);
+
+  // Get current quiz type (random or selected)
+  const getCurrentQuizType = useMemo(() => {
+    if (!randomQuizMode) return quizType;
+    const types: QuizType[] = ["meaning", "reverse", "spelling", "listening", "fillBlank"];
+    return types[Math.floor(Math.random() * types.length)];
+  }, [randomQuizMode, quizType, currentIndex]);
+
+  const getQuizOptions = () => getMeaningOptions;
 
   const handleCorrect = async () => {
     setCorrectCount(prev => prev + 1);
@@ -488,7 +520,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       </header>
 
       <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2 mb-4">
           <Button
             variant={mode === "flashcard" ? "default" : "outline"}
             size="sm"
@@ -504,20 +536,57 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             测验模式
           </Button>
         </div>
+
+        {mode === "quiz" && (
+          <div className="flex flex-wrap justify-center gap-2 mb-4">
+            <Button
+              variant={randomQuizMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setRandomQuizMode(!randomQuizMode)}
+              className="gap-1"
+            >
+              <Shuffle className="w-3 h-3" />
+              随机题型
+            </Button>
+            {!randomQuizMode && QUIZ_TYPES.map((qt) => (
+              <Button
+                key={qt.type}
+                variant={quizType === qt.type ? "default" : "outline"}
+                size="sm"
+                onClick={() => setQuizType(qt.type)}
+                className="gap-1"
+              >
+                <span>{qt.icon}</span>
+                {qt.label}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
 
       <main className="container mx-auto px-4 py-8">
-        {currentWord && (
+        {currentWord && mode === "flashcard" && (
           <WordCard
             key={currentWord.id}
             word={currentWord.word}
             meaning={currentWord.meaning}
             phonetic={currentWord.phonetic || undefined}
             example={currentWord.example || undefined}
-            options={mode === "quiz" ? getQuizOptions() : undefined}
+            options={undefined}
             onCorrect={handleCorrect}
             onIncorrect={handleIncorrect}
-            mode={mode}
+            mode="flashcard"
+          />
+        )}
+
+        {currentWord && mode === "quiz" && (
+          <QuizCard
+            key={`${currentWord.id}-${getCurrentQuizType}`}
+            word={currentWord}
+            quizType={getCurrentQuizType}
+            options={getCurrentQuizType === "reverse" ? getWordOptions : getMeaningOptions}
+            onCorrect={handleCorrect}
+            onIncorrect={handleIncorrect}
           />
         )}
 

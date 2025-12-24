@@ -899,25 +899,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     };
   }, [matchStatus, matchId, profile, isRealPlayer]);
 
-  // Timeout for waiting for opponent - if we finished and opponent hasn't finished, auto-complete after 10 seconds
-  useEffect(() => {
-    if (!myFinished || !matchId || matchFinished || opponentFinished) return;
-    
-    console.log("Starting free match opponent timeout timer");
-    
-    const timeoutTimer = setTimeout(() => {
-      if (matchFinishedRef.current || opponentFinishedRef.current) return;
-      
-      console.log("Free match opponent timeout - auto-completing match");
-      toast.info("对手超时，比赛结束");
-      
-      // Use opponent's current score (0 if they never answered)
-      const finalOpponentScore = opponentFinalScore ?? 0;
-      finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
-    }, 10000); // 10 seconds timeout
-    
-    return () => clearTimeout(timeoutTimer);
-  }, [myFinished, matchId, matchFinished, opponentFinished, opponentFinalScore]);
 
   // Timer
   useEffect(() => {

@@ -1209,25 +1209,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   }, [myFinished, opponentFinished, opponentFinalScore, matchFinished, myScore]);
 
-  // Timeout for waiting for opponent - if we finished and opponent hasn't finished, auto-complete after 10 seconds
-  useEffect(() => {
-    if (!myFinished || !matchId || matchFinished || opponentFinished) return;
-    
-    console.log("Starting opponent timeout timer - waiting for opponent to finish");
-    
-    const timeoutTimer = setTimeout(() => {
-      if (matchFinishedRef.current || opponentFinishedRef.current) return;
-      
-      console.log("Opponent timeout - auto-completing match");
-      toast.info("对手超时，比赛结束");
-      
-      // Use opponent's current score (0 if they never answered)
-      const finalOpponentScore = opponentFinalScore ?? 0;
-      finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
-    }, 10000); // 10 seconds timeout
-    
-    return () => clearTimeout(timeoutTimer);
-  }, [myFinished, matchId, matchFinished, opponentFinished, opponentFinalScore]);
 
   // Timer - only runs when playing and not finished
   useEffect(() => {

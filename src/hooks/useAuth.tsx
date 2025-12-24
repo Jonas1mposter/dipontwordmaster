@@ -40,17 +40,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, userEmail?: string) => {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error fetching profile:", error);
       return null;
     }
+    
+    // If profile doesn't exist, create one
+    if (!data && userEmail) {
+      const username = userEmail.split('@')[0];
+      const { data: newProfile, error: createError } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: userId,
+          username: username,
+          grade: 7
+        })
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error("Error creating profile:", createError);
+        return null;
+      }
+      return newProfile as Profile;
+    }
+    
     return data as Profile;
   };
 
@@ -69,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (session?.user) {
           setTimeout(() => {
-            fetchProfile(session.user.id).then(setProfile);
+            fetchProfile(session.user.id, session.user.email).then(setProfile);
           }, 0);
         } else {
           setProfile(null);
@@ -83,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        fetchProfile(session.user.id).then(setProfile);
+        fetchProfile(session.user.id, session.user.email).then(setProfile);
       }
       setLoading(false);
     });

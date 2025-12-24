@@ -13,7 +13,13 @@ interface RankDisplayProps {
   compact?: boolean;
 }
 
-// Rank tier configuration
+// Rank tier configuration - 与 RankedBattle.tsx 保持一致
+// 青铜：30星晋级，失败不扣星
+// 白银：40星晋级，失败扣1星
+// 黄金：50星晋级，失败扣1星，1星保护
+// 铂金：50星晋级，失败扣1星
+// 钻石：60星晋级，失败扣2星
+// 狄邦巅峰：最高段位，失败扣2星
 const RANK_CONFIG: Record<RankTier, {
   starsToPromote: number;
   name: string;
@@ -22,35 +28,35 @@ const RANK_CONFIG: Record<RankTier, {
   icon: typeof Crown;
 }> = {
   bronze: {
-    starsToPromote: 3,
+    starsToPromote: 30,
     name: "青铜",
     color: "text-amber-700",
     bgGradient: "from-amber-700/20 to-amber-900/20",
     icon: Shield,
   },
   silver: {
-    starsToPromote: 4,
+    starsToPromote: 40,
     name: "白银",
     color: "text-gray-400",
     bgGradient: "from-gray-300/20 to-gray-500/20",
     icon: Shield,
   },
   gold: {
-    starsToPromote: 5,
+    starsToPromote: 50,
     name: "黄金",
     color: "text-yellow-500",
     bgGradient: "from-yellow-400/20 to-amber-500/20",
     icon: Medal,
   },
   platinum: {
-    starsToPromote: 5,
+    starsToPromote: 50,
     name: "铂金",
     color: "text-cyan-400",
     bgGradient: "from-cyan-300/20 to-cyan-500/20",
     icon: Award,
   },
   diamond: {
-    starsToPromote: 6,
+    starsToPromote: 60,
     name: "钻石",
     color: "text-blue-400",
     bgGradient: "from-blue-300/20 to-purple-400/20",
@@ -133,16 +139,10 @@ const RankDisplay = ({ tier, stars, wins, losses, compact = false }: RankDisplay
             <span className="text-xs text-muted-foreground">
               {tier === "champion" ? "最高段位" : `晋级进度 ${stars}/${config.starsToPromote}`}
             </span>
-            <div className="flex items-center gap-0.5">
-              {[...Array(tier === "champion" ? 6 : config.starsToPromote)].map((_, i) => (
-                <Star 
-                  key={i} 
-                  className={cn(
-                    "w-4 h-4 transition-all",
-                    i < stars ? "text-accent fill-accent" : "text-muted-foreground/30"
-                  )} 
-                />
-              ))}
+            {/* 显示星星数量而非全部星星图标 */}
+            <div className="flex items-center gap-1">
+              <Star className="w-4 h-4 text-accent fill-accent" />
+              <span className="font-gaming text-sm text-accent">{stars}</span>
             </div>
           </div>
           <Progress 

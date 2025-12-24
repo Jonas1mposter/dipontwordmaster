@@ -437,6 +437,7 @@ export type Database = {
           avatar_url: string | null
           background_type: string | null
           background_value: string | null
+          class: string | null
           coins: number
           created_at: string
           energy: number
@@ -460,6 +461,7 @@ export type Database = {
           avatar_url?: string | null
           background_type?: string | null
           background_value?: string | null
+          class?: string | null
           coins?: number
           created_at?: string
           energy?: number
@@ -483,6 +485,7 @@ export type Database = {
           avatar_url?: string | null
           background_type?: string | null
           background_value?: string | null
+          class?: string | null
           coins?: number
           created_at?: string
           energy?: number

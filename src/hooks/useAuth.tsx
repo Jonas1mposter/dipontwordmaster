@@ -20,6 +20,7 @@ interface Profile {
   wins: number;
   losses: number;
   avatar_url: string | null;
+  class: string | null;
 }
 
 interface AuthContextType {

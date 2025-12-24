@@ -44,6 +44,113 @@ export type Database = {
         }
         Relationships: []
       }
+      challenge_rewards: {
+        Row: {
+          challenge_type: string
+          claimed: boolean
+          created_at: string
+          id: string
+          profile_id: string
+          rank_achieved: number | null
+          reward_type: string
+          reward_value: number
+          season_id: string
+        }
+        Insert: {
+          challenge_type: string
+          claimed?: boolean
+          created_at?: string
+          id?: string
+          profile_id: string
+          rank_achieved?: number | null
+          reward_type: string
+          reward_value?: number
+          season_id: string
+        }
+        Update: {
+          challenge_type?: string
+          claimed?: boolean
+          created_at?: string
+          id?: string
+          profile_id?: string
+          rank_achieved?: number | null
+          reward_type?: string
+          reward_value?: number
+          season_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_rewards_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_rewards_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_challenges: {
+        Row: {
+          class_name: string
+          composite_score: number
+          created_at: string
+          grade: number
+          id: string
+          member_count: number
+          rank_position: number | null
+          season_id: string
+          total_answered: number
+          total_correct: number
+          total_levels_completed: number
+          total_xp: number
+          updated_at: string
+        }
+        Insert: {
+          class_name: string
+          composite_score?: number
+          created_at?: string
+          grade: number
+          id?: string
+          member_count?: number
+          rank_position?: number | null
+          season_id: string
+          total_answered?: number
+          total_correct?: number
+          total_levels_completed?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Update: {
+          class_name?: string
+          composite_score?: number
+          created_at?: string
+          grade?: number
+          id?: string
+          member_count?: number
+          rank_position?: number | null
+          season_id?: string
+          total_answered?: number
+          total_correct?: number
+          total_levels_completed?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_challenges_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_quests: {
         Row: {
           created_at: string
@@ -209,6 +316,59 @@ export type Database = {
             columns: ["user2_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grade_challenges: {
+        Row: {
+          composite_score: number
+          created_at: string
+          grade: number
+          id: string
+          member_count: number
+          rank_position: number | null
+          season_id: string
+          total_answered: number
+          total_correct: number
+          total_levels_completed: number
+          total_xp: number
+          updated_at: string
+        }
+        Insert: {
+          composite_score?: number
+          created_at?: string
+          grade: number
+          id?: string
+          member_count?: number
+          rank_position?: number | null
+          season_id: string
+          total_answered?: number
+          total_correct?: number
+          total_levels_completed?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Update: {
+          composite_score?: number
+          created_at?: string
+          grade?: number
+          id?: string
+          member_count?: number
+          rank_position?: number | null
+          season_id?: string
+          total_answered?: number
+          total_correct?: number
+          total_levels_completed?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grade_challenges_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]

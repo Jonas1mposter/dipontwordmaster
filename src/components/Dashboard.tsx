@@ -9,6 +9,7 @@ import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import LeaderboardTabs from "./LeaderboardTabs";
 import DailyQuest from "./DailyQuest";
+import ChallengeArena from "./ChallengeArena";
 import WordLearning from "./WordLearning";
 import RankedBattle from "./RankedBattle";
 import ProfileCard from "./ProfileCard";
@@ -30,7 +31,8 @@ import {
   Crown,
   Users,
   BookX,
-  GraduationCap
+  GraduationCap,
+  Target
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,7 +46,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
   const { checkAndAwardBadges } = useBadgeChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends" | "wrongbook">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
@@ -244,6 +246,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               { id: "learn", label: "闯关", icon: BookOpen },
               { id: "wrongbook", label: "错题本", icon: BookX },
               { id: "battle", label: "排位赛", icon: Swords },
+              { id: "challenge", label: "挑战赛", icon: Target },
               { id: "friends", label: "好友", icon: Users },
               { id: "leaderboard", label: "排行榜", icon: Trophy },
               { id: "profile", label: "个人", icon: User },
@@ -296,6 +299,16 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
             <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} currentClass={profile?.class} />
+          </div>
+        )}
+
+        {activeView === "challenge" && (
+          <div className="max-w-2xl mx-auto">
+            <ChallengeArena 
+              grade={grade} 
+              currentClass={profile?.class} 
+              profileId={profile?.id} 
+            />
           </div>
         )}
 

@@ -106,17 +106,40 @@ const DailyQuest = ({ onQuestUpdate }: DailyQuestProps) => {
         return;
       }
 
-      // Update quest progress as claimed
-      const { error: updateError } = await supabase
+      // Update quest progress as claimed - use update if exists, insert if not
+      const { data: existingRecord } = await supabase
         .from("user_quest_progress")
-        .upsert({
-          profile_id: profile.id,
-          quest_id: quest.id,
-          quest_date: today,
-          progress: quest.progress,
-          completed: true,
-          claimed: true,
-        });
+        .select("id")
+        .eq("profile_id", profile.id)
+        .eq("quest_id", quest.id)
+        .eq("quest_date", today)
+        .maybeSingle();
+
+      let updateError;
+      if (existingRecord) {
+        // Update existing record
+        const { error } = await supabase
+          .from("user_quest_progress")
+          .update({
+            completed: true,
+            claimed: true,
+          })
+          .eq("id", existingRecord.id);
+        updateError = error;
+      } else {
+        // Insert new record
+        const { error } = await supabase
+          .from("user_quest_progress")
+          .insert({
+            profile_id: profile.id,
+            quest_id: quest.id,
+            quest_date: today,
+            progress: quest.progress,
+            completed: true,
+            claimed: true,
+          });
+        updateError = error;
+      }
 
       if (updateError) throw updateError;
 

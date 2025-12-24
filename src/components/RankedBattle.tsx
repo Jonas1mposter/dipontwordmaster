@@ -1008,7 +1008,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const maxRetries = 3;
     
     const setupChannel = () => {
-      const channel = supabase.channel(`battle-${matchId}-${Date.now()}`)
+      // Use only matchId so both players join the same channel
+      const channel = supabase.channel(`battle-sync-${matchId}`)
         .on('broadcast', { event: 'player_progress' }, (payload) => {
           if (!isActive) return;
           const data = payload.payload as any;

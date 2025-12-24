@@ -215,14 +215,26 @@ export default function Admin() {
     setDistributingCoins(true);
     try {
       const amount = parseInt(coinAmount);
+      
+      // First get current coins to avoid race condition
+      const { data: currentProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('coins')
+        .eq('id', selectedUser.id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const newCoins = (currentProfile?.coins || 0) + amount;
+      
       const { error } = await supabase
         .from('profiles')
-        .update({ coins: selectedUser.coins + amount })
+        .update({ coins: newCoins })
         .eq('id', selectedUser.id);
       
       if (error) throw error;
       
-      toast.success(`成功发放 ${amount} 狄邦豆给 ${selectedUser.username}`);
+      toast.success(`成功发放 ${amount} 狄邦豆给 ${selectedUser.username}，当前余额: ${newCoins}`);
       setCoinAmount('');
       setSelectedUser(null);
       setCoinSearchTerm('');

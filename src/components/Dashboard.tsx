@@ -15,12 +15,12 @@ import ProfileCard from "./ProfileCard";
 import BadgeDisplay from "./BadgeDisplay";
 import LearningStats from "./LearningStats";
 import { FriendsPanel } from "./friends/FriendsPanel";
+import { SettingsSheet } from "./SettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Swords, 
   BookOpen, 
   Trophy, 
-  Settings, 
   LogOut,
   ChevronLeft,
   Sparkles,
@@ -191,9 +191,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
                       后台
                     </Button>
                   )}
-                  <Button variant="ghost" size="icon">
-                    <Settings className="w-5 h-5" />
-                  </Button>
+                  <SettingsSheet />
                   <Button variant="ghost" size="icon" onClick={handleSignOut}>
                     <LogOut className="w-5 h-5" />
                   </Button>

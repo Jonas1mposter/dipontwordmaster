@@ -612,6 +612,7 @@ export type Database = {
           rank_stars: number
           rank_tier: Database["public"]["Enums"]["rank_tier"]
           streak: number
+          total_xp: number
           updated_at: string
           user_id: string
           username: string
@@ -638,6 +639,7 @@ export type Database = {
           rank_stars?: number
           rank_tier?: Database["public"]["Enums"]["rank_tier"]
           streak?: number
+          total_xp?: number
           updated_at?: string
           user_id: string
           username: string
@@ -664,6 +666,7 @@ export type Database = {
           rank_stars?: number
           rank_tier?: Database["public"]["Enums"]["rank_tier"]
           streak?: number
+          total_xp?: number
           updated_at?: string
           user_id?: string
           username?: string

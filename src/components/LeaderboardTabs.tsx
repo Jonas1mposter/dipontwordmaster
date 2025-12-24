@@ -89,12 +89,12 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
         })));
       }
 
-      // 经验值排行榜
+      // 经验值排行榜 - 使用累计经验值
       const { data: xpData } = await supabase
         .from("profiles")
-        .select("id, username, xp, level, rank_tier, rank_stars")
+        .select("id, username, total_xp, level, rank_tier, rank_stars")
         .eq("grade", grade)
-        .order("xp", { ascending: false })
+        .order("total_xp", { ascending: false })
         .limit(10);
 
       if (xpData) {
@@ -102,20 +102,20 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
           rank: index + 1,
           username: p.username,
           profileId: p.id,
-          value: p.xp,
+          value: p.total_xp || 0,
           tier: p.rank_tier,
           rankStars: p.rank_stars,
         })));
       }
 
-      // 班级排行榜
+      // 班级排行榜 - 使用累计经验值
       if (currentClass) {
         const { data: classData } = await supabase
           .from("profiles")
-          .select("id, username, xp, level, rank_tier, rank_stars")
+          .select("id, username, total_xp, level, rank_tier, rank_stars")
           .eq("grade", grade)
           .eq("class", currentClass)
-          .order("xp", { ascending: false })
+          .order("total_xp", { ascending: false })
           .limit(20);
 
         if (classData) {
@@ -123,7 +123,7 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
             rank: index + 1,
             username: p.username,
             profileId: p.id,
-            value: p.xp,
+            value: p.total_xp || 0,
             tier: p.rank_tier,
             rankStars: p.rank_stars,
           })));

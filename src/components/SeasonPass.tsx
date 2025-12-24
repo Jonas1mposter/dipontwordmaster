@@ -345,9 +345,9 @@ const SeasonPass = ({ grade, profileId }: SeasonPassProps) => {
           )}
         </CardHeader>
         
-        <CardContent className="p-4">
-          <ScrollArea className="h-[500px] pr-4">
-            <div className="space-y-3">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <div className="min-w-[600px] p-4 space-y-3">
               {levels.map((level) => {
                 const normal = groupedItems[level].normal;
                 const premium = groupedItems[level].premium;
@@ -450,7 +450,7 @@ const SeasonPass = ({ grade, profileId }: SeasonPassProps) => {
                 );
               })}
             </div>
-          </ScrollArea>
+          </div>
         </CardContent>
       </Card>
 

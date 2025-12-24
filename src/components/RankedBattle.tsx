@@ -201,13 +201,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const myFinishedRef = useRef(myFinished);
   const matchFinishedRef = useRef(matchFinished);
   const myScoreRef = useRef(myScore);
+  const opponentFinishedRef = useRef(opponentFinished);
   
   // Keep refs in sync
   useEffect(() => {
     myFinishedRef.current = myFinished;
     matchFinishedRef.current = matchFinished;
     myScoreRef.current = myScore;
-  }, [myFinished, matchFinished, myScore]);
+    opponentFinishedRef.current = opponentFinished;
+  }, [myFinished, matchFinished, myScore, opponentFinished]);
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -748,17 +750,39 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
 
     // Broadcast progress to opponent (for real player matches)
-    if (isRealPlayer && matchId && profile && battleChannel) {
-      battleChannel.send({
-        type: 'broadcast',
-        event: 'player_progress',
-        payload: {
-          playerId: profile.id,
-          questionIndex: newQuestionIndex,
-          score: newScore,
-          finished: newQuestionIndex >= 10,
+    if (isRealPlayer && matchId && profile) {
+      // Try broadcast first
+      if (battleChannel) {
+        battleChannel.send({
+          type: 'broadcast',
+          event: 'player_progress',
+          payload: {
+            playerId: profile.id,
+            questionIndex: newQuestionIndex,
+            score: newScore,
+            finished: newQuestionIndex >= 10,
+          }
+        });
+      }
+      
+      // Also update database when finished (as fallback sync mechanism)
+      if (newQuestionIndex >= 10) {
+        const { data: currentMatch } = await supabase
+          .from("ranked_matches")
+          .select("player1_id")
+          .eq("id", matchId)
+          .single();
+        
+        if (currentMatch) {
+          const isPlayer1 = currentMatch.player1_id === profile.id;
+          await supabase
+            .from("ranked_matches")
+            .update({
+              [isPlayer1 ? "player1_score" : "player2_score"]: newScore,
+            })
+            .eq("id", matchId);
         }
-      });
+      }
     }
 
     // After showing result, wait before moving to next question
@@ -788,7 +812,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               }
             }, 500);
           }
-          // Otherwise wait for opponent (handled by realtime listener)
+          // Otherwise wait for opponent (handled by realtime listener + polling)
         }
         return;
       }
@@ -956,40 +980,101 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     if (matchStatus !== "playing" || !matchId || !profile || !isRealPlayer) return;
 
     console.log("Setting up battle sync channel for match:", matchId);
+    let isActive = true;
+    let retryCount = 0;
+    const maxRetries = 3;
     
-    const channel = supabase.channel(`battle-${matchId}`)
-      .on('broadcast', { event: 'player_progress' }, (payload) => {
-        const data = payload.payload as any;
-        
-        // Ignore our own messages
-        if (data.playerId === profile.id) return;
-        
-        console.log("Opponent progress:", data);
-        
-        // Update opponent's current progress
-        setOpponentProgress(data.questionIndex);
-        
-        // Update opponent's progress
-        if (data.finished) {
-          setOpponentFinished(true);
-          setOpponentFinalScore(data.score);
+    const setupChannel = () => {
+      const channel = supabase.channel(`battle-${matchId}-${Date.now()}`)
+        .on('broadcast', { event: 'player_progress' }, (payload) => {
+          if (!isActive) return;
+          const data = payload.payload as any;
           
-          // If we're also finished, complete the match (using refs to get current values)
-          if (myFinishedRef.current && !matchFinishedRef.current) {
-            finishMatchWithRealPlayer(myScoreRef.current, data.score);
+          // Ignore our own messages
+          if (data.playerId === profile.id) return;
+          
+          console.log("Opponent progress:", data);
+          
+          // Update opponent's current progress
+          setOpponentProgress(data.questionIndex);
+          
+          // Update opponent's progress
+          if (data.finished) {
+            setOpponentFinished(true);
+            setOpponentFinalScore(data.score);
+            
+            // If we're also finished, complete the match (using refs to get current values)
+            if (myFinishedRef.current && !matchFinishedRef.current) {
+              finishMatchWithRealPlayer(myScoreRef.current, data.score);
+            }
           }
+        })
+        .subscribe((status) => {
+          console.log("Battle sync channel status:", status);
+          if (status === 'SUBSCRIBED') {
+            // Store channel reference for sending messages
+            setBattleChannel(channel);
+            retryCount = 0; // Reset retry count on success
+          } else if (status === 'CHANNEL_ERROR' && isActive && retryCount < maxRetries) {
+            // Retry on error
+            retryCount++;
+            console.log(`Channel error, retrying (${retryCount}/${maxRetries})...`);
+            supabase.removeChannel(channel);
+            setTimeout(() => {
+              if (isActive) setupChannel();
+            }, 1000 * retryCount);
+          }
+        });
+      
+      return channel;
+    };
+    
+    const channel = setupChannel();
+
+    // Polling fallback to ensure we catch opponent progress even if broadcast fails
+    const pollInterval = setInterval(async () => {
+      if (!isActive || matchFinishedRef.current) return;
+      
+      // Check match status in database for opponent completion
+      const { data: matchData } = await supabase
+        .from("ranked_matches")
+        .select("*")
+        .eq("id", matchId)
+        .single();
+      
+      if (!matchData) return;
+      
+      const isPlayer1 = matchData.player1_id === profile.id;
+      const opponentScore = isPlayer1 ? matchData.player2_score : matchData.player1_score;
+      const opponentHasScore = opponentScore > 0;
+      
+      // If opponent has score recorded and we haven't marked them finished, sync it
+      if (opponentHasScore && !opponentFinishedRef.current) {
+        console.log("Polling: Detected opponent score:", opponentScore);
+        setOpponentFinished(true);
+        setOpponentFinalScore(opponentScore);
+        
+        if (myFinishedRef.current && !matchFinishedRef.current) {
+          finishMatchWithRealPlayer(myScoreRef.current, opponentScore);
         }
-      })
-      .subscribe((status) => {
-        console.log("Battle sync channel status:", status);
-        if (status === 'SUBSCRIBED') {
-          // Store channel reference for sending messages
-          setBattleChannel(channel);
+      }
+      
+      // Also check if match was marked completed
+      if (matchData.status === "completed" && !matchFinishedRef.current) {
+        console.log("Polling: Match completed, syncing final state");
+        setOpponentFinished(true);
+        setOpponentFinalScore(opponentScore);
+        
+        if (myFinishedRef.current) {
+          finishMatchWithRealPlayer(myScoreRef.current, opponentScore);
         }
-      });
+      }
+    }, 2000); // Poll every 2 seconds
 
     return () => {
+      isActive = false;
       setBattleChannel(null);
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   // Only re-subscribe when essential values change (matchStatus, matchId, profile, isRealPlayer)

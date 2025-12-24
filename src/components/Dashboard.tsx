@@ -94,15 +94,10 @@ const Dashboard = ({
 
   // Show spectate view
   if (activeView === "spectate" && spectateMatchId) {
-    return (
-      <SpectateView
-        matchId={spectateMatchId}
-        onBack={() => {
-          setSpectateMatchId(null);
-          setActiveView("friends");
-        }}
-      />
-    );
+    return <SpectateView matchId={spectateMatchId} onBack={() => {
+      setSpectateMatchId(null);
+      setActiveView("friends");
+    }} />;
   }
 
   // Show ranked battle
@@ -209,7 +204,7 @@ const Dashboard = ({
               <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-primary/10">
                 <ChevronLeft className="w-5 h-5" />
               </Button>
-              <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src="/lovable-uploads/591442c7-60d2-4ec6-b7a5-8250ff9a58b6.png" />
+              <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src="/lovable-uploads/0bbf2496-053c-4e4b-b122-9d2f4cc43b4b.jpg" />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>
                 <div className="flex items-center gap-2 mt-1">
@@ -302,14 +297,7 @@ const Dashboard = ({
             {/* Left Column - Player Stats & Rank & Quests */}
             <div className="space-y-6">
               <PlayerStats {...playerData} />
-              {profile && (
-                <RankDisplay 
-                  tier={profile.rank_tier as "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion"} 
-                  stars={profile.rank_stars} 
-                  wins={profile.wins}
-                  losses={profile.losses}
-                />
-              )}
+              {profile && <RankDisplay tier={profile.rank_tier as "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion"} stars={profile.rank_stars} wins={profile.wins} losses={profile.losses} />}
               <DailyQuest key={refreshKey} onQuestUpdate={() => refreshProfile()} />
             </div>
 
@@ -349,12 +337,7 @@ const Dashboard = ({
           </div>}
 
         {activeView === "friends" && profile && <div className="max-w-2xl mx-auto">
-            <FriendsPanel 
-              currentProfileId={profile.id} 
-              currentGrade={profile.grade} 
-              onBattleStart={handleFriendBattleStart}
-              onSpectate={handleSpectate}
-            />
+            <FriendsPanel currentProfileId={profile.id} currentGrade={profile.grade} onBattleStart={handleFriendBattleStart} onSpectate={handleSpectate} />
           </div>}
 
         {activeView === "profile" && profile && <div className="max-w-2xl mx-auto space-y-6">

@@ -11,12 +11,14 @@ interface FriendsPanelProps {
   currentProfileId: string;
   currentGrade: number;
   onBattleStart: (matchId: string) => void;
+  onSpectate?: (matchId: string) => void;
 }
 
 export const FriendsPanel = ({
   currentProfileId,
   currentGrade,
   onBattleStart,
+  onSpectate,
 }: FriendsPanelProps) => {
   const [chatFriend, setChatFriend] = useState<Friend | null>(null);
   const [challengeFriend, setChallengeFriend] = useState<Friend | null>(null);
@@ -51,6 +53,7 @@ export const FriendsPanel = ({
             currentProfileId={currentProfileId}
             onOpenChat={(friend) => setChatFriend(friend)}
             onChallenge={(friend) => setChallengeFriend(friend)}
+            onSpectate={onSpectate}
           />
         </TabsContent>
 

@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
   BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2, Pencil,
-  HandMetal, Sprout, BookOpenCheck, Library, Compass, GraduationCap, Sword, Medal, Gem, Trophy, Zap, LucideIcon
+  HandMetal, Sprout, BookOpenCheck, Library, Compass, GraduationCap, Sword, Medal, Gem, Trophy, Zap, LucideIcon,
+  ChevronUp, Shield
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +72,42 @@ const backgroundOptions = [
   { id: "aurora", gradient: "from-green-400/30 via-blue-500/30 to-purple-500/30", name: "极光" },
   { id: "gold", gradient: "from-yellow-400/40 via-amber-500/30 to-orange-400/40", name: "黄金" },
 ];
+
+// 段位配置 - 与 RankedBattle.tsx 保持一致
+type RankTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion";
+
+const RANK_CONFIG: Record<RankTier, {
+  starsToPromote: number;
+  starsLostOnLose: number;
+  protectionStars: number;
+}> = {
+  bronze: { starsToPromote: 30, starsLostOnLose: 0, protectionStars: 0 },
+  silver: { starsToPromote: 40, starsLostOnLose: 1, protectionStars: 0 },
+  gold: { starsToPromote: 50, starsLostOnLose: 1, protectionStars: 1 },
+  platinum: { starsToPromote: 50, starsLostOnLose: 1, protectionStars: 0 },
+  diamond: { starsToPromote: 60, starsLostOnLose: 2, protectionStars: 0 },
+  champion: { starsToPromote: 999, starsLostOnLose: 2, protectionStars: 0 },
+};
+
+const TIER_ORDER: RankTier[] = ["bronze", "silver", "gold", "platinum", "diamond", "champion"];
+
+const tierNames: Record<RankTier, string> = {
+  bronze: "青铜",
+  silver: "白银",
+  gold: "黄金",
+  platinum: "铂金",
+  diamond: "钻石",
+  champion: "狄邦巅峰",
+};
+
+const tierColors: Record<RankTier, { gradient: string; text: string; bg: string }> = {
+  bronze: { gradient: "from-amber-700 to-amber-900", text: "text-amber-500", bg: "bg-amber-500/20" },
+  silver: { gradient: "from-gray-300 to-gray-500", text: "text-gray-400", bg: "bg-gray-400/20" },
+  gold: { gradient: "from-yellow-400 to-amber-500", text: "text-yellow-500", bg: "bg-yellow-500/20" },
+  platinum: { gradient: "from-cyan-300 to-cyan-500", text: "text-cyan-400", bg: "bg-cyan-400/20" },
+  diamond: { gradient: "from-blue-300 to-purple-400", text: "text-blue-400", bg: "bg-blue-400/20" },
+  champion: { gradient: "from-purple-500 to-pink-500", text: "text-purple-400", bg: "bg-purple-400/20" },
+};
 
 const ProfileCard = () => {
   const { profile, user, refreshProfile } = useAuth();
@@ -587,6 +625,120 @@ const ProfileCard = () => {
 
       {/* 间隔区域给勋章留空间 */}
       <div className="h-12" />
+
+      {/* 段位进度条区域 */}
+      {profile.rank_tier && (
+        <div className="px-4 py-3 border-t border-border/50">
+          {(() => {
+            const currentTier = (profile.rank_tier || "bronze") as RankTier;
+            const currentStars = profile.rank_stars || 0;
+            const config = RANK_CONFIG[currentTier];
+            const tierIndex = TIER_ORDER.indexOf(currentTier);
+            const nextTier = tierIndex < TIER_ORDER.length - 1 ? TIER_ORDER[tierIndex + 1] : null;
+            const progressPercent = currentTier === "champion" 
+              ? 100 
+              : Math.min((currentStars / config.starsToPromote) * 100, 100);
+            
+            return (
+              <div className="space-y-2">
+                {/* 段位标题行 */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br",
+                      tierColors[currentTier].gradient
+                    )}>
+                      {currentTier === "champion" ? (
+                        <Crown className="w-4 h-4 text-white" />
+                      ) : (
+                        <Shield className="w-4 h-4 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <div className={cn("font-gaming text-sm", tierColors[currentTier].text)}>
+                        {tierNames[currentTier]}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {currentStars} / {config.starsToPromote} 星
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 下一段位预览 */}
+                  {nextTier && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <ChevronUp className="w-3 h-3" />
+                      <span>下一段位:</span>
+                      <span className={cn("font-gaming", tierColors[nextTier].text)}>
+                        {tierNames[nextTier]}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {currentTier === "champion" && (
+                    <Badge variant="gold" className="text-xs">
+                      <Crown className="w-3 h-3 mr-1" />
+                      最高段位
+                    </Badge>
+                  )}
+                </div>
+                
+                {/* 进度条 */}
+                <div className="relative">
+                  <div className="h-3 bg-secondary/50 rounded-full overflow-hidden">
+                    <div 
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500 bg-gradient-to-r",
+                        tierColors[currentTier].gradient
+                      )}
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                  
+                  {/* 星星标记 - 仅显示部分关键节点 */}
+                  {currentTier !== "champion" && (
+                    <div className="absolute inset-0 flex items-center">
+                      {[0.25, 0.5, 0.75].map((pos) => (
+                        <div 
+                          key={pos}
+                          className="absolute top-1/2 -translate-y-1/2"
+                          style={{ left: `${pos * 100}%` }}
+                        >
+                          <div className={cn(
+                            "w-1 h-1 rounded-full",
+                            progressPercent >= pos * 100 ? "bg-white/80" : "bg-muted-foreground/30"
+                          )} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* 段位规则提示 */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    {config.starsLostOnLose > 0 ? (
+                      <span>失败扣 {config.starsLostOnLose} 星</span>
+                    ) : (
+                      <span className="text-success">失败不扣星</span>
+                    )}
+                    {config.protectionStars > 0 && (
+                      <>
+                        <span className="text-muted-foreground/50">•</span>
+                        <span className="text-accent">{config.protectionStars} 星保护</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="w-3 h-3 text-accent fill-accent" />
+                    <span>胜利 +1 星</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* 底部区域：用户名 + 名片区 */}
       <div className="border-t border-border/50">

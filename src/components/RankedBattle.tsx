@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,9 @@ import {
   CheckCircle,
   XCircle,
   Volume2,
-  Loader2
+  VolumeX,
+  Loader2,
+  Wifi
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +41,7 @@ type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 
 const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
+  const sounds = useMatchSounds();
   const [matchStatus, setMatchStatus] = useState<MatchStatus>("idle");
   const [matchId, setMatchId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<any>(null);
@@ -54,6 +58,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [showAIOption, setShowAIOption] = useState(false);
   const [waitingMatchId, setWaitingMatchId] = useState<string | null>(null);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [answerAnimation, setAnswerAnimation] = useState<'correct' | 'wrong' | null>(null);
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -167,6 +173,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setWords(matchWords);
     setOptions(generateOptions(matchWords[0].meaning, matchWords));
     setMatchStatus("found");
+    sounds.playMatchFound();
     
     setTimeout(() => setMatchStatus("playing"), 2000);
   };
@@ -218,6 +225,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         setWords(matchWords);
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
+        sounds.playMatchFound();
         setTimeout(() => setMatchStatus("playing"), 2000);
         return true;
       } else {
@@ -339,6 +347,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }
       setWaitingMatchId(null);
       setMatchStatus("found");
+      sounds.playMatchFound();
       setTimeout(() => setMatchStatus("playing"), 2000);
     };
 
@@ -570,9 +579,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     if (isCorrect) {
       setMyScore(newScore);
+      setAnswerAnimation('correct');
+      sounds.playCorrect();
+    } else {
+      setAnswerAnimation('wrong');
+      sounds.playWrong();
     }
 
     setTimeout(() => {
+      setAnswerAnimation(null);
       // End match immediately if someone reaches 10 correct
       if (newScore >= 10) {
         finishMatch(newScore);
@@ -604,6 +619,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     const won = playerScore > simulatedOpponentScore;
     setIsWinner(won);
+
+    // Play victory or defeat sound
+    if (won) {
+      sounds.playVictory();
+    } else {
+      sounds.playDefeat();
+    }
 
     if (profile && matchId) {
       // Update match result
@@ -647,6 +669,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             finishMatch();
             return 0;
           }
+          // Play urgent sound when time is low
+          if (prev <= 10) {
+            sounds.playUrgent();
+          } else if (prev <= 30 && prev % 5 === 0) {
+            sounds.playTick();
+          }
           return prev - 1;
         });
       }, 1000);
@@ -654,11 +682,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   }, [matchStatus, timeLeft]);
 
-  // Search timer
+  // Search timer with sound
   useEffect(() => {
     if (matchStatus === "searching") {
       const timer = setInterval(() => {
-        setSearchTime(prev => prev + 1);
+        setSearchTime(prev => {
+          // Play searching beep every 2 seconds
+          if (prev % 2 === 0) {
+            sounds.playSearchingBeep();
+          }
+          return prev + 1;
+        });
       }, 1000);
       return () => clearInterval(timer);
     }
@@ -761,26 +795,104 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   // Searching state
   if (matchStatus === "searching") {
     return (
-      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <h2 className="font-gaming text-2xl mb-2">正在匹配对手...</h2>
-          <p className="text-muted-foreground mb-4">
-            搜索时间: {searchTime}秒
-          </p>
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center relative overflow-hidden">
+        {/* Animated background particles */}
+        <div className="absolute inset-0">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-primary/40 rounded-full"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
+                animationDelay: `${Math.random() * 2}s`,
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* Radar effect */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-80 h-80 rounded-full border border-primary/10 animate-radar-ping" />
+          <div className="absolute w-60 h-60 rounded-full border border-primary/20 animate-radar-ping" style={{ animationDelay: '0.5s' }} />
+          <div className="absolute w-40 h-40 rounded-full border border-primary/30 animate-radar-ping" style={{ animationDelay: '1s' }} />
+        </div>
+
+        <div className="text-center relative z-10">
+          {/* Sound toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute -top-16 right-0"
+            onClick={() => {
+              setSoundEnabled(!soundEnabled);
+              sounds.toggleSounds(!soundEnabled);
+            }}
+          >
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </Button>
+
+          {/* Radar scanner */}
+          <div className="w-32 h-32 mx-auto mb-6 relative">
+            <div className="absolute inset-0 rounded-full border-4 border-primary/30" />
+            <div className="absolute inset-2 rounded-full border-2 border-primary/20" />
+            <div className="absolute inset-4 rounded-full border border-primary/10" />
+            
+            {/* Sweep line */}
+            <div className="absolute inset-0 animate-radar-sweep origin-center">
+              <div className="absolute top-1/2 left-1/2 w-1/2 h-0.5 bg-gradient-to-r from-primary to-transparent origin-left" />
+            </div>
+            
+            {/* Center dot */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-4 h-4 bg-primary rounded-full animate-search-pulse shadow-lg shadow-primary/50" />
+            </div>
+            
+            {/* Random blips */}
+            {searchTime > 3 && (
+              <div 
+                className="absolute w-2 h-2 bg-accent rounded-full animate-pulse"
+                style={{ 
+                  left: `${30 + Math.sin(searchTime) * 20}%`, 
+                  top: `${40 + Math.cos(searchTime) * 15}%` 
+                }}
+              />
+            )}
+          </div>
+          
+          <h2 className="font-gaming text-2xl mb-2 text-glow-purple">正在匹配对手</h2>
+          
+          {/* Animated dots */}
+          <div className="flex items-center justify-center gap-1 mb-4">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 bg-primary rounded-full animate-dot-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+          
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full border border-border/50 mb-4">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="font-gaming text-lg">{searchTime}</span>
+            <span className="text-muted-foreground text-sm">秒</span>
+          </div>
+          
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-6">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-full">
+              <Wifi className="w-4 h-4 text-primary animate-pulse" />
               <span>正在寻找{profile?.grade}年级玩家</span>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1 bg-success/20 rounded-full border border-success/30">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-success/20 rounded-full border border-success/30">
               <span className="w-2 h-2 bg-success rounded-full animate-pulse" />
               <span className="text-success font-medium">{onlineCount} 人在线</span>
             </div>
           </div>
           
           {showAIOption && (
-            <div className="mb-4 p-4 bg-accent/10 rounded-xl border border-accent/20 animate-scale-in">
+            <div className="mb-4 p-4 bg-accent/10 rounded-xl border border-accent/20 animate-scale-in max-w-xs mx-auto">
               <p className="text-sm text-muted-foreground mb-3">暂未找到真人对手</p>
               <Button variant="default" onClick={chooseAIBattle} className="w-full mb-2">
                 <Zap className="w-4 h-4 mr-2" />
@@ -789,7 +901,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             </div>
           )}
           
-          <Button variant="outline" onClick={cancelSearch}>
+          <Button variant="outline" onClick={cancelSearch} className="hover:bg-destructive/10 hover:border-destructive/50 hover:text-destructive transition-colors">
             取消匹配
           </Button>
         </div>
@@ -982,11 +1094,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               </Button>
               
               <div className={cn(
-                "px-4 py-2 rounded-xl font-gaming text-lg",
-                timeLeft <= 10 ? "bg-destructive/20 text-destructive animate-pulse" : "bg-accent/20 text-accent"
+                "px-4 py-2 rounded-xl font-gaming text-lg transition-all",
+                timeLeft <= 10 ? "bg-destructive/20 text-destructive animate-urgent-pulse" : "bg-accent/20 text-accent"
               )}>
                 <Clock className="w-4 h-4 inline mr-2" />
-                {timeLeft}s
+                <span className={cn(timeLeft <= 10 && "animate-countdown-pop")} key={timeLeft}>{timeLeft}s</span>
               </div>
               
               <div className="w-16" /> {/* Spacer for balance */}
@@ -1018,7 +1130,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
         {/* Word Card */}
         <main className="container mx-auto px-4 py-8">
-          <Card variant="glow" className="max-w-lg mx-auto p-8 text-center animate-scale-in">
+          <Card 
+            variant="glow" 
+            className={cn(
+              "max-w-lg mx-auto p-8 text-center animate-scale-in transition-all",
+              answerAnimation === 'correct' && "animate-correct-flash",
+              answerAnimation === 'wrong' && "animate-wrong-shake"
+            )}
+          >
             <div className="flex items-center justify-center gap-3 mb-6">
               <h2 className="text-4xl font-gaming text-glow-purple">{currentWord.word}</h2>
               <button
@@ -1072,69 +1191,109 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   // Finished state
   if (matchStatus === "finished") {
     return (
-      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
-        <div className="max-w-md w-full text-center animate-scale-in">
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Victory confetti effect */}
+        {isWinner && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {[...Array(30)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-3 h-3 rounded-sm"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: '-10px',
+                  backgroundColor: ['hsl(45, 100%, 55%)', 'hsl(265, 89%, 66%)', 'hsl(200, 100%, 60%)', 'hsl(142, 76%, 45%)', 'hsl(330, 85%, 60%)'][i % 5],
+                  animation: `confettiFall ${2 + Math.random() * 3}s linear forwards`,
+                  animationDelay: `${Math.random() * 1}s`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Background glow */}
+        <div className={cn(
+          "absolute inset-0 transition-all duration-1000",
+          isWinner ? "bg-gradient-radial from-accent/10 via-transparent to-transparent" : "bg-gradient-radial from-muted/10 via-transparent to-transparent"
+        )} />
+
+        <div className="max-w-md w-full text-center relative z-10">
           <div className={cn(
-            "w-24 h-24 mx-auto mb-6 rounded-2xl flex items-center justify-center shadow-lg",
+            "w-28 h-28 mx-auto mb-6 rounded-2xl flex items-center justify-center shadow-lg transition-all",
             isWinner 
-              ? "bg-gradient-to-br from-accent to-amber-600 shadow-accent/30" 
-              : "bg-gradient-to-br from-muted to-secondary shadow-muted/30"
+              ? "bg-gradient-to-br from-accent to-amber-600 shadow-accent/50 animate-victory-burst" 
+              : "bg-gradient-to-br from-muted to-secondary shadow-muted/30 animate-scale-in"
           )}>
             {isWinner ? (
-              <Crown className="w-12 h-12 text-background" />
+              <Crown className="w-14 h-14 text-background drop-shadow-lg" />
             ) : (
               <Trophy className="w-12 h-12 text-muted-foreground" />
             )}
           </div>
 
           <h2 className={cn(
-            "font-gaming text-3xl mb-2",
+            "font-gaming text-4xl mb-2 animate-slide-up",
             isWinner ? "text-glow-gold" : ""
           )}>
-            {isWinner ? "胜利！" : "惜败"}
+            {isWinner ? "🎉 胜利！🎉" : "惜败"}
           </h2>
-          <p className="text-muted-foreground mb-8">
+          <p className="text-muted-foreground mb-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
             {isWinner ? "恭喜你赢得比赛！" : "再接再厉，下次一定赢！"}
           </p>
 
           {/* Score comparison */}
-          <Card variant={isWinner ? "gold" : "default"} className="mb-6">
+          <Card variant={isWinner ? "gold" : "default"} className="mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="text-center flex-1">
-                  <div className="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2">
+                  <div className={cn(
+                    "w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
+                    isWinner && "ring-4 ring-accent/50"
+                  )}>
                     {profile?.username.charAt(0).toUpperCase()}
                   </div>
                   <p className="font-semibold mb-1">{profile?.username}</p>
-                  <p className="font-gaming text-3xl text-primary">{myScore}</p>
+                  <p className={cn(
+                    "font-gaming text-4xl",
+                    isWinner ? "text-accent" : "text-primary"
+                  )}>{myScore}</p>
                 </div>
                 
                 <div className="font-gaming text-2xl text-muted-foreground px-4">VS</div>
                 
                 <div className="text-center flex-1">
-                  <div className="w-12 h-12 mx-auto rounded-xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2">
+                  <div className={cn(
+                    "w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
+                    !isWinner && "ring-4 ring-neon-blue/50"
+                  )}>
                     {opponent?.username?.charAt(0).toUpperCase() || "?"}
                   </div>
                   <p className="font-semibold mb-1">{opponent?.username || "对手"}</p>
-                  <p className="font-gaming text-3xl text-neon-blue">{opponentScore}</p>
+                  <p className="font-gaming text-4xl text-neon-blue">{opponentScore}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Rewards */}
-          <div className="flex justify-center gap-4 mb-8">
-            <Badge variant="xp" className="text-base px-4 py-2">
+          <div className="flex justify-center gap-4 mb-8 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+            <Badge variant="xp" className={cn(
+              "text-base px-4 py-2 transition-all",
+              isWinner && "animate-pulse"
+            )}>
               <Star className="w-4 h-4 mr-2" />
               +{isWinner ? 50 : 20} XP
             </Badge>
-            <Badge variant="gold" className="text-base px-4 py-2">
+            <Badge variant="gold" className={cn(
+              "text-base px-4 py-2 transition-all",
+              isWinner && "animate-pulse"
+            )}>
               🪙 +{isWinner ? 30 : 10}
             </Badge>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-4">
+          <div className="flex gap-4 animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <Button variant="outline" className="flex-1" onClick={onBack}>
               <ChevronLeft className="w-4 h-4 mr-2" />
               返回
@@ -1150,6 +1309,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               setTimeLeft(60);
               setSelectedOption(null);
               setShowResult(false);
+              setAnswerAnimation(null);
             }}>
               <Swords className="w-4 h-4 mr-2" />
               再来一局

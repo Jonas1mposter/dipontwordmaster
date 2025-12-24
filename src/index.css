@@ -295,3 +295,164 @@
     transform: scale(1); 
   }
 }
+
+/* Enhanced matchmaking animations */
+@keyframes radarSweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radarPing {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes searchPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes dotBounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes countdownPop {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shakeHorizontal {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+@keyframes correctFlash {
+  0% { 
+    background-color: hsl(142 76% 45% / 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    background-color: hsl(142 76% 45% / 0.5);
+    transform: scale(1.02);
+  }
+  100% { 
+    background-color: transparent;
+    transform: scale(1);
+  }
+}
+
+@keyframes wrongShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes victoryBurst {
+  0% {
+    transform: scale(0) rotate(-10deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1) rotate(5deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes urgentPulse {
+  0%, 100% {
+    color: hsl(0 72% 51%);
+    text-shadow: 0 0 10px hsl(0 72% 51% / 0.5);
+  }
+  50% {
+    color: hsl(45 100% 55%);
+    text-shadow: 0 0 20px hsl(45 100% 55% / 0.8);
+  }
+}
+
+/* Animation utility classes */
+.animate-radar-sweep {
+  animation: radarSweep 2s linear infinite;
+}
+
+.animate-radar-ping {
+  animation: radarPing 1.5s ease-out infinite;
+}
+
+.animate-search-pulse {
+  animation: searchPulse 1.5s ease-in-out infinite;
+}
+
+.animate-dot-bounce {
+  animation: dotBounce 1.4s ease-in-out infinite;
+}
+
+.animate-countdown-pop {
+  animation: countdownPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-shake {
+  animation: shakeHorizontal 0.5s ease-in-out;
+}
+
+.animate-correct-flash {
+  animation: correctFlash 0.5s ease-out;
+}
+
+.animate-wrong-shake {
+  animation: wrongShake 0.5s ease-in-out;
+}
+
+.animate-victory-burst {
+  animation: victoryBurst 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-urgent-pulse {
+  animation: urgentPulse 0.5s ease-in-out infinite;
+}

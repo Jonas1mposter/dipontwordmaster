@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
@@ -196,6 +196,18 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     newStars: number;
   } | null>(null);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Refs to track latest state values without triggering re-subscriptions
+  const myFinishedRef = useRef(myFinished);
+  const matchFinishedRef = useRef(matchFinished);
+  const myScoreRef = useRef(myScore);
+  
+  // Keep refs in sync
+  useEffect(() => {
+    myFinishedRef.current = myFinished;
+    matchFinishedRef.current = matchFinished;
+    myScoreRef.current = myScore;
+  }, [myFinished, matchFinished, myScore]);
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -962,9 +974,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           setOpponentFinished(true);
           setOpponentFinalScore(data.score);
           
-          // If we're also finished, complete the match
-          if (myFinished && !matchFinished) {
-            finishMatchWithRealPlayer(myScore, data.score);
+          // If we're also finished, complete the match (using refs to get current values)
+          if (myFinishedRef.current && !matchFinishedRef.current) {
+            finishMatchWithRealPlayer(myScoreRef.current, data.score);
           }
         }
       })
@@ -980,7 +992,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setBattleChannel(null);
       supabase.removeChannel(channel);
     };
-  }, [matchStatus, matchId, profile, isRealPlayer, myFinished, matchFinished, myScore]);
+  // Only re-subscribe when essential values change (matchStatus, matchId, profile, isRealPlayer)
+  // Other values are accessed via refs to prevent channel reconnection
+  }, [matchStatus, matchId, profile?.id, isRealPlayer]);
 
   // Handle case where opponent finished before us
   useEffect(() => {

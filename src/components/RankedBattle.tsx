@@ -766,6 +766,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }
       
       // Also update database when finished (as fallback sync mechanism)
+      // Use a special marker: score + 100 to indicate finished (score 0-10 becomes 100-110)
       if (newQuestionIndex >= 10) {
         const { data: currentMatch } = await supabase
           .from("ranked_matches")
@@ -775,12 +776,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         if (currentMatch) {
           const isPlayer1 = currentMatch.player1_id === profile.id;
+          // Use score + 100 as a marker that player finished (to distinguish from 0 score)
           await supabase
             .from("ranked_matches")
             .update({
-              [isPlayer1 ? "player1_score" : "player2_score"]: newScore,
+              [isPlayer1 ? "player1_score" : "player2_score"]: newScore + 100,
             })
             .eq("id", matchId);
+          console.log(`Updated DB: ${isPlayer1 ? 'player1_score' : 'player2_score'} = ${newScore + 100}`);
         }
       }
     }
@@ -1000,11 +1003,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           
           // Update opponent's progress
           if (data.finished) {
+            console.log("Broadcast: Opponent finished with score:", data.score);
             setOpponentFinished(true);
             setOpponentFinalScore(data.score);
             
             // If we're also finished, complete the match (using refs to get current values)
             if (myFinishedRef.current && !matchFinishedRef.current) {
+              console.log("Both finished via broadcast, completing match");
               finishMatchWithRealPlayer(myScoreRef.current, data.score);
             }
           }
@@ -1032,6 +1037,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const channel = setupChannel();
 
     // Polling fallback to ensure we catch opponent progress even if broadcast fails
+    // Poll more frequently (every 1 second) for responsiveness
     const pollInterval = setInterval(async () => {
       if (!isActive || matchFinishedRef.current) return;
       
@@ -1045,31 +1051,35 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (!matchData) return;
       
       const isPlayer1 = matchData.player1_id === profile.id;
-      const opponentScore = isPlayer1 ? matchData.player2_score : matchData.player1_score;
-      const opponentHasScore = opponentScore > 0;
+      const rawOpponentScore = isPlayer1 ? matchData.player2_score : matchData.player1_score;
       
-      // If opponent has score recorded and we haven't marked them finished, sync it
-      if (opponentHasScore && !opponentFinishedRef.current) {
-        console.log("Polling: Detected opponent score:", opponentScore);
+      // Score >= 100 means opponent finished (actual score = rawScore - 100)
+      const opponentHasFinished = rawOpponentScore >= 100;
+      const actualOpponentScore = opponentHasFinished ? rawOpponentScore - 100 : rawOpponentScore;
+      
+      // If opponent has finished and we haven't marked them finished, sync it
+      if (opponentHasFinished && !opponentFinishedRef.current) {
+        console.log("Polling: Detected opponent finished with score:", actualOpponentScore);
         setOpponentFinished(true);
-        setOpponentFinalScore(opponentScore);
+        setOpponentFinalScore(actualOpponentScore);
         
         if (myFinishedRef.current && !matchFinishedRef.current) {
-          finishMatchWithRealPlayer(myScoreRef.current, opponentScore);
+          finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
       
       // Also check if match was marked completed
       if (matchData.status === "completed" && !matchFinishedRef.current) {
         console.log("Polling: Match completed, syncing final state");
+        const finalOpponentScore = rawOpponentScore >= 100 ? rawOpponentScore - 100 : rawOpponentScore;
         setOpponentFinished(true);
-        setOpponentFinalScore(opponentScore);
+        setOpponentFinalScore(finalOpponentScore);
         
         if (myFinishedRef.current) {
-          finishMatchWithRealPlayer(myScoreRef.current, opponentScore);
+          finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
         }
       }
-    }, 2000); // Poll every 2 seconds
+    }, 1000); // Poll every 1 second for responsiveness
 
     return () => {
       isActive = false;

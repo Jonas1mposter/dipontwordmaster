@@ -12,6 +12,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Settings,
   Volume2,
@@ -24,8 +32,14 @@ import {
   Gamepad2,
   Info,
   Shield,
+  LogOut,
+  Lock,
+  School,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GameSettings {
   soundEnabled: boolean;
@@ -51,9 +65,26 @@ const defaultSettings: GameSettings = {
 
 const STORAGE_KEY = "game-settings";
 
+// Class options by grade
+const classOptions: Record<number, string[]> = {
+  7: ["7A1", "7A2", "7B", "7C", "7D", "7E"],
+  8: ["8A1", "8A2", "8A3", "8B", "8C", "8D", "8E", "8F"],
+};
+
 export const SettingsSheet = () => {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<GameSettings>(defaultSettings);
+  const { user, profile, signOut, refreshProfile } = useAuth();
+  
+  // Password change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  
+  // Class selection state
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const [classLoading, setClassLoading] = useState(false);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -67,6 +98,13 @@ export const SettingsSheet = () => {
       }
     }
   }, []);
+
+  // Load user's class from profile
+  useEffect(() => {
+    if (profile?.class) {
+      setSelectedClass(profile.class);
+    }
+  }, [profile]);
 
   // Save settings to localStorage whenever they change
   const updateSettings = (key: keyof GameSettings, value: boolean | number) => {
@@ -93,6 +131,73 @@ export const SettingsSheet = () => {
     }
   };
 
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error("请填写所有密码字段");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("密码至少需要6个字符");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("两次输入的密码不一致");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      toast.success("密码修改成功！");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordChange(false);
+    } catch (error: any) {
+      toast.error(error.message || "密码修改失败");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleClassChange = async (value: string) => {
+    if (!profile?.id) return;
+    
+    setClassLoading(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ class: value })
+        .eq("id", profile.id);
+
+      if (error) throw error;
+
+      setSelectedClass(value);
+      await refreshProfile();
+      toast.success(`班级已更新为 ${value}`);
+    } catch (error: any) {
+      toast.error(error.message || "班级更新失败");
+    } finally {
+      setClassLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("已退出登录");
+      setOpen(false);
+    } catch (error: any) {
+      toast.error("退出登录失败");
+    }
+  };
+
+  const availableClasses = profile?.grade ? classOptions[profile.grade] || [] : [];
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -112,6 +217,128 @@ export const SettingsSheet = () => {
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Account Security Section */}
+          {user && (
+            <>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Shield className="w-4 h-4" />
+                  账号安全
+                </div>
+                
+                <div className="space-y-4 pl-2">
+                  {/* User Info */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <User className="w-5 h-5 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{profile?.username || "用户"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                  </div>
+
+                  {/* Class Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <School className="w-4 h-4 text-primary" />
+                      <Label>班级设置</Label>
+                    </div>
+                    <Select
+                      value={selectedClass || ""}
+                      onValueChange={handleClassChange}
+                      disabled={classLoading || availableClasses.length === 0}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={availableClasses.length === 0 ? "无可用班级" : "选择班级"} />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border-border z-50">
+                        {availableClasses.map((cls) => (
+                          <SelectItem key={cls} value={cls}>
+                            {cls}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {profile?.grade && (
+                      <p className="text-xs text-muted-foreground">
+                        当前年级: {profile.grade}年级
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Password Change */}
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setShowPasswordChange(!showPasswordChange)}
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      修改密码
+                    </Button>
+                    
+                    {showPasswordChange && (
+                      <div className="space-y-3 p-3 rounded-lg bg-muted/30 border border-border">
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password" className="text-xs">新密码</Label>
+                          <Input
+                            id="new-password"
+                            type="password"
+                            placeholder="输入新密码（至少6位）"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password" className="text-xs">确认密码</Label>
+                          <Input
+                            id="confirm-password"
+                            type="password"
+                            placeholder="再次输入新密码"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={handlePasswordChange}
+                            disabled={passwordLoading}
+                            className="flex-1"
+                          >
+                            {passwordLoading ? "修改中..." : "确认修改"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowPasswordChange(false);
+                              setNewPassword("");
+                              setConfirmPassword("");
+                            }}
+                          >
+                            取消
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Logout Button */}
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    退出登录
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+            </>
+          )}
+
           {/* Sound Settings */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

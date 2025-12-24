@@ -1696,10 +1696,61 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           </div>
         )}
 
-        {/* Promotion effect */}
+        {/* Promotion effect - enhanced with rays and sparkles */}
         {rankChangeResult?.promoted && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-t from-accent/30 via-transparent to-transparent animate-pulse" />
+            {/* Background glow */}
+            <div className="absolute inset-0 bg-gradient-to-t from-accent/40 via-accent/20 to-transparent animate-pulse" />
+            
+            {/* Rotating rays */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute w-[800px] h-[800px] animate-promotion-rays">
+                {[...Array(12)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute top-1/2 left-1/2 w-2 h-[400px] bg-gradient-to-t from-accent/30 to-transparent origin-bottom"
+                    style={{ transform: `rotate(${i * 30}deg) translateX(-50%)` }}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {/* Rising stars */}
+            {[...Array(12)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute text-2xl animate-promotion-stars"
+                style={{
+                  left: `${10 + (i % 6) * 15}%`,
+                  bottom: '30%',
+                  animationDelay: `${i * 0.1}s`,
+                }}
+              >
+                ⭐
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Demotion effect - shattered/falling */}
+        {rankChangeResult?.demoted && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {/* Dark overlay with red tint */}
+            <div className="absolute inset-0 bg-gradient-to-b from-destructive/20 via-transparent to-destructive/10" />
+            
+            {/* Falling particles */}
+            {[...Array(20)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-2 h-2 bg-destructive/60 rounded-sm"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: '-10px',
+                  animation: `confettiFall ${1.5 + Math.random() * 2}s linear forwards`,
+                  animationDelay: `${Math.random() * 0.5}s`,
+                }}
+              />
+            ))}
           </div>
         )}
 
@@ -1737,53 +1788,102 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           {rankChangeResult && (
             <div className="mb-6 animate-slide-up" style={{ animationDelay: '0.15s' }}>
               {rankChangeResult.promoted ? (
-                <div className="p-4 bg-accent/20 rounded-xl border-2 border-accent animate-pulse">
-                  <p className="text-accent font-gaming text-xl mb-2">🎊 晋级成功！🎊</p>
-                  <div className={cn(
-                    "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r text-white font-gaming",
-                    tierColors[rankChangeResult.newTier]
-                  )}>
-                    <Crown className="w-5 h-5" />
-                    {tierNames[rankChangeResult.newTier]}
+                <div className="relative p-6 bg-accent/20 rounded-2xl border-2 border-accent overflow-hidden animate-promotion-glow">
+                  {/* Shine overlay */}
+                  <div className="absolute inset-0 animate-promotion-shine" />
+                  
+                  <p className="text-accent font-gaming text-2xl mb-4 relative z-10 animate-promotion-burst">
+                    🎊 晋级成功！🎊
+                  </p>
+                  
+                  <div className="relative z-10 flex flex-col items-center gap-3">
+                    {/* Old tier with arrow to new tier */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground text-sm">
+                        {tierNames[TIER_ORDER[TIER_ORDER.indexOf(rankChangeResult.newTier) - 1] || 'bronze']}
+                      </span>
+                      <span className="text-accent text-xl">→</span>
+                    </div>
+                    
+                    {/* New tier badge with animation */}
+                    <div className={cn(
+                      "inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r text-white font-gaming text-xl animate-promotion-burst",
+                      tierColors[rankChangeResult.newTier]
+                    )} style={{ animationDelay: '0.2s' }}>
+                      <Crown className="w-6 h-6" />
+                      {tierNames[rankChangeResult.newTier]}
+                    </div>
                   </div>
+                  
+                  {/* Sparkle decorations */}
+                  <div className="absolute top-2 left-4 text-lg animate-pulse">✨</div>
+                  <div className="absolute top-4 right-6 text-lg animate-pulse" style={{ animationDelay: '0.3s' }}>✨</div>
+                  <div className="absolute bottom-4 left-8 text-lg animate-pulse" style={{ animationDelay: '0.6s' }}>✨</div>
+                  <div className="absolute bottom-2 right-4 text-lg animate-pulse" style={{ animationDelay: '0.9s' }}>✨</div>
                 </div>
               ) : rankChangeResult.demoted ? (
-                <div className="p-4 bg-destructive/20 rounded-xl border-2 border-destructive/50">
-                  <p className="text-destructive font-gaming text-lg mb-2">段位下降</p>
-                  <div className={cn(
-                    "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r text-white font-gaming",
-                    tierColors[rankChangeResult.newTier]
-                  )}>
-                    {tierNames[rankChangeResult.newTier]}
+                <div className="relative p-6 bg-destructive/20 rounded-2xl border-2 border-destructive/50 overflow-hidden animate-demotion-shake">
+                  <p className="text-destructive font-gaming text-xl mb-4 animate-demotion-fall">
+                    💔 段位下降 💔
+                  </p>
+                  
+                  <div className="flex flex-col items-center gap-3">
+                    {/* Old tier */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground text-sm line-through">
+                        {tierNames[TIER_ORDER[TIER_ORDER.indexOf(rankChangeResult.newTier) + 1] || 'champion']}
+                      </span>
+                      <span className="text-destructive text-xl">↓</span>
+                    </div>
+                    
+                    {/* New tier badge */}
+                    <div className={cn(
+                      "inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r text-white font-gaming text-lg opacity-80 animate-demotion-fall",
+                      tierColors[rankChangeResult.newTier]
+                    )} style={{ animationDelay: '0.2s' }}>
+                      {tierNames[rankChangeResult.newTier]}
+                    </div>
                   </div>
+                  
+                  <p className="text-sm text-muted-foreground mt-3 animate-fade-in" style={{ animationDelay: '0.5s' }}>
+                    继续努力，你一定能重新晋级！
+                  </p>
                 </div>
               ) : (
-                <div className="p-3 bg-secondary/50 rounded-xl border border-border">
-                  <div className="flex items-center justify-center gap-2 mb-2">
+                <div className="p-4 bg-secondary/50 rounded-xl border border-border">
+                  <div className="flex items-center justify-center gap-2 mb-3">
                     <div className={cn(
-                      "px-3 py-1 rounded-full bg-gradient-to-r text-white text-sm font-gaming",
+                      "px-4 py-1.5 rounded-full bg-gradient-to-r text-white text-sm font-gaming",
                       tierColors[rankChangeResult.newTier]
                     )}>
                       {tierNames[rankChangeResult.newTier]}
                     </div>
                   </div>
-                  <div className="flex items-center justify-center gap-1">
-                    {/* Show stars */}
-                    {[...Array(RANK_CONFIG[rankChangeResult.newTier as RankTier].starsToPromote)].map((_, i) => (
+                  
+                  {/* Star display with animation - show max 10 stars for visual clarity */}
+                  <div className="flex items-center justify-center gap-1 flex-wrap max-w-[200px] mx-auto">
+                    {[...Array(Math.min(RANK_CONFIG[rankChangeResult.newTier as RankTier].starsToPromote, 10))].map((_, i) => (
                       <Star 
                         key={i} 
                         className={cn(
                           "w-5 h-5 transition-all",
-                          i < rankChangeResult.newStars 
-                            ? "text-accent fill-accent" 
+                          i < Math.min(rankChangeResult.newStars, 10)
+                            ? "text-accent fill-accent animate-star-rise" 
                             : "text-muted-foreground/30"
-                        )} 
+                        )}
+                        style={{ animationDelay: `${i * 0.05}s` }}
                       />
                     ))}
                   </div>
+                  
+                  {/* Show progress text for large star counts */}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {rankChangeResult.newStars} / {RANK_CONFIG[rankChangeResult.newTier as RankTier].starsToPromote} 星
+                  </p>
+                  
                   {rankChangeResult.starsChanged !== 0 && (
                     <p className={cn(
-                      "text-sm mt-2 font-gaming",
+                      "text-base mt-2 font-gaming animate-scale-in",
                       rankChangeResult.starsChanged > 0 ? "text-success" : "text-destructive"
                     )}>
                       {rankChangeResult.starsChanged > 0 ? `+${rankChangeResult.starsChanged}` : rankChangeResult.starsChanged} ⭐

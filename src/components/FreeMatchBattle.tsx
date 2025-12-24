@@ -26,6 +26,7 @@ import {
   Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { updateProfileWithXp } from "@/lib/levelUp";
 
 interface Word {
   id: string;
@@ -620,15 +621,18 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       const xpGained = won ? 6 : 2;
       const coinsGained = won ? 3 : 1;
 
-      await supabase
-        .from("profiles")
-        .update({
-          xp: profile.xp + xpGained,
+      await updateProfileWithXp(
+        profile.id,
+        profile.level,
+        profile.xp,
+        profile.xp_to_next_level,
+        xpGained,
+        {
           coins: profile.coins + coinsGained,
           wins: won ? profile.wins + 1 : profile.wins,
           losses: won ? profile.losses : profile.losses + 1,
-        })
-        .eq("id", profile.id);
+        }
+      );
 
       refreshProfile();
     }

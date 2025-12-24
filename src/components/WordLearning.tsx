@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { updateProfileWithXp } from "@/lib/levelUp";
 
 const QUIZ_TYPES: { type: QuizType; label: string; icon: string }[] = [
   { type: "meaning", label: "选择释义", icon: "📖" },
@@ -302,14 +303,20 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         }
         // 字母关卡的进度已经通过 learning_progress 更新了
 
-        // Update profile
-        await supabase
-          .from("profiles")
-          .update({
-            xp: profile.xp + baseXp + bonusXp,
-            coins: profile.coins + baseCoins + bonusCoins,
-          })
-          .eq("id", profile.id);
+        // Update profile with level up logic
+        const totalXpGained = baseXp + bonusXp;
+        const levelUpResult = await updateProfileWithXp(
+          profile.id,
+          profile.level,
+          profile.xp,
+          profile.xp_to_next_level,
+          totalXpGained,
+          { coins: profile.coins + baseCoins + bonusCoins }
+        );
+
+        if (levelUpResult.leveledUp) {
+          toast.success(`🎉 升级了！现在是 Lv.${levelUpResult.newLevel}！`);
+        }
 
         // Update daily quest progress
         const today = new Date().toISOString().split("T")[0];

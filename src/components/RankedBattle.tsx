@@ -32,6 +32,7 @@ interface Word {
   word: string;
   meaning: string;
   phonetic: string | null;
+  [key: string]: string | null; // Index signature for Json compatibility
 }
 
 interface RankedBattleProps {
@@ -275,26 +276,39 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
   }, [profile]);
 
-  // Fetch random words for the match
+  // Fetch random words for the match - 获取所有词汇
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
-    // Fetch more words and randomly select 10 to ensure variety
-    const { data, error } = await supabase
-      .from("words")
-      .select("id, word, meaning, phonetic")
-      .eq("grade", profile.grade)
-      .limit(100); // Get more words for randomization
+    // Fetch ALL words for the grade (handle pagination for large datasets)
+    let allWords: Word[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    
+    while (true) {
+      const { data, error } = await supabase
+        .from("words")
+        .select("id, word, meaning, phonetic")
+        .eq("grade", profile.grade)
+        .range(from, from + pageSize - 1);
 
-    if (error) {
-      console.error("Error fetching words:", error);
-      return [];
+      if (error) {
+        console.error("Error fetching words:", error);
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+      
+      allWords = [...allWords, ...data];
+      
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
 
-    if (!data || data.length === 0) return [];
+    if (allWords.length === 0) return [];
     
-    // Shuffle and pick 10 random words
-    const shuffled = [...data].sort(() => Math.random() - 0.5);
+    // Shuffle and pick 10 random words from ALL vocabulary
+    const shuffled = [...allWords].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, 10);
   }, [profile]);
 

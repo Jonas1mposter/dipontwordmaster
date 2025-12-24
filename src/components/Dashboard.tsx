@@ -18,6 +18,7 @@ import BadgeDisplay from "./BadgeDisplay";
 import LearningStats from "./LearningStats";
 import WrongWordBook from "./WrongWordBook";
 import WrongWordReview from "./WrongWordReview";
+import SeasonPass from "./SeasonPass";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +35,8 @@ import {
   BookX,
   GraduationCap,
   Target,
-  Globe
+  Globe,
+  Book
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,7 +50,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
   const { checkAndAwardBadges } = useBadgeChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
@@ -282,6 +284,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               { id: "battle", label: "排位赛", icon: Swords },
               { id: "freematch", label: "自由服", icon: Globe },
               { id: "challenge", label: "挑战赛", icon: Target },
+              { id: "seasonpass", label: "手册", icon: Book },
               { id: "friends", label: "好友", icon: Users },
               { id: "leaderboard", label: "排行榜", icon: Trophy },
               { id: "profile", label: "个人", icon: User },
@@ -343,6 +346,15 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               grade={grade} 
               currentClass={profile?.class} 
               profileId={profile?.id} 
+            />
+          </div>
+        )}
+
+        {activeView === "seasonpass" && profile && (
+          <div className="max-w-2xl mx-auto">
+            <SeasonPass 
+              grade={grade} 
+              profileId={profile.id} 
             />
           </div>
         )}

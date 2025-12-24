@@ -295,7 +295,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
 
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
-            <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} />
+            <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} currentClass={profile?.class} />
           </div>
         )}
 

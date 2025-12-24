@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp } from "lucide-react";
+import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,12 +18,14 @@ interface LeaderboardTabsProps {
   grade: number;
   currentUser?: string;
   currentProfileId?: string;
+  currentClass?: string | null;
 }
 
-const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTabsProps) => {
+const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }: LeaderboardTabsProps) => {
   const [coinsLeaderboard, setCoinsLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [winsLeaderboard, setWinsLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [xpLeaderboard, setXpLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [classLeaderboard, setClassLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [activeTab, setActiveTab] = useState("coins");
 
   useEffect(() => {
@@ -81,10 +83,31 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTa
           tier: p.rank_tier,
         })));
       }
+
+      // 班级排行榜
+      if (currentClass) {
+        const { data: classData } = await supabase
+          .from("profiles")
+          .select("id, username, xp, level, rank_tier")
+          .eq("grade", grade)
+          .eq("class", currentClass)
+          .order("xp", { ascending: false })
+          .limit(20);
+
+        if (classData) {
+          setClassLeaderboard(classData.map((p, index) => ({
+            rank: index + 1,
+            username: p.username,
+            profileId: p.id,
+            value: p.xp,
+            tier: p.rank_tier,
+          })));
+        }
+      }
     };
 
     fetchLeaderboards();
-  }, [grade]);
+  }, [grade, currentClass]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -132,12 +155,14 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTa
         return { name: "狄邦排位大师", gradient: "from-purple-600 via-pink-500 to-purple-600", icon: Swords };
       case "xp":
         return { name: "狄邦至高巅峰", gradient: "from-cyan-500 via-blue-500 to-indigo-600", icon: TrendingUp };
+      case "class":
+        return { name: `${currentClass}班学霸`, gradient: "from-green-500 via-emerald-500 to-teal-600", icon: Users };
       default:
         return { name: "", gradient: "", icon: Trophy };
     }
   };
 
-  const renderLeaderboard = (entries: LeaderboardEntry[], type: "coins" | "wins" | "xp") => {
+  const renderLeaderboard = (entries: LeaderboardEntry[], type: "coins" | "wins" | "xp" | "class") => {
     const nameCard = getNameCardInfo(type);
     const IconComponent = nameCard.icon;
     
@@ -243,7 +268,7 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTa
       </CardHeader>
       <CardContent className="p-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className={cn("grid w-full mb-4", currentClass ? "grid-cols-4" : "grid-cols-3")}>
             <TabsTrigger value="coins" className="flex items-center gap-2">
               <Coins className="w-4 h-4" />
               <span className="hidden sm:inline">狄邦豆</span>
@@ -256,6 +281,12 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTa
               <TrendingUp className="w-4 h-4" />
               <span className="hidden sm:inline">经验值</span>
             </TabsTrigger>
+            {currentClass && (
+              <TabsTrigger value="class" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">{currentClass}班</span>
+              </TabsTrigger>
+            )}
           </TabsList>
           
           <TabsContent value="coins">
@@ -267,6 +298,11 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId }: LeaderboardTa
           <TabsContent value="xp">
             {renderLeaderboard(xpLeaderboard, "xp")}
           </TabsContent>
+          {currentClass && (
+            <TabsContent value="class">
+              {renderLeaderboard(classLeaderboard, "class")}
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

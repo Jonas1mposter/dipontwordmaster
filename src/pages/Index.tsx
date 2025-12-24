@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import GradeSelector from "@/components/GradeSelector";
 import Dashboard from "@/components/Dashboard";
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
-  const [selectedGrade, setSelectedGrade] = useState<7 | 8 | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -23,16 +21,15 @@ const Index = () => {
     );
   }
 
-  if (!user) {
+  if (!user || !profile) {
     return null;
   }
 
-  if (selectedGrade === null) {
-    return <GradeSelector onSelectGrade={setSelectedGrade} />;
-  }
+  // 用户只能进入自己年级的专区
+  const userGrade = profile.grade as 7 | 8;
 
   return (
-    <Dashboard grade={selectedGrade} onBack={() => setSelectedGrade(null)} />
+    <Dashboard grade={userGrade} onBack={() => navigate("/auth")} />
   );
 };
 

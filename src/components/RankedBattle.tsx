@@ -530,6 +530,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               })
               .eq("id", record.id)
               .eq("status", "waiting")
+              .is("player2_id", null) // Ensure no one else joined
               .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
               .maybeSingle();
 
@@ -594,6 +595,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           })
           .eq("id", data.matchId)
           .eq("status", "waiting")
+          .is("player2_id", null) // Ensure no one else joined
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
           .maybeSingle();
 
@@ -658,6 +660,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             })
             .eq("id", matchToJoin.id)
             .eq("status", "waiting")
+            .is("player2_id", null) // Ensure no one else joined
             .select()
             .maybeSingle();
 

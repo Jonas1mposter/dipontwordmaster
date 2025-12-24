@@ -275,8 +275,8 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
 
       {/* Navigation Tabs */}
       <nav className="sticky top-[73px] z-40 bg-background/60 backdrop-blur-lg border-b border-border/30">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1 py-2">
+        <div className="container mx-auto px-2">
+          <div className="flex gap-0.5 py-1.5 overflow-x-auto scrollbar-hide">
             {[
               { id: "home", label: "主页", icon: Sparkles },
               { id: "learn", label: "闯关", icon: BookOpen },
@@ -294,9 +294,9 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
                 variant={activeView === tab.id ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setActiveView(tab.id as typeof activeView)}
-                className="flex-1 md:flex-none"
+                className="px-2 py-1 h-8 text-xs whitespace-nowrap"
               >
-                <tab.icon className="w-4 h-4 mr-2" />
+                <tab.icon className="w-3.5 h-3.5 mr-1" />
                 {tab.label}
               </Button>
             ))}

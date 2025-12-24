@@ -43,7 +43,13 @@ type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 
 type RankTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion";
 
-// Rank tier configuration - higher tiers are harder to climb
+// Rank tier configuration - 段位规则
+// 青铜：30星晋级，失败不扣星
+// 白银：40星晋级，失败扣1星
+// 黄金：50星晋级，失败扣1星，1星保护（不会掉段）
+// 铂金：50星晋级，失败扣1星
+// 钻石：60星晋级，失败扣2星
+// 狄邦巅峰：最高段位，失败扣2星
 const RANK_CONFIG: Record<RankTier, {
   starsToPromote: number;      // Stars needed to promote to next tier
   starsLostOnLose: number;     // Stars lost on defeat
@@ -52,46 +58,46 @@ const RANK_CONFIG: Record<RankTier, {
   minScoreToWin: number;       // Minimum score difference to gain full stars
 }> = {
   bronze: {
-    starsToPromote: 3,
-    starsLostOnLose: 0,        // No star loss in bronze
+    starsToPromote: 30,
+    starsLostOnLose: 0,        // 失败不扣星
     starsGainedOnWin: 1,
     protectionStars: 0,
     minScoreToWin: 1,
   },
   silver: {
-    starsToPromote: 4,
-    starsLostOnLose: 1,
+    starsToPromote: 40,
+    starsLostOnLose: 1,        // 失败扣1星
     starsGainedOnWin: 1,
     protectionStars: 0,
-    minScoreToWin: 2,
+    minScoreToWin: 1,
   },
   gold: {
-    starsToPromote: 5,
-    starsLostOnLose: 1,
+    starsToPromote: 50,
+    starsLostOnLose: 1,        // 失败扣1星
     starsGainedOnWin: 1,
-    protectionStars: 1,        // Can't demote at 1 star
-    minScoreToWin: 2,
+    protectionStars: 1,        // 1星保护（不会掉段）
+    minScoreToWin: 1,
   },
   platinum: {
-    starsToPromote: 5,
-    starsLostOnLose: 1,
+    starsToPromote: 50,
+    starsLostOnLose: 1,        // 失败扣1星
     starsGainedOnWin: 1,
     protectionStars: 0,
-    minScoreToWin: 3,
+    minScoreToWin: 1,
   },
   diamond: {
-    starsToPromote: 6,
-    starsLostOnLose: 2,        // Lose 2 stars on defeat
+    starsToPromote: 60,
+    starsLostOnLose: 2,        // 失败扣2星
     starsGainedOnWin: 1,
     protectionStars: 0,
-    minScoreToWin: 3,
+    minScoreToWin: 1,
   },
   champion: {
-    starsToPromote: 999,       // Can't promote beyond champion
-    starsLostOnLose: 2,
+    starsToPromote: 999,       // 最高段位，无法晋级
+    starsLostOnLose: 2,        // 失败扣2星
     starsGainedOnWin: 1,
     protectionStars: 0,
-    minScoreToWin: 4,
+    minScoreToWin: 1,
   },
 };
 

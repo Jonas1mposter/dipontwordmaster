@@ -29,7 +29,8 @@ import {
   User,
   Crown,
   Users,
-  BookX
+  BookX,
+  GraduationCap
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -186,9 +187,20 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>
-                <Badge variant={grade === 7 ? "outline" : "champion"} className="text-xs mt-1">
-                  {grade}年级专区
-                </Badge>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge 
+                    variant={grade === 7 ? "outline" : "champion"} 
+                    className="text-xs flex items-center gap-1"
+                  >
+                    <GraduationCap className="w-3 h-3" />
+                    {grade === 7 ? "七" : "八"}年级专区
+                  </Badge>
+                  {profile?.class && (
+                    <Badge variant="secondary" className="text-xs">
+                      {profile.class}班
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
 

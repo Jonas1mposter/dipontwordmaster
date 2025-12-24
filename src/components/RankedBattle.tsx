@@ -41,6 +41,124 @@ interface RankedBattleProps {
 
 type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 
+type RankTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion";
+
+// Rank tier configuration - higher tiers are harder to climb
+const RANK_CONFIG: Record<RankTier, {
+  starsToPromote: number;      // Stars needed to promote to next tier
+  starsLostOnLose: number;     // Stars lost on defeat
+  starsGainedOnWin: number;    // Stars gained on victory
+  protectionStars: number;     // Stars where you can't demote (0 = can always demote)
+  minScoreToWin: number;       // Minimum score difference to gain full stars
+}> = {
+  bronze: {
+    starsToPromote: 3,
+    starsLostOnLose: 0,        // No star loss in bronze
+    starsGainedOnWin: 1,
+    protectionStars: 0,
+    minScoreToWin: 1,
+  },
+  silver: {
+    starsToPromote: 4,
+    starsLostOnLose: 1,
+    starsGainedOnWin: 1,
+    protectionStars: 0,
+    minScoreToWin: 2,
+  },
+  gold: {
+    starsToPromote: 5,
+    starsLostOnLose: 1,
+    starsGainedOnWin: 1,
+    protectionStars: 1,        // Can't demote at 1 star
+    minScoreToWin: 2,
+  },
+  platinum: {
+    starsToPromote: 5,
+    starsLostOnLose: 1,
+    starsGainedOnWin: 1,
+    protectionStars: 0,
+    minScoreToWin: 3,
+  },
+  diamond: {
+    starsToPromote: 6,
+    starsLostOnLose: 2,        // Lose 2 stars on defeat
+    starsGainedOnWin: 1,
+    protectionStars: 0,
+    minScoreToWin: 3,
+  },
+  champion: {
+    starsToPromote: 999,       // Can't promote beyond champion
+    starsLostOnLose: 2,
+    starsGainedOnWin: 1,
+    protectionStars: 0,
+    minScoreToWin: 4,
+  },
+};
+
+const TIER_ORDER: RankTier[] = ["bronze", "silver", "gold", "platinum", "diamond", "champion"];
+
+// Calculate rank changes based on match result
+const calculateRankChange = (
+  currentTier: RankTier,
+  currentStars: number,
+  won: boolean,
+  tie: boolean,
+  scoreDiff: number
+): { newTier: RankTier; newStars: number; starsChanged: number; promoted: boolean; demoted: boolean } => {
+  const config = RANK_CONFIG[currentTier];
+  const tierIndex = TIER_ORDER.indexOf(currentTier);
+  
+  let newStars = currentStars;
+  let newTier = currentTier;
+  let starsChanged = 0;
+  let promoted = false;
+  let demoted = false;
+  
+  if (tie) {
+    // No change on tie
+    return { newTier, newStars, starsChanged: 0, promoted: false, demoted: false };
+  }
+  
+  if (won) {
+    // Gain stars on win
+    const fullStars = scoreDiff >= config.minScoreToWin;
+    starsChanged = fullStars ? config.starsGainedOnWin : config.starsGainedOnWin;
+    newStars = currentStars + starsChanged;
+    
+    // Check for promotion
+    if (newStars >= config.starsToPromote && tierIndex < TIER_ORDER.length - 1) {
+      newTier = TIER_ORDER[tierIndex + 1];
+      newStars = 0; // Reset stars on promotion
+      promoted = true;
+    }
+  } else {
+    // Lose stars on defeat
+    starsChanged = -config.starsLostOnLose;
+    newStars = currentStars + starsChanged;
+    
+    // Check for demotion
+    if (newStars < 0 && tierIndex > 0) {
+      // Check protection
+      if (currentStars <= config.protectionStars) {
+        // Protected, stay at 0 stars
+        newStars = 0;
+        starsChanged = -currentStars;
+      } else {
+        // Demote to previous tier
+        newTier = TIER_ORDER[tierIndex - 1];
+        const prevConfig = RANK_CONFIG[newTier];
+        newStars = prevConfig.starsToPromote - 1; // Start at max-1 stars of previous tier
+        demoted = true;
+      }
+    } else if (newStars < 0) {
+      newStars = 0;
+      starsChanged = -currentStars;
+    }
+  }
+  
+  return { newTier, newStars, starsChanged, promoted, demoted };
+};
+
 const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
@@ -65,6 +183,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [isAnswerLocked, setIsAnswerLocked] = useState(false); // Lock to prevent rapid clicking
   const [myFinished, setMyFinished] = useState(false); // Track if I finished all 10 questions
   const [waitingForOpponent, setWaitingForOpponent] = useState(false); // Waiting for opponent to finish
+  const [rankChangeResult, setRankChangeResult] = useState<{
+    starsChanged: number;
+    promoted: boolean;
+    demoted: boolean;
+    newTier: RankTier;
+    newStars: number;
+  } | null>(null);
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -634,16 +759,30 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     const playerScore = finalScore ?? myScore;
     
-    // Simulate opponent score - opponent also answers all 10 questions
-    // Generate a realistic opponent score (weighted towards middle values)
-    const baseScore = Math.floor(Math.random() * 11); // 0-10
-    const simulatedOpponentScore = Math.min(10, Math.max(0, baseScore));
+    // Simulate opponent score based on current tier difficulty
+    // Higher tiers have smarter opponents
+    const currentTier = (profile?.rank_tier || "bronze") as RankTier;
+    const tierIndex = TIER_ORDER.indexOf(currentTier);
+    const minOpponentScore = Math.min(tierIndex + 3, 7); // Higher tier = higher minimum opponent score
+    const maxOpponentScore = Math.min(tierIndex + 7, 10);
+    const simulatedOpponentScore = Math.floor(Math.random() * (maxOpponentScore - minOpponentScore + 1)) + minOpponentScore;
     setOpponentScore(simulatedOpponentScore);
     
     // Compare scores - whoever got more correct wins
     const won = playerScore > simulatedOpponentScore;
     const tie = playerScore === simulatedOpponentScore;
     setIsWinner(won);
+
+    // Calculate rank changes
+    const scoreDiff = playerScore - simulatedOpponentScore;
+    const rankChange = calculateRankChange(
+      currentTier,
+      profile?.rank_stars || 0,
+      won,
+      tie,
+      Math.abs(scoreDiff)
+    );
+    setRankChangeResult(rankChange);
 
     // Play victory or defeat sound
     if (won) {
@@ -666,9 +805,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("id", matchId);
 
       // Update profile stats with level up logic
-      const xpGained = won ? 50 : (tie ? 30 : 20);
-      const coinsGained = won ? 30 : (tie ? 15 : 10);
-      const rankPointsChange = won ? 25 : (tie ? 0 : -10);
+      // XP scales with tier
+      const tierMultiplier = tierIndex + 1;
+      const xpGained = won ? 30 * tierMultiplier : (tie ? 15 * tierMultiplier : 10 * tierMultiplier);
+      const coinsGained = won ? 20 * tierMultiplier : (tie ? 10 * tierMultiplier : 5 * tierMultiplier);
 
       await updateProfileWithXp(
         profile.id,
@@ -680,7 +820,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           coins: profile.coins + coinsGained,
           wins: won ? profile.wins + 1 : profile.wins,
           losses: won ? profile.losses : (tie ? profile.losses : profile.losses + 1),
-          rank_points: Math.max(0, profile.rank_points + rankPointsChange),
+          rank_tier: rankChange.newTier,
+          rank_stars: rankChange.newStars,
         }
       );
 
@@ -1200,6 +1341,30 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
   // Finished state
   if (matchStatus === "finished") {
+    const tierNames: Record<string, string> = {
+      bronze: "青铜",
+      silver: "白银",
+      gold: "黄金",
+      platinum: "铂金",
+      diamond: "钻石",
+      champion: "狄邦巅峰",
+    };
+    
+    const tierColors: Record<string, string> = {
+      bronze: "from-amber-700 to-amber-900",
+      silver: "from-gray-300 to-gray-500",
+      gold: "from-yellow-400 to-amber-500",
+      platinum: "from-cyan-300 to-cyan-500",
+      diamond: "from-blue-300 to-purple-400",
+      champion: "from-purple-500 to-pink-500",
+    };
+
+    const currentTier = (profile?.rank_tier || "bronze") as RankTier;
+    const tierIndex = TIER_ORDER.indexOf(currentTier);
+    const tierMultiplier = tierIndex + 1;
+    const xpGained = isWinner ? 30 * tierMultiplier : (myScore === opponentScore ? 15 * tierMultiplier : 10 * tierMultiplier);
+    const coinsGained = isWinner ? 20 * tierMultiplier : (myScore === opponentScore ? 10 * tierMultiplier : 5 * tierMultiplier);
+    
     return (
       <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6 relative overflow-hidden">
         {/* Victory confetti effect */}
@@ -1218,6 +1383,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 }}
               />
             ))}
+          </div>
+        )}
+
+        {/* Promotion effect */}
+        {rankChangeResult?.promoted && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-t from-accent/30 via-transparent to-transparent animate-pulse" />
           </div>
         )}
 
@@ -1245,11 +1417,72 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             "font-gaming text-4xl mb-2 animate-slide-up",
             isWinner ? "text-glow-gold" : ""
           )}>
-            {isWinner ? "🎉 胜利！🎉" : "惜败"}
+            {isWinner ? "🎉 胜利！🎉" : myScore === opponentScore ? "⚔️ 平局" : "惜败"}
           </h2>
-          <p className="text-muted-foreground mb-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            {isWinner ? "恭喜你赢得比赛！" : "再接再厉，下次一定赢！"}
+          <p className="text-muted-foreground mb-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            {isWinner ? "恭喜你赢得比赛！" : myScore === opponentScore ? "势均力敌！" : "再接再厉，下次一定赢！"}
           </p>
+
+          {/* Rank Change Display */}
+          {rankChangeResult && (
+            <div className="mb-6 animate-slide-up" style={{ animationDelay: '0.15s' }}>
+              {rankChangeResult.promoted ? (
+                <div className="p-4 bg-accent/20 rounded-xl border-2 border-accent animate-pulse">
+                  <p className="text-accent font-gaming text-xl mb-2">🎊 晋级成功！🎊</p>
+                  <div className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r text-white font-gaming",
+                    tierColors[rankChangeResult.newTier]
+                  )}>
+                    <Crown className="w-5 h-5" />
+                    {tierNames[rankChangeResult.newTier]}
+                  </div>
+                </div>
+              ) : rankChangeResult.demoted ? (
+                <div className="p-4 bg-destructive/20 rounded-xl border-2 border-destructive/50">
+                  <p className="text-destructive font-gaming text-lg mb-2">段位下降</p>
+                  <div className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r text-white font-gaming",
+                    tierColors[rankChangeResult.newTier]
+                  )}>
+                    {tierNames[rankChangeResult.newTier]}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-secondary/50 rounded-xl border border-border">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className={cn(
+                      "px-3 py-1 rounded-full bg-gradient-to-r text-white text-sm font-gaming",
+                      tierColors[rankChangeResult.newTier]
+                    )}>
+                      {tierNames[rankChangeResult.newTier]}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-1">
+                    {/* Show stars */}
+                    {[...Array(RANK_CONFIG[rankChangeResult.newTier as RankTier].starsToPromote)].map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={cn(
+                          "w-5 h-5 transition-all",
+                          i < rankChangeResult.newStars 
+                            ? "text-accent fill-accent" 
+                            : "text-muted-foreground/30"
+                        )} 
+                      />
+                    ))}
+                  </div>
+                  {rankChangeResult.starsChanged !== 0 && (
+                    <p className={cn(
+                      "text-sm mt-2 font-gaming",
+                      rankChangeResult.starsChanged > 0 ? "text-success" : "text-destructive"
+                    )}>
+                      {rankChangeResult.starsChanged > 0 ? `+${rankChangeResult.starsChanged}` : rankChangeResult.starsChanged} ⭐
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Score comparison */}
           <Card variant={isWinner ? "gold" : "default"} className="mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
@@ -1266,7 +1499,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                   <p className={cn(
                     "font-gaming text-4xl",
                     isWinner ? "text-accent" : "text-primary"
-                  )}>{myScore}</p>
+                  )}>{myScore}/10</p>
                 </div>
                 
                 <div className="font-gaming text-2xl text-muted-foreground px-4">VS</div>
@@ -1274,12 +1507,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 <div className="text-center flex-1">
                   <div className={cn(
                     "w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
-                    !isWinner && "ring-4 ring-neon-blue/50"
+                    !isWinner && myScore !== opponentScore && "ring-4 ring-neon-blue/50"
                   )}>
                     {opponent?.username?.charAt(0).toUpperCase() || "?"}
                   </div>
                   <p className="font-semibold mb-1">{opponent?.username || "对手"}</p>
-                  <p className="font-gaming text-4xl text-neon-blue">{opponentScore}</p>
+                  <p className="font-gaming text-4xl text-neon-blue">{opponentScore}/10</p>
                 </div>
               </div>
             </CardContent>
@@ -1291,16 +1524,22 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               "text-base px-4 py-2 transition-all",
               isWinner && "animate-pulse"
             )}>
-              <Star className="w-4 h-4 mr-2" />
-              +{isWinner ? 50 : 20} XP
+              <Zap className="w-4 h-4 mr-2" />
+              +{xpGained} XP
             </Badge>
             <Badge variant="gold" className={cn(
               "text-base px-4 py-2 transition-all",
               isWinner && "animate-pulse"
             )}>
-              🪙 +{isWinner ? 30 : 10}
+              🪙 +{coinsGained}
             </Badge>
           </div>
+
+          {/* Tier difficulty hint */}
+          <p className="text-xs text-muted-foreground mb-4 animate-slide-up" style={{ animationDelay: '0.35s' }}>
+            {tierNames[currentTier]}段位 · 晋级需要 {RANK_CONFIG[currentTier].starsToPromote} 星
+            {RANK_CONFIG[currentTier].starsLostOnLose > 0 && ` · 失败扣 ${RANK_CONFIG[currentTier].starsLostOnLose} 星`}
+          </p>
 
           {/* Actions */}
           <div className="flex gap-4 animate-slide-up" style={{ animationDelay: '0.4s' }}>
@@ -1323,6 +1562,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               setIsAnswerLocked(false);
               setMyFinished(false);
               setWaitingForOpponent(false);
+              setRankChangeResult(null);
             }}>
               <Swords className="w-4 h-4 mr-2" />
               再来一局

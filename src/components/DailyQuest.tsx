@@ -86,13 +86,28 @@ const DailyQuest = ({ onQuestUpdate }: DailyQuestProps) => {
   }, [profile]);
 
   const handleClaimReward = async (quest: Quest) => {
-    if (!profile) return;
+    if (!profile || quest.claimed) return;
 
     try {
       const today = new Date().toISOString().split("T")[0];
 
+      // First check if already claimed to prevent double claiming
+      const { data: existingProgress } = await supabase
+        .from("user_quest_progress")
+        .select("claimed")
+        .eq("profile_id", profile.id)
+        .eq("quest_id", quest.id)
+        .eq("quest_date", today)
+        .maybeSingle();
+
+      if (existingProgress?.claimed) {
+        toast.error("奖励已领取过了");
+        await fetchQuests(); // Refresh to sync UI
+        return;
+      }
+
       // Update quest progress as claimed
-      await supabase
+      const { error: updateError } = await supabase
         .from("user_quest_progress")
         .upsert({
           profile_id: profile.id,
@@ -102,6 +117,8 @@ const DailyQuest = ({ onQuestUpdate }: DailyQuestProps) => {
           completed: true,
           claimed: true,
         });
+
+      if (updateError) throw updateError;
 
       // Add reward to profile
       const updates: Record<string, number> = {};

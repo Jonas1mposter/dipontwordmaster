@@ -49,14 +49,13 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [mode, setMode] = useState<"flashcard" | "quiz">("flashcard");
+  const [phase, setPhase] = useState<"learn" | "quiz">("learn"); // 先学后测
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [quizType, setQuizType] = useState<QuizType>("meaning");
-  const [randomQuizMode, setRandomQuizMode] = useState(false);
+  const [learnedWords, setLearnedWords] = useState<Set<string>>(new Set()); // 已看过的单词
 
   useEffect(() => {
     const fetchWords = async () => {
@@ -124,7 +123,11 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   }, [levelId, profile]);
 
   const currentWord = words[currentIndex];
-  const progress = words.length > 0 ? ((currentIndex + 1) / words.length) * 100 : 0;
+  const progress = words.length > 0 
+    ? phase === "learn" 
+      ? ((currentIndex + 1) / words.length) * 50 // Learning is 0-50%
+      : 50 + ((currentIndex + 1) / words.length) * 50 // Quiz is 50-100%
+    : 0;
 
   // Get options for meaning quiz (Chinese meanings)
   const getMeaningOptions = useMemo(() => {
@@ -146,14 +149,42 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     return [...shuffled, correctWord].sort(() => Math.random() - 0.5);
   }, [currentWord, words]);
 
-  // Get current quiz type (random or selected)
+  // Get random quiz type for each question
   const getCurrentQuizType = useMemo(() => {
-    if (!randomQuizMode) return quizType;
     const types: QuizType[] = ["meaning", "reverse", "spelling", "listening", "fillBlank"];
     return types[Math.floor(Math.random() * types.length)];
-  }, [randomQuizMode, quizType, currentIndex]);
+  }, [currentIndex]);
 
   const getQuizOptions = () => getMeaningOptions;
+
+  // Mark word as learned in learning phase
+  const markWordAsLearned = async (word: Word) => {
+    if (!profile) return;
+    
+    try {
+      const { data: existing } = await supabase
+        .from("learning_progress")
+        .select("*")
+        .eq("profile_id", profile.id)
+        .eq("word_id", word.id)
+        .maybeSingle();
+
+      if (!existing) {
+        // Only create if doesn't exist - learning phase just marks as seen
+        await supabase
+          .from("learning_progress")
+          .insert({
+            profile_id: profile.id,
+            word_id: word.id,
+            correct_count: 0,
+            last_reviewed_at: new Date().toISOString(),
+            mastery_level: 0, // Will be updated to 1 after quiz
+          });
+      }
+    } catch (error) {
+      console.error("Error marking word as learned:", error);
+    }
+  };
 
   const handleCorrect = async () => {
     setCorrectCount(prev => prev + 1);
@@ -518,7 +549,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             <div className="flex items-center justify-between">
               <span className="text-sm font-gaming">{levelName}</span>
               <span className="text-sm text-muted-foreground">
-                {currentIndex + 1} / {words.length}
+                {phase === "learn" ? "学习" : "测验"}: {currentIndex + 1} / {words.length}
               </span>
             </div>
             <Progress value={progress} variant="xp" className="h-2" />
@@ -527,52 +558,25 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       </header>
 
       <div className="container mx-auto px-4 py-4">
-        <div className="flex flex-wrap justify-center gap-2 mb-4">
-          <Button
-            variant={mode === "flashcard" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMode("flashcard")}
+        <div className="flex justify-center gap-2 mb-4">
+          <Badge 
+            variant={phase === "learn" ? "default" : "outline"}
+            className="px-4 py-2"
           >
-            卡片模式
-          </Button>
-          <Button
-            variant={mode === "quiz" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMode("quiz")}
+            📖 学习阶段 ({learnedWords.size}/{words.length})
+          </Badge>
+          <Badge 
+            variant={phase === "quiz" ? "default" : "outline"}
+            className="px-4 py-2"
           >
-            测验模式
-          </Button>
+            ✍️ 测验阶段
+          </Badge>
         </div>
-
-        {mode === "quiz" && (
-          <div className="flex flex-wrap justify-center gap-2 mb-4">
-            <Button
-              variant={randomQuizMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => setRandomQuizMode(!randomQuizMode)}
-              className="gap-1"
-            >
-              <Shuffle className="w-3 h-3" />
-              随机题型
-            </Button>
-            {!randomQuizMode && QUIZ_TYPES.map((qt) => (
-              <Button
-                key={qt.type}
-                variant={quizType === qt.type ? "default" : "outline"}
-                size="sm"
-                onClick={() => setQuizType(qt.type)}
-                className="gap-1"
-              >
-                <span>{qt.icon}</span>
-                {qt.label}
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
 
       <main className="container mx-auto px-4 py-8">
-        {currentWord && mode === "flashcard" && (
+        {/* Learning Phase - Show word cards */}
+        {currentWord && phase === "learn" && (
           <WordCard
             key={currentWord.id}
             word={currentWord.word}
@@ -580,13 +584,32 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             phonetic={currentWord.phonetic || undefined}
             example={currentWord.example || undefined}
             options={undefined}
-            onCorrect={handleCorrect}
-            onIncorrect={handleIncorrect}
+            onCorrect={() => {
+              markWordAsLearned(currentWord);
+              setLearnedWords(prev => new Set([...prev, currentWord.id]));
+              if (currentIndex < words.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+              } else {
+                setPhase("quiz");
+                setCurrentIndex(0);
+              }
+            }}
+            onIncorrect={() => {
+              markWordAsLearned(currentWord);
+              setLearnedWords(prev => new Set([...prev, currentWord.id]));
+              if (currentIndex < words.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+              } else {
+                setPhase("quiz");
+                setCurrentIndex(0);
+              }
+            }}
             mode="flashcard"
           />
         )}
 
-        {currentWord && mode === "quiz" && (
+        {/* Quiz Phase - Random question types */}
+        {currentWord && phase === "quiz" && (
           <QuizCard
             key={`${currentWord.id}-${getCurrentQuizType}`}
             word={currentWord}

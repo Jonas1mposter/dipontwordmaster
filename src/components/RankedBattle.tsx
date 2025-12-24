@@ -51,7 +51,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(120); // Increased to 120 seconds for 10 questions
   const [options, setOptions] = useState<string[]>([]);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -62,6 +62,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [onlineCount, setOnlineCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [answerAnimation, setAnswerAnimation] = useState<'correct' | 'wrong' | null>(null);
+  const [isAnswerLocked, setIsAnswerLocked] = useState(false); // Lock to prevent rapid clicking
+  const [myFinished, setMyFinished] = useState(false); // Track if I finished all 10 questions
+  const [waitingForOpponent, setWaitingForOpponent] = useState(false); // Waiting for opponent to finish
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -125,18 +128,23 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
+    // Fetch more words and randomly select 10 to ensure variety
     const { data, error } = await supabase
       .from("words")
       .select("id, word, meaning, phonetic")
       .eq("grade", profile.grade)
-      .limit(10);
+      .limit(100); // Get more words for randomization
 
     if (error) {
       console.error("Error fetching words:", error);
       return [];
     }
 
-    return data || [];
+    if (!data || data.length === 0) return [];
+    
+    // Shuffle and pick 10 random words
+    const shuffled = [...data].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 10);
   }, [profile]);
 
   // Generate quiz options
@@ -573,9 +581,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
   // Handle answer selection
   const handleAnswer = async (selectedMeaning: string) => {
-    if (selectedOption || !words[currentWordIndex]) return;
+    if (selectedOption || !words[currentWordIndex] || isAnswerLocked || myFinished) return;
 
     setSelectedOption(selectedMeaning);
+    setIsAnswerLocked(true); // Lock immediately to prevent double-clicking
+    
     const isCorrect = selectedMeaning === words[currentWordIndex].meaning;
     const newScore = isCorrect ? myScore + 1 : myScore;
 
@@ -588,44 +598,57 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       sounds.playWrong();
     }
 
+    // After showing result, wait 1 second before moving to next question (prevents accidental clicks)
     setTimeout(() => {
       setAnswerAnimation(null);
-      // End match immediately if someone reaches 10 correct
-      if (newScore >= 10) {
-        finishMatch(newScore);
+      
+      // Check if we've answered all 10 questions
+      if (currentWordIndex >= 9) {
+        // Finished all questions, wait for opponent
+        setMyFinished(true);
+        setWaitingForOpponent(true);
+        
+        // Simulate opponent finishing after a random delay (for AI/demo)
+        const opponentDelay = 1000 + Math.random() * 5000;
+        setTimeout(() => {
+          finishMatch(newScore);
+        }, opponentDelay);
         return;
       }
       
-      if (currentWordIndex < words.length - 1) {
+      // Move to next question after 1 second delay
+      setTimeout(() => {
         setCurrentWordIndex(prev => prev + 1);
         setSelectedOption(null);
+        setIsAnswerLocked(false); // Unlock for next question
         setOptions(generateOptions(words[currentWordIndex + 1].meaning, words));
-      } else {
-        finishMatch(newScore);
-      }
-    }, 800);
+      }, 1000); // 1 second delay between questions
+      
+    }, 800); // Show answer result for 800ms
   };
 
   // Finish match
   const finishMatch = async (finalScore?: number) => {
     setMatchStatus("finished");
+    setWaitingForOpponent(false);
     
     const playerScore = finalScore ?? myScore;
     
-    // Simulate opponent score (in real app, this would come from real-time updates)
-    // If player reached 10, opponent gets random score less than 10
-    const simulatedOpponentScore = playerScore >= 10 
-      ? Math.floor(Math.random() * 10) 
-      : Math.floor(Math.random() * (words.length + 1));
+    // Simulate opponent score - opponent also answers all 10 questions
+    // Generate a realistic opponent score (weighted towards middle values)
+    const baseScore = Math.floor(Math.random() * 11); // 0-10
+    const simulatedOpponentScore = Math.min(10, Math.max(0, baseScore));
     setOpponentScore(simulatedOpponentScore);
     
+    // Compare scores - whoever got more correct wins
     const won = playerScore > simulatedOpponentScore;
+    const tie = playerScore === simulatedOpponentScore;
     setIsWinner(won);
 
     // Play victory or defeat sound
     if (won) {
       sounds.playVictory();
-    } else {
+    } else if (!tie) {
       sounds.playDefeat();
     }
 
@@ -636,16 +659,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .update({
           player1_score: playerScore,
           player2_score: simulatedOpponentScore,
-          winner_id: won ? profile.id : opponent?.id,
+          winner_id: won ? profile.id : (tie ? null : opponent?.id),
           status: "completed",
           ended_at: new Date().toISOString(),
         })
         .eq("id", matchId);
 
       // Update profile stats with level up logic
-      const xpGained = won ? 5 : 2;
-      const coinsGained = won ? 3 : 1;
-      const rankPointsChange = won ? 25 : -10;
+      const xpGained = won ? 50 : (tie ? 30 : 20);
+      const coinsGained = won ? 30 : (tie ? 15 : 10);
+      const rankPointsChange = won ? 25 : (tie ? 0 : -10);
 
       await updateProfileWithXp(
         profile.id,
@@ -656,7 +679,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         {
           coins: profile.coins + coinsGained,
           wins: won ? profile.wins + 1 : profile.wins,
-          losses: won ? profile.losses : profile.losses + 1,
+          losses: won ? profile.losses : (tie ? profile.losses : profile.losses + 1),
           rank_points: Math.max(0, profile.rank_points + rankPointsChange),
         }
       );
@@ -1014,7 +1037,39 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   }
 
   // Playing state
-  if (matchStatus === "playing" && words[currentWordIndex]) {
+  if (matchStatus === "playing") {
+    // Show waiting screen if finished all questions
+    if (waitingForOpponent) {
+      return (
+        <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-20 h-20 mx-auto mb-6 relative">
+              <div className="absolute inset-0 rounded-full border-4 border-primary/30 animate-spin" style={{ animationDuration: '3s' }} />
+              <div className="absolute inset-2 rounded-full border-2 border-primary/50 animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-success" />
+              </div>
+            </div>
+            
+            <h2 className="font-gaming text-2xl mb-2 text-glow-purple">答题完成！</h2>
+            <p className="text-muted-foreground mb-4">你的得分：<span className="font-gaming text-xl text-primary">{myScore}/10</span></p>
+            <p className="text-muted-foreground">等待对手完成答题...</p>
+            
+            <div className="flex items-center justify-center gap-1 mt-4">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 bg-primary rounded-full animate-dot-bounce"
+                  style={{ animationDelay: `${i * 0.15}s` }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!words[currentWordIndex]) return null;
     const currentWord = words[currentWordIndex];
     
     return (
@@ -1031,7 +1086,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                   if (confirm("确定要退出比赛吗？退出将判负")) {
                     setMatchStatus("finished");
                     setIsWinner(false);
-                    setOpponentScore(words.length);
+                    setOpponentScore(10);
                   }
                 }}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -1057,13 +1112,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-xs font-gaming text-primary-foreground">
                   {profile?.username.charAt(0).toUpperCase()}
                 </div>
-                <span className="font-gaming text-xl text-primary">{myScore}</span>
+                <span className="font-gaming text-xl text-primary">{myScore}/10</span>
               </div>
               
               <span className="font-gaming text-muted-foreground">VS</span>
               
               <div className="flex items-center gap-2">
-                <span className="font-gaming text-xl text-neon-blue">{opponentScore}</span>
+                <span className="font-gaming text-xl text-neon-blue">?/10</span>
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-xs font-gaming text-primary-foreground">
                   {opponent?.username?.charAt(0).toUpperCase() || "?"}
                 </div>
@@ -1071,7 +1126,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             </div>
 
             {/* Progress */}
-            <Progress value={(currentWordIndex / words.length) * 100} variant="xp" className="h-1" />
+            <Progress value={((currentWordIndex + 1) / 10) * 100} variant="xp" className="h-1" />
           </div>
         </header>
 
@@ -1107,13 +1162,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                   <button
                     key={index}
                     onClick={() => handleAnswer(option)}
-                    disabled={!!selectedOption}
+                    disabled={!!selectedOption || isAnswerLocked}
                     className={cn(
                       "p-4 rounded-xl border-2 text-left transition-all duration-300 font-medium",
-                      !selectedOption && "hover:border-primary/50 hover:bg-primary/5 border-border bg-card",
+                      !selectedOption && !isAnswerLocked && "hover:border-primary/50 hover:bg-primary/5 border-border bg-card",
+                      (selectedOption || isAnswerLocked) && !isSelected && !isCorrect && "opacity-50 cursor-not-allowed",
                       selectedOption && isCorrect && "border-success bg-success/10 text-success",
-                      selectedOption && isSelected && !isCorrect && "border-destructive bg-destructive/10 text-destructive",
-                      selectedOption && !isSelected && !isCorrect && "opacity-50"
+                      selectedOption && isSelected && !isCorrect && "border-destructive bg-destructive/10 text-destructive"
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -1125,10 +1180,18 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 );
               })}
             </div>
+            
+            {/* Show delay indicator when transitioning */}
+            {selectedOption && !waitingForOpponent && (
+              <div className="mt-4 text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                下一题准备中...
+              </div>
+            )}
           </Card>
 
           <p className="text-center text-muted-foreground mt-4">
-            第 {currentWordIndex + 1} / {words.length} 题
+            第 {currentWordIndex + 1} / 10 题
           </p>
         </main>
       </div>
@@ -1253,10 +1316,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               setCurrentWordIndex(0);
               setMyScore(0);
               setOpponentScore(0);
-              setTimeLeft(60);
+              setTimeLeft(120);
               setSelectedOption(null);
               setShowResult(false);
               setAnswerAnimation(null);
+              setIsAnswerLocked(false);
+              setMyFinished(false);
+              setWaitingForOpponent(false);
             }}>
               <Swords className="w-4 h-4 mr-2" />
               再来一局

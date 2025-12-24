@@ -22,6 +22,7 @@ import SeasonPass from "./SeasonPass";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import RankDisplay from "./RankDisplay";
+import SpectateView from "./SpectateView";
 import { supabase } from "@/integrations/supabase/client";
 import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ const Dashboard = ({
   const {
     checkAndAwardBadges
   } = useBadgeChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
@@ -54,6 +55,7 @@ const Dashboard = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
   const [wrongWordsToReview, setWrongWordsToReview] = useState<any[] | null>(null);
+  const [spectateMatchId, setSpectateMatchId] = useState<string | null>(null);
 
   // Empty placeholder for removed leaderboard fetch
 
@@ -83,6 +85,25 @@ const Dashboard = ({
     setFriendBattleMatchId(matchId);
     setActiveView("battle");
   };
+
+  // Handle spectate
+  const handleSpectate = (matchId: string) => {
+    setSpectateMatchId(matchId);
+    setActiveView("spectate");
+  };
+
+  // Show spectate view
+  if (activeView === "spectate" && spectateMatchId) {
+    return (
+      <SpectateView
+        matchId={spectateMatchId}
+        onBack={() => {
+          setSpectateMatchId(null);
+          setActiveView("friends");
+        }}
+      />
+    );
+  }
 
   // Show ranked battle
   if (activeView === "battle") {
@@ -328,7 +349,12 @@ const Dashboard = ({
           </div>}
 
         {activeView === "friends" && profile && <div className="max-w-2xl mx-auto">
-            <FriendsPanel currentProfileId={profile.id} currentGrade={profile.grade} onBattleStart={handleFriendBattleStart} />
+            <FriendsPanel 
+              currentProfileId={profile.id} 
+              currentGrade={profile.grade} 
+              onBattleStart={handleFriendBattleStart}
+              onSpectate={handleSpectate}
+            />
           </div>}
 
         {activeView === "profile" && profile && <div className="max-w-2xl mx-auto space-y-6">

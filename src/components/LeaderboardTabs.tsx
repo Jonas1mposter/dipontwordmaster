@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users, Globe } from "lucide-react";
+import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users, Globe, Shield, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import FreeMatchLeaderboard from "./FreeMatchLeaderboard";
@@ -14,7 +14,25 @@ interface LeaderboardEntry {
   profileId: string;
   value: number;
   tier: string;
+  rankStars?: number;
 }
+
+// 段位配置
+type RankTier = "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion";
+
+const tierConfig: Record<RankTier, { 
+  name: string; 
+  gradient: string; 
+  textColor: string;
+  icon: "shield" | "crown";
+}> = {
+  bronze: { name: "青铜", gradient: "from-amber-700 to-amber-900", textColor: "text-amber-500", icon: "shield" },
+  silver: { name: "白银", gradient: "from-gray-300 to-gray-500", textColor: "text-gray-400", icon: "shield" },
+  gold: { name: "黄金", gradient: "from-yellow-400 to-amber-500", textColor: "text-yellow-500", icon: "shield" },
+  platinum: { name: "铂金", gradient: "from-cyan-300 to-cyan-500", textColor: "text-cyan-400", icon: "shield" },
+  diamond: { name: "钻石", gradient: "from-blue-300 to-purple-400", textColor: "text-blue-400", icon: "shield" },
+  champion: { name: "巅峰", gradient: "from-purple-500 to-pink-500", textColor: "text-purple-400", icon: "crown" },
+};
 
 interface LeaderboardTabsProps {
   grade: number;
@@ -42,48 +60,51 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
         .limit(10);
 
       if (coinsData) {
-        setCoinsLeaderboard(coinsData.map((p, index) => ({
+        setCoinsLeaderboard(coinsData.map((p: any, index: number) => ({
           rank: index + 1,
           username: p.username,
           profileId: p.id,
           value: p.coins,
           tier: p.rank_tier,
+          rankStars: p.rank_stars,
         })));
       }
 
       // 排位胜利场次排行榜
       const { data: winsData } = await supabase
         .from("profiles")
-        .select("id, username, wins, rank_tier")
+        .select("id, username, wins, rank_tier, rank_stars")
         .eq("grade", grade)
         .order("wins", { ascending: false })
         .limit(10);
 
       if (winsData) {
-        setWinsLeaderboard(winsData.map((p, index) => ({
+        setWinsLeaderboard(winsData.map((p: any, index: number) => ({
           rank: index + 1,
           username: p.username,
           profileId: p.id,
           value: p.wins,
           tier: p.rank_tier,
+          rankStars: p.rank_stars,
         })));
       }
 
       // 经验值排行榜
       const { data: xpData } = await supabase
         .from("profiles")
-        .select("id, username, xp, level, rank_tier")
+        .select("id, username, xp, level, rank_tier, rank_stars")
         .eq("grade", grade)
         .order("xp", { ascending: false })
         .limit(10);
 
       if (xpData) {
-        setXpLeaderboard(xpData.map((p, index) => ({
+        setXpLeaderboard(xpData.map((p: any, index: number) => ({
           rank: index + 1,
           username: p.username,
           profileId: p.id,
           value: p.xp,
           tier: p.rank_tier,
+          rankStars: p.rank_stars,
         })));
       }
 
@@ -91,19 +112,20 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
       if (currentClass) {
         const { data: classData } = await supabase
           .from("profiles")
-          .select("id, username, xp, level, rank_tier")
+          .select("id, username, xp, level, rank_tier, rank_stars")
           .eq("grade", grade)
           .eq("class", currentClass)
           .order("xp", { ascending: false })
           .limit(20);
 
         if (classData) {
-          setClassLeaderboard(classData.map((p, index) => ({
+          setClassLeaderboard(classData.map((p: any, index: number) => ({
             rank: index + 1,
             username: p.username,
             profileId: p.id,
             value: p.xp,
             tier: p.rank_tier,
+            rankStars: p.rank_stars,
           })));
         }
       }
@@ -236,9 +258,31 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
                     <Badge variant="xp" className="text-[10px]">你</Badge>
                   )}
                 </div>
-                <Badge variant={getTierVariant(entry.tier)} className="text-[10px] mt-1">
-                  {entry.tier.charAt(0).toUpperCase() + entry.tier.slice(1)}
-                </Badge>
+                
+                {/* 段位徽章 - 增强版 */}
+                {(() => {
+                  const tier = (entry.tier?.toLowerCase() || "bronze") as RankTier;
+                  const config = tierConfig[tier] || tierConfig.bronze;
+                  const IconComp = config.icon === "crown" ? Crown : Shield;
+                  
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className={cn(
+                        "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-gaming bg-gradient-to-r text-white",
+                        config.gradient
+                      )}>
+                        <IconComp className="w-3 h-3" />
+                        <span>{config.name}</span>
+                      </div>
+                      {entry.rankStars !== undefined && entry.rankStars > 0 && (
+                        <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <Star className="w-3 h-3 text-accent fill-accent" />
+                          <span>{entry.rankStars}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Value */}

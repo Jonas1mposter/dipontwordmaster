@@ -195,6 +195,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     newTier: RankTier;
     newStars: number;
   } | null>(null);
+  const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
 
   // Handle initial match from friend challenge
   useEffect(() => {
@@ -732,9 +733,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
 
     // Broadcast progress to opponent (for real player matches)
-    if (isRealPlayer && matchId && profile) {
-      const channel = supabase.channel(`battle-${matchId}`);
-      channel.send({
+    if (isRealPlayer && matchId && profile && battleChannel) {
+      battleChannel.send({
         type: 'broadcast',
         event: 'player_progress',
         payload: {
@@ -967,9 +967,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       })
       .subscribe((status) => {
         console.log("Battle sync channel status:", status);
+        if (status === 'SUBSCRIBED') {
+          // Store channel reference for sending messages
+          setBattleChannel(channel);
+        }
       });
 
     return () => {
+      setBattleChannel(null);
       supabase.removeChannel(channel);
     };
   }, [matchStatus, matchId, profile, isRealPlayer, myFinished, matchFinished, myScore]);

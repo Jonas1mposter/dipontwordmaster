@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.059824a49d0942a88d912b5a77b1007e',
+  appId: 'com.lovable.dipontwordmaster',
   appName: 'dipontwordmaster',
   webDir: 'dist',
   server: {

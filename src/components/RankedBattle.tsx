@@ -25,6 +25,7 @@ import {
   Wifi
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { updateProfileWithXp } from "@/lib/levelUp";
 
 interface Word {
   id: string;
@@ -641,21 +642,24 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         })
         .eq("id", matchId);
 
-      // Update profile stats
+      // Update profile stats with level up logic
       const xpGained = won ? 5 : 2;
       const coinsGained = won ? 3 : 1;
       const rankPointsChange = won ? 25 : -10;
 
-      await supabase
-        .from("profiles")
-        .update({
-          xp: profile.xp + xpGained,
+      await updateProfileWithXp(
+        profile.id,
+        profile.level,
+        profile.xp,
+        profile.xp_to_next_level,
+        xpGained,
+        {
           coins: profile.coins + coinsGained,
           wins: won ? profile.wins + 1 : profile.wins,
           losses: won ? profile.losses : profile.losses + 1,
           rank_points: Math.max(0, profile.rank_points + rankPointsChange),
-        })
-        .eq("id", profile.id);
+        }
+      );
 
       refreshProfile();
     }

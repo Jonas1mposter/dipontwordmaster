@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { updateProfileWithXp } from "@/lib/levelUp";
 
 interface Word {
   id: string;
@@ -167,13 +168,19 @@ const WrongWordReview = ({ words, onBack, onComplete }: WrongWordReviewProps) =>
 
     if (profile) {
       try {
-        await supabase
-          .from("profiles")
-          .update({
-            xp: profile.xp + baseXp + bonusXp,
-            coins: profile.coins + baseCoins + bonusCoins,
-          })
-          .eq("id", profile.id);
+        const totalXpGained = baseXp + bonusXp;
+        const levelUpResult = await updateProfileWithXp(
+          profile.id,
+          profile.level,
+          profile.xp,
+          profile.xp_to_next_level,
+          totalXpGained,
+          { coins: profile.coins + baseCoins + bonusCoins }
+        );
+
+        if (levelUpResult.leveledUp) {
+          toast.success(`🎉 升级了！现在是 Lv.${levelUpResult.newLevel}！`);
+        }
 
         await refreshProfile();
       } catch (error) {

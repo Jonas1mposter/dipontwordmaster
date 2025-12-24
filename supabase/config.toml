@@ -2,3 +2,6 @@ project_id = "ibhvjdnucfmdfmlmnlif"
 
 [functions.award-leaderboard-cards]
 verify_jwt = false
+
+[functions.update-challenge-stats]
+verify_jwt = false

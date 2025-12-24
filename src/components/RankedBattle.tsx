@@ -642,8 +642,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("id", matchId);
 
       // Update profile stats
-      const xpGained = won ? 50 : 20;
-      const coinsGained = won ? 30 : 10;
+      const xpGained = won ? 5 : 2;
+      const coinsGained = won ? 3 : 1;
       const rankPointsChange = won ? 25 : -10;
 
       await supabase

@@ -249,10 +249,10 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     const finalCorrect = correctCount + (currentIndex === words.length - 1 ? 1 : 0);
     const accuracy = finalCorrect / words.length;
     
-    const baseXp = 50;
-    const bonusXp = Math.floor(accuracy * 50);
-    const baseCoins = 20;
-    const bonusCoins = accuracy === 1 ? 30 : Math.floor(accuracy * 20);
+    const baseXp = 5;
+    const bonusXp = Math.floor(accuracy * 5);
+    const baseCoins = 2;
+    const bonusCoins = accuracy === 1 ? 3 : Math.floor(accuracy * 2);
     
     setXpEarned(baseXp + bonusXp);
     setCoinsEarned(baseCoins + bonusCoins);

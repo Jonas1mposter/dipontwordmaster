@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
@@ -63,6 +63,28 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   const [onlineCount, setOnlineCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [answerAnimation, setAnswerAnimation] = useState<'correct' | 'wrong' | null>(null);
+  
+  // Real-time battle sync state
+  const [isRealPlayer, setIsRealPlayer] = useState(false);
+  const [opponentProgress, setOpponentProgress] = useState(0);
+  const [opponentFinished, setOpponentFinished] = useState(false);
+  const [opponentFinalScore, setOpponentFinalScore] = useState<number | null>(null);
+  const [myFinished, setMyFinished] = useState(false);
+  const [matchFinished, setMatchFinished] = useState(false);
+  const [waitingForOpponent, setWaitingForOpponent] = useState(false);
+  const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Refs for realtime callbacks
+  const myScoreRef = useRef(0);
+  const myFinishedRef = useRef(false);
+  const matchFinishedRef = useRef(false);
+  const opponentFinishedRef = useRef(false);
+  
+  // Keep refs in sync
+  useEffect(() => { myScoreRef.current = myScore; }, [myScore]);
+  useEffect(() => { myFinishedRef.current = myFinished; }, [myFinished]);
+  useEffect(() => { matchFinishedRef.current = matchFinished; }, [matchFinished]);
+  useEffect(() => { opponentFinishedRef.current = opponentFinished; }, [opponentFinished]);
 
   // Track online presence for free match (all grades)
   useEffect(() => {
@@ -149,6 +171,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     const aiLevel = Math.max(1, (profile?.level || 1) + Math.floor(Math.random() * 3) - 1);
     const aiGrade = Math.random() > 0.5 ? 7 : 8;
     
+    setIsRealPlayer(false);
     setOpponent({
       id: "ai-opponent",
       username: aiName,
@@ -210,6 +233,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         console.log("Successfully joined free match:", updatedMatch.id);
         setMatchId(matchToJoin.id);
         setOpponent(matchToJoin.player1);
+        setIsRealPlayer(true);
         setWords(matchWords);
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
@@ -327,6 +351,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
       setMatchId(matchData.id);
       setOpponent(opponentData);
+      setIsRealPlayer(true);
       setWords(matchWords);
       if (matchWords.length > 0) {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
@@ -553,11 +578,12 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
   // Handle answer selection
   const handleAnswer = async (selectedMeaning: string) => {
-    if (selectedOption || !words[currentWordIndex]) return;
+    if (selectedOption || !words[currentWordIndex] || myFinished || matchFinished) return;
 
     setSelectedOption(selectedMeaning);
     const isCorrect = selectedMeaning === words[currentWordIndex].meaning;
     const newScore = isCorrect ? myScore + 1 : myScore;
+    const newQuestionIndex = currentWordIndex + 1;
 
     if (isCorrect) {
       setMyScore(newScore);
@@ -568,10 +594,69 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       sounds.playWrong();
     }
 
+    // Broadcast progress to opponent (for real player matches)
+    if (isRealPlayer && matchId && profile) {
+      // Try broadcast first
+      if (battleChannel) {
+        battleChannel.send({
+          type: 'broadcast',
+          event: 'player_progress',
+          payload: {
+            playerId: profile.id,
+            questionIndex: newQuestionIndex,
+            score: newScore,
+            finished: newQuestionIndex >= 10,
+          }
+        });
+      }
+      
+      // Always update database with current progress as fallback
+      const { data: currentMatch } = await supabase
+        .from("ranked_matches")
+        .select("player1_id")
+        .eq("id", matchId)
+        .single();
+      
+      if (currentMatch) {
+        const isPlayer1 = currentMatch.player1_id === profile.id;
+        const isFinished = newQuestionIndex >= 10;
+        // Encode progress: score + (questionIndex * 100) + (finished ? 10000 : 0)
+        const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
+        await supabase
+          .from("ranked_matches")
+          .update({
+            [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
+          })
+          .eq("id", matchId);
+      }
+    }
+
     setTimeout(() => {
       setAnswerAnimation(null);
-      if (newScore >= 10) {
-        finishMatch(newScore);
+      
+      // Check if we've answered all 10 questions
+      if (currentWordIndex >= 9 || newScore >= 10) {
+        setMyFinished(true);
+        setWaitingForOpponent(true);
+        
+        if (!isRealPlayer) {
+          // AI match - finish immediately
+          setTimeout(() => {
+            if (!matchFinished) {
+              finishMatchWithAI(newScore);
+            }
+          }, 1500);
+        } else {
+          // Real player - check if opponent already finished
+          if (opponentFinished && opponentFinalScore !== null) {
+            setTimeout(() => {
+              if (!matchFinished) {
+                finishMatchWithRealPlayer(newScore, opponentFinalScore);
+              }
+            }, 500);
+          }
+          // Otherwise wait for opponent (handled by realtime listener + polling)
+        }
         return;
       }
       
@@ -579,29 +664,28 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         setCurrentWordIndex(prev => prev + 1);
         setSelectedOption(null);
         setOptions(generateOptions(words[currentWordIndex + 1].meaning, words));
-      } else {
-        finishMatch(newScore);
       }
     }, 800);
   };
 
-  // Finish match
-  const finishMatch = async (finalScore?: number) => {
+  // Finish match with AI opponent
+  const finishMatchWithAI = async (finalScore: number) => {
+    if (matchFinished) return;
+    setMatchFinished(true);
     setMatchStatus("finished");
+    setWaitingForOpponent(false);
     
-    const playerScore = finalScore ?? myScore;
-    
-    const simulatedOpponentScore = playerScore >= 10 
-      ? Math.floor(Math.random() * 10) 
-      : Math.floor(Math.random() * (words.length + 1));
+    const playerScore = finalScore;
+    const simulatedOpponentScore = Math.floor(Math.random() * 10);
     setOpponentScore(simulatedOpponentScore);
     
     const won = playerScore > simulatedOpponentScore;
+    const tie = playerScore === simulatedOpponentScore;
     setIsWinner(won);
 
     if (won) {
       sounds.playVictory();
-    } else {
+    } else if (!tie) {
       sounds.playDefeat();
     }
 
@@ -637,6 +721,168 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       refreshProfile();
     }
   };
+
+  // Finish match with real player
+  const finishMatchWithRealPlayer = async (myFinalScore: number, theirFinalScore: number) => {
+    if (matchFinished) return;
+    setMatchFinished(true);
+    setMatchStatus("finished");
+    setWaitingForOpponent(false);
+    
+    setOpponentScore(theirFinalScore);
+    
+    const won = myFinalScore > theirFinalScore;
+    const tie = myFinalScore === theirFinalScore;
+    setIsWinner(won);
+
+    if (won) {
+      sounds.playVictory();
+    } else if (!tie) {
+      sounds.playDefeat();
+    }
+
+    if (profile && matchId) {
+      await supabase
+        .from("ranked_matches")
+        .update({
+          player1_score: myFinalScore,
+          player2_score: theirFinalScore,
+          winner_id: won ? profile.id : (tie ? null : opponent?.id),
+          status: "completed",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", matchId);
+
+      // Free match gives bonus XP for cross-grade battle
+      const xpGained = won ? 6 : 2;
+      const coinsGained = won ? 3 : 1;
+
+      await updateProfileWithXp(
+        profile.id,
+        profile.level,
+        profile.xp,
+        profile.xp_to_next_level,
+        xpGained,
+        {
+          coins: profile.coins + coinsGained,
+          wins: won ? profile.wins + 1 : profile.wins,
+          losses: won ? profile.losses : profile.losses + 1,
+        }
+      );
+
+      refreshProfile();
+    }
+  };
+  
+  // Legacy finishMatch for timer expiry
+  const finishMatch = async (finalScore?: number) => {
+    const score = finalScore ?? myScore;
+    if (isRealPlayer) {
+      setMyFinished(true);
+      // Wait for opponent or timeout
+      if (opponentFinished && opponentFinalScore !== null) {
+        finishMatchWithRealPlayer(score, opponentFinalScore);
+      }
+    } else {
+      finishMatchWithAI(score);
+    }
+  };
+
+  // Realtime sync for battle progress (real player matches only)
+  useEffect(() => {
+    if (matchStatus !== "playing" || !matchId || !profile || !isRealPlayer) return;
+
+    console.log("Setting up free match battle sync channel for match:", matchId);
+    let isActive = true;
+    
+    const channel = supabase.channel(`free-battle-sync-${matchId}`)
+      .on('broadcast', { event: 'player_progress' }, (payload) => {
+        if (!isActive) return;
+        const data = payload.payload as any;
+        
+        // Ignore our own messages
+        if (data.playerId === profile.id) return;
+        
+        console.log("Free match opponent progress:", data);
+        
+        // Update opponent's current progress
+        setOpponentProgress(data.questionIndex);
+        
+        // Update opponent's progress
+        if (data.finished) {
+          console.log("Broadcast: Free match opponent finished with score:", data.score);
+          setOpponentFinished(true);
+          setOpponentFinalScore(data.score);
+          
+          // If we're also finished, complete the match
+          if (myFinishedRef.current && !matchFinishedRef.current) {
+            console.log("Both finished via broadcast, completing free match");
+            finishMatchWithRealPlayer(myScoreRef.current, data.score);
+          }
+        }
+      })
+      .subscribe((status) => {
+        console.log("Free match battle sync channel status:", status);
+        if (status === 'SUBSCRIBED') {
+          setBattleChannel(channel);
+        }
+      });
+
+    // Polling fallback
+    const pollInterval = setInterval(async () => {
+      if (!isActive || matchFinishedRef.current) return;
+      
+      const { data: matchData } = await supabase
+        .from("ranked_matches")
+        .select("*")
+        .eq("id", matchId)
+        .single();
+      
+      if (!matchData) return;
+      
+      const isPlayer1 = matchData.player1_id === profile.id;
+      const rawOpponentProgress = isPlayer1 ? matchData.player2_score : matchData.player1_score;
+      
+      // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
+      const opponentHasFinished = rawOpponentProgress >= 10000;
+      const progressWithoutFinished = opponentHasFinished ? rawOpponentProgress - 10000 : rawOpponentProgress;
+      const opponentQuestionIndex = Math.floor(progressWithoutFinished / 100);
+      const actualOpponentScore = progressWithoutFinished % 100;
+      
+      // Update opponent's current progress
+      if (opponentQuestionIndex > 0) {
+        setOpponentProgress(opponentQuestionIndex);
+      }
+      
+      // If opponent has finished and we haven't marked them finished
+      if (opponentHasFinished && !opponentFinishedRef.current) {
+        console.log("Polling: Free match opponent finished with score:", actualOpponentScore);
+        setOpponentFinished(true);
+        setOpponentFinalScore(actualOpponentScore);
+        
+        if (myFinishedRef.current && !matchFinishedRef.current) {
+          finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
+        }
+      }
+      
+      // Check if match was marked completed
+      if (matchData.status === "completed" && !matchFinishedRef.current) {
+        setOpponentFinished(true);
+        setOpponentFinalScore(actualOpponentScore);
+        
+        if (myFinishedRef.current) {
+          finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      isActive = false;
+      setBattleChannel(null);
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [matchStatus, matchId, profile, isRealPlayer]);
 
   // Timer
   useEffect(() => {

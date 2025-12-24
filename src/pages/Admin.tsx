@@ -138,6 +138,23 @@ export default function Admin() {
     }
   };
 
+  // Update user grade
+  const updateUserGrade = async (profileId: string, newGrade: number) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ grade: newGrade })
+        .eq('id', profileId);
+      
+      if (error) throw error;
+      toast.success(`已更新年级为${newGrade}年级`);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error updating grade:', err);
+      toast.error('更新年级失败');
+    }
+  };
+
   // 解析文本格式: "word - meaning" 每行一个
   const parseText = () => {
     const lines = rawText.split('\n').filter(line => line.trim());
@@ -340,11 +357,25 @@ export default function Admin() {
                               )}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {u.grade}年级 · Lv.{u.level} · {u.rank_tier}
+                              Lv.{u.level} · {u.rank_tier}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {/* Grade Selector */}
+                          <Select 
+                            value={u.grade.toString()} 
+                            onValueChange={(value) => updateUserGrade(u.id, parseInt(value))}
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="7">7年级</SelectItem>
+                              <SelectItem value="8">8年级</SelectItem>
+                              <SelectItem value="9">9年级</SelectItem>
+                            </SelectContent>
+                          </Select>
                           {u.user_id !== user?.id && (
                             <Button
                               variant={u.isAdmin ? "destructive" : "outline"}

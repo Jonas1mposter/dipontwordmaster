@@ -12,6 +12,7 @@ import DailyQuest from "./DailyQuest";
 import ChallengeArena from "./ChallengeArena";
 import WordLearning from "./WordLearning";
 import RankedBattle from "./RankedBattle";
+import FreeMatchBattle from "./FreeMatchBattle";
 import ProfileCard from "./ProfileCard";
 import BadgeDisplay from "./BadgeDisplay";
 import LearningStats from "./LearningStats";
@@ -32,7 +33,8 @@ import {
   Users,
   BookX,
   GraduationCap,
-  Target
+  Target,
+  Globe
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,7 +48,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
   const { checkAndAwardBadges } = useBadgeChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
@@ -109,10 +111,42 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         setRefreshKey(prev => prev + 1);
         refreshProfile();
         setFriendBattleMatchId(null);
-        // Check for new badges after battle
         setTimeout(() => checkAndAwardBadges(), 500);
       }}
       initialMatchId={friendBattleMatchId}
+    />;
+  }
+
+  // Show free match battle
+  if (activeView === "freematch") {
+    if (!user) {
+      return (
+        <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
+          <div className="text-center">
+            <Globe className="w-16 h-16 text-neon-cyan mx-auto mb-4" />
+            <h2 className="font-gaming text-2xl mb-4">登录后参与自由服</h2>
+            <p className="text-muted-foreground mb-6">跨年级自由匹配对战！</p>
+            <div className="flex gap-4 justify-center">
+              <Button variant="outline" onClick={() => setActiveView("home")}>
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                返回
+              </Button>
+              <Button variant="hero" onClick={() => navigate("/auth")}>
+                <User className="w-4 h-4 mr-2" />
+                登录 / 注册
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return <FreeMatchBattle 
+      onBack={() => {
+        setActiveView("home");
+        setRefreshKey(prev => prev + 1);
+        refreshProfile();
+        setTimeout(() => checkAndAwardBadges(), 500);
+      }}
     />;
   }
 
@@ -246,6 +280,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               { id: "learn", label: "闯关", icon: BookOpen },
               { id: "wrongbook", label: "错题本", icon: BookX },
               { id: "battle", label: "排位赛", icon: Swords },
+              { id: "freematch", label: "自由服", icon: Globe },
               { id: "challenge", label: "挑战赛", icon: Target },
               { id: "friends", label: "好友", icon: Users },
               { id: "leaderboard", label: "排行榜", icon: Trophy },

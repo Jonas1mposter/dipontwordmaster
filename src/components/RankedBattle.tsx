@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import PlayerBattleCard from "@/components/battle/PlayerBattleCard";
 import { toast } from "sonner";
 import { 
   Swords, 
@@ -928,49 +929,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             ⚔️ 对手找到！⚔️
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            {/* My Profile Card - Slide in from left */}
-            <Card variant="gaming" className="overflow-hidden animate-slide-in-left battle-glow-left">
-              <div className="h-28 bg-gradient-to-br from-primary/40 via-neon-pink/20 to-primary/40 relative">
-                {/* Energy ring */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-primary/50 animate-energy-ring" />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-3xl font-gaming text-primary-foreground shadow-lg shadow-primary/50 border-4 border-background">
-                    {profile?.username.charAt(0).toUpperCase()}
-                  </div>
-                </div>
-              </div>
-              <CardContent className="p-4 text-center">
-                <h3 className="font-gaming text-xl text-primary mb-1 text-glow-purple">{profile?.username}</h3>
-                <Badge variant="xp" className="mb-3">Lv.{profile?.level}</Badge>
-                
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-secondary/50 rounded-lg p-2 border border-primary/20">
-                    <Trophy className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="font-gaming text-accent">
-                      {profile?.rank_tier && (profile.rank_tier.charAt(0).toUpperCase() + profile.rank_tier.slice(1))}
-                    </div>
-                  </div>
-                  <div className="bg-secondary/50 rounded-lg p-2 border border-primary/20">
-                    <Star className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                    <div className="font-gaming">{profile?.rank_stars || 0}星</div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                  <div className="bg-success/10 rounded-lg p-2 border border-success/30">
-                    <div className="font-gaming text-success text-xl">{profile?.wins || 0}</div>
-                    <div className="text-muted-foreground">胜场</div>
-                  </div>
-                  <div className="bg-destructive/10 rounded-lg p-2 border border-destructive/30">
-                    <div className="font-gaming text-destructive text-xl">{profile?.losses || 0}</div>
-                    <div className="text-muted-foreground">败场</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {/* My Profile Card */}
+            <PlayerBattleCard 
+              profile={profile ? {
+                id: profile.id,
+                username: profile.username,
+                level: profile.level,
+                rank_tier: profile.rank_tier,
+                rank_stars: profile.rank_stars,
+                wins: profile.wins,
+                losses: profile.losses,
+                avatar_url: profile.avatar_url,
+              } : null}
+              variant="left"
+            />
 
             {/* VS - Dramatic center animation */}
             <div className="flex flex-col items-center justify-center py-8 relative">
@@ -1015,51 +988,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               </div>
             </div>
 
-            {/* Opponent Profile Card - Slide in from right */}
-            <Card variant="gaming" className="overflow-hidden animate-slide-in-right battle-glow-right">
-              <div className="h-28 bg-gradient-to-br from-neon-blue/40 via-neon-cyan/20 to-neon-blue/40 relative">
-                {/* Energy ring */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-neon-blue/50 animate-energy-ring" style={{ animationDirection: 'reverse' }} />
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-3xl font-gaming text-primary-foreground shadow-lg shadow-neon-blue/50 border-4 border-background">
-                    {opponent?.username?.charAt(0).toUpperCase() || "?"}
-                  </div>
-                </div>
-                {opponent?.isAI && (
-                  <Badge className="absolute top-2 right-2 bg-accent/90 animate-pulse">🤖 AI</Badge>
-                )}
-              </div>
-              <CardContent className="p-4 text-center">
-                <h3 className="font-gaming text-xl text-neon-blue mb-1 text-glow-cyan">{opponent?.username || "对手"}</h3>
-                <Badge variant="xp" className="mb-3">Lv.{opponent?.level || 1}</Badge>
-                
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-secondary/50 rounded-lg p-2 border border-neon-blue/20">
-                    <Trophy className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="font-gaming text-accent">
-                      {opponent?.rank_tier && (opponent.rank_tier.charAt(0).toUpperCase() + opponent.rank_tier.slice(1))}
-                    </div>
-                  </div>
-                  <div className="bg-secondary/50 rounded-lg p-2 border border-neon-blue/20">
-                    <Star className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                    <div className="font-gaming">{opponent?.rank_stars || 0}星</div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                  <div className="bg-success/10 rounded-lg p-2 border border-success/30">
-                    <div className="font-gaming text-success text-xl">{opponent?.wins || 0}</div>
-                    <div className="text-muted-foreground">胜场</div>
-                  </div>
-                  <div className="bg-destructive/10 rounded-lg p-2 border border-destructive/30">
-                    <div className="font-gaming text-destructive text-xl">{opponent?.losses || 0}</div>
-                    <div className="text-muted-foreground">败场</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Opponent Profile Card */}
+            <PlayerBattleCard 
+              profile={opponent ? {
+                id: opponent.id,
+                username: opponent.username,
+                level: opponent.level,
+                rank_tier: opponent.rank_tier,
+                rank_stars: opponent.rank_stars,
+                wins: opponent.wins || 0,
+                losses: opponent.losses || 0,
+                avatar_url: opponent.avatar_url,
+                isAI: opponent.isAI,
+              } : null}
+              variant="right"
+            />
           </div>
         </div>
       </div>

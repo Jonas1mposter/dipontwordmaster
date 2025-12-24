@@ -230,7 +230,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const handleIncorrect = async () => {
     setIncorrectCount(prev => prev + 1);
 
-    // Update learning progress
+    // Update learning progress - still set mastery_level to 1 to mark as "attempted"
     if (profile && currentWord) {
       try {
         const { data: existing } = await supabase
@@ -246,6 +246,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             .update({
               incorrect_count: existing.incorrect_count + 1,
               last_reviewed_at: new Date().toISOString(),
+              // Ensure mastery_level is at least 1 after attempting quiz
+              mastery_level: Math.max(1, existing.mastery_level),
             })
             .eq("id", existing.id);
         } else {
@@ -256,6 +258,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
               word_id: currentWord.id,
               incorrect_count: 1,
               last_reviewed_at: new Date().toISOString(),
+              mastery_level: 1, // Mark as attempted even if wrong
             });
         }
       } catch (error) {

@@ -785,26 +785,27 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         });
       }
       
-      // Also update database when finished (as fallback sync mechanism)
-      // Use a special marker: score + 100 to indicate finished (score 0-10 becomes 100-110)
-      if (newQuestionIndex >= 10) {
-        const { data: currentMatch } = await supabase
+      // Always update database with current progress as fallback sync mechanism
+      // Score encoding: actual_score + (questionIndex * 100) + (finished ? 10000 : 0)
+      // This allows us to extract: questionIndex, score, and finished status
+      const { data: currentMatch } = await supabase
+        .from("ranked_matches")
+        .select("player1_id")
+        .eq("id", matchId)
+        .single();
+      
+      if (currentMatch) {
+        const isPlayer1 = currentMatch.player1_id === profile.id;
+        const isFinished = newQuestionIndex >= 10;
+        // Encode progress: score + (questionIndex * 100) + (finished ? 10000 : 0)
+        const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
+        await supabase
           .from("ranked_matches")
-          .select("player1_id")
-          .eq("id", matchId)
-          .single();
-        
-        if (currentMatch) {
-          const isPlayer1 = currentMatch.player1_id === profile.id;
-          // Use score + 100 as a marker that player finished (to distinguish from 0 score)
-          await supabase
-            .from("ranked_matches")
-            .update({
-              [isPlayer1 ? "player1_score" : "player2_score"]: newScore + 100,
-            })
-            .eq("id", matchId);
-          console.log(`Updated DB: ${isPlayer1 ? 'player1_score' : 'player2_score'} = ${newScore + 100}`);
-        }
+          .update({
+            [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
+          })
+          .eq("id", matchId);
+        console.log(`Updated DB progress: ${isPlayer1 ? 'player1' : 'player2'} = score:${newScore}, question:${newQuestionIndex}, finished:${isFinished}`);
       }
     }
 
@@ -1072,11 +1073,19 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (!matchData) return;
       
       const isPlayer1 = matchData.player1_id === profile.id;
-      const rawOpponentScore = isPlayer1 ? matchData.player2_score : matchData.player1_score;
+      const rawOpponentProgress = isPlayer1 ? matchData.player2_score : matchData.player1_score;
       
-      // Score >= 100 means opponent finished (actual score = rawScore - 100)
-      const opponentHasFinished = rawOpponentScore >= 100;
-      const actualOpponentScore = opponentHasFinished ? rawOpponentScore - 100 : rawOpponentScore;
+      // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
+      const opponentHasFinished = rawOpponentProgress >= 10000;
+      const progressWithoutFinished = opponentHasFinished ? rawOpponentProgress - 10000 : rawOpponentProgress;
+      const opponentQuestionIndex = Math.floor(progressWithoutFinished / 100);
+      const actualOpponentScore = progressWithoutFinished % 100;
+      
+      // Update opponent's current progress
+      if (opponentQuestionIndex > 0) {
+        setOpponentProgress(opponentQuestionIndex);
+        console.log("Polling: Opponent progress - question:", opponentQuestionIndex, "score:", actualOpponentScore);
+      }
       
       // If opponent has finished and we haven't marked them finished, sync it
       if (opponentHasFinished && !opponentFinishedRef.current) {
@@ -1092,12 +1101,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       // Also check if match was marked completed
       if (matchData.status === "completed" && !matchFinishedRef.current) {
         console.log("Polling: Match completed, syncing final state");
-        const finalOpponentScore = rawOpponentScore >= 100 ? rawOpponentScore - 100 : rawOpponentScore;
         setOpponentFinished(true);
-        setOpponentFinalScore(finalOpponentScore);
+        setOpponentFinalScore(actualOpponentScore);
         
         if (myFinishedRef.current) {
-          finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
+          finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
     }, 1000); // Poll every 1 second for responsiveness

@@ -884,9 +884,29 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     };
   }, [matchStatus, matchId, profile, isRealPlayer]);
 
+  // Timeout for waiting for opponent - if we finished and opponent has no progress for 15 seconds, auto-win
+  useEffect(() => {
+    if (!myFinished || !isRealPlayer || matchFinished || opponentFinished) return;
+    
+    console.log("Starting free match opponent timeout timer");
+    
+    const timeoutTimer = setTimeout(() => {
+      if (matchFinishedRef.current || opponentFinishedRef.current) return;
+      
+      console.log("Free match opponent timeout - auto-completing match");
+      toast.info("对手已离线，比赛结束");
+      
+      // Use opponent's current score (0 if they never answered)
+      const finalOpponentScore = opponentFinalScore ?? 0;
+      finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
+    }, 15000); // 15 seconds timeout
+    
+    return () => clearTimeout(timeoutTimer);
+  }, [myFinished, isRealPlayer, matchFinished, opponentFinished]);
+
   // Timer
   useEffect(() => {
-    if (matchStatus === "playing" && timeLeft > 0) {
+    if (matchStatus === "playing" && timeLeft > 0 && !myFinished && !matchFinished) {
       const timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
@@ -903,7 +923,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [matchStatus, timeLeft]);
+  }, [matchStatus, timeLeft, myFinished, matchFinished]);
 
   // Search timer
   useEffect(() => {

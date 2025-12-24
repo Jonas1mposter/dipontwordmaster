@@ -56,13 +56,16 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge, onSpecta
         };
       });
 
-      // Check for active matches for each friend
+      // Check for active matches for each friend (only matches started within last 10 minutes)
       const friendIds = friendList.map(f => f.id);
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      
       if (friendIds.length > 0) {
         const { data: activeMatches } = await supabase
           .from("ranked_matches")
-          .select("id, player1_id, player2_id")
+          .select("id, player1_id, player2_id, started_at")
           .eq("status", "in_progress")
+          .gte("started_at", tenMinutesAgo)
           .or(`player1_id.in.(${friendIds.join(',')}),player2_id.in.(${friendIds.join(',')})`);
 
         if (activeMatches) {

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search, Sparkles, MessageSquareText } from 'lucide-react';
 
 interface ParsedWord {
   word: string;
@@ -56,6 +56,11 @@ export default function Admin() {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [coinAmount, setCoinAmount] = useState('');
   const [distributingCoins, setDistributingCoins] = useState(false);
+  
+  // Example generation state
+  const [generatingExamples, setGeneratingExamples] = useState(false);
+  const [exampleGrade, setExampleGrade] = useState('8');
+  const [wordsWithoutExamples, setWordsWithoutExamples] = useState(0);
 
   const loading = authLoading || roleLoading;
 
@@ -106,6 +111,44 @@ export default function Admin() {
         stats[w.grade] = (stats[w.grade] || 0) + 1;
       });
       setWordStats(Object.entries(stats).map(([g, c]) => ({ grade: parseInt(g), count: c })));
+    }
+
+    // Count words without examples
+    const { count } = await supabase
+      .from('words')
+      .select('id', { count: 'exact', head: true })
+      .is('example', null);
+    
+    setWordsWithoutExamples(count || 0);
+  };
+
+  // Generate examples using AI
+  const generateExamples = async () => {
+    setGeneratingExamples(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-examples', {
+        body: { batchSize: 20, grade: parseInt(exampleGrade) }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        if (data.error.includes('Rate limit')) {
+          toast.error('请求过于频繁，请稍后再试');
+        } else if (data.error.includes('credits')) {
+          toast.error('AI额度不足，请联系管理员');
+        } else {
+          toast.error(data.error);
+        }
+      } else {
+        toast.success(data.message || `成功生成 ${data.updated} 个例句`);
+        fetchWordStats();
+      }
+    } catch (err) {
+      console.error('Error generating examples:', err);
+      toast.error('生成例句失败');
+    } finally {
+      setGeneratingExamples(false);
     }
   };
 
@@ -346,7 +389,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               用户管理
@@ -358,6 +401,10 @@ export default function Admin() {
             <TabsTrigger value="words" className="flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               词汇导入
+            </TabsTrigger>
+            <TabsTrigger value="examples" className="flex items-center gap-2">
+              <MessageSquareText className="w-4 h-4" />
+              生成例句
             </TabsTrigger>
             <TabsTrigger value="rewards" className="flex items-center gap-2">
               <Award className="w-4 h-4" />
@@ -698,6 +745,77 @@ abstract - 抽象的`}
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Examples Tab */}
+          <TabsContent value="examples">
+            <Card className="card-glow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-accent" />
+                  AI生成例句
+                </CardTitle>
+                <CardDescription>
+                  使用AI为没有例句的单词自动生成例句
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
+                  <div>
+                    <div className="text-lg font-medium">待生成例句</div>
+                    <div className="text-sm text-muted-foreground">数据库中没有例句的单词数量</div>
+                  </div>
+                  <Badge variant="destructive" className="text-lg px-4 py-2">
+                    {wordsWithoutExamples} 个
+                  </Badge>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">选择年级</label>
+                  <Select value={exampleGrade} onValueChange={setExampleGrade}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">7年级</SelectItem>
+                      <SelectItem value="8">8年级</SelectItem>
+                      <SelectItem value="9">9年级</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-primary mt-0.5" />
+                    <div>
+                      <div className="font-medium text-primary">AI生成说明</div>
+                      <ul className="text-sm text-muted-foreground mt-1 space-y-1">
+                        <li>• 每次生成最多20个单词的例句</li>
+                        <li>• 例句适合初高中学生学习</li>
+                        <li>• 例句简洁清晰，不超过15个单词</li>
+                        <li>• 可以多次点击生成更多例句</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={generateExamples}
+                  disabled={generatingExamples || wordsWithoutExamples === 0}
+                  className="w-full"
+                  size="lg"
+                >
+                  <Sparkles className={`w-4 h-4 mr-2 ${generatingExamples ? 'animate-spin' : ''}`} />
+                  {generatingExamples ? '生成中...' : `为 ${exampleGrade} 年级生成例句`}
+                </Button>
+
+                {wordsWithoutExamples === 0 && (
+                  <p className="text-sm text-green-500 text-center">
+                    所有单词都已有例句！
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Rewards Tab */}

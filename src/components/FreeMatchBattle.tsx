@@ -594,8 +594,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       sounds.playWrong();
     }
 
-    // Broadcast progress to opponent (for real player matches)
-    if (isRealPlayer && matchId && profile) {
+    // ALWAYS update progress to database for matches (regardless of isRealPlayer flag)
+    if (matchId && profile) {
       // Try broadcast first
       if (battleChannel) {
         battleChannel.send({
@@ -610,24 +610,39 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         });
       }
       
-      // Always update database with current progress as fallback
-      const { data: currentMatch } = await supabase
-        .from("ranked_matches")
-        .select("player1_id")
-        .eq("id", matchId)
-        .single();
-      
-      if (currentMatch) {
-        const isPlayer1 = currentMatch.player1_id === profile.id;
-        const isFinished = newQuestionIndex >= 10;
-        // Encode progress: score + (questionIndex * 100) + (finished ? 10000 : 0)
-        const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
-        await supabase
+      // ALWAYS update database with current progress
+      try {
+        const { data: currentMatch } = await supabase
           .from("ranked_matches")
-          .update({
-            [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
-          })
-          .eq("id", matchId);
+          .select("player1_id, player2_id")
+          .eq("id", matchId)
+          .single();
+        
+        if (currentMatch) {
+          const isPlayer1 = currentMatch.player1_id === profile.id;
+          const isPlayer2 = currentMatch.player2_id === profile.id;
+          const isFinished = newQuestionIndex >= 10;
+          const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
+          
+          console.log("Free match - Updating progress:", { isPlayer1, isPlayer2, encodedProgress, matchId });
+          
+          if (isPlayer1 || isPlayer2) {
+            const { error } = await supabase
+              .from("ranked_matches")
+              .update({
+                [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
+              })
+              .eq("id", matchId);
+            
+            if (error) {
+              console.error("Failed to update free match progress:", error);
+            }
+          } else {
+            console.error("Player not found in free match!", { profileId: profile.id, player1: currentMatch.player1_id, player2: currentMatch.player2_id });
+          }
+        }
+      } catch (err) {
+        console.error("Error updating free match progress:", err);
       }
     }
 
@@ -884,9 +899,9 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     };
   }, [matchStatus, matchId, profile, isRealPlayer]);
 
-  // Timeout for waiting for opponent - if we finished and opponent has no progress for 15 seconds, auto-win
+  // Timeout for waiting for opponent - if we finished and opponent hasn't finished, auto-complete after 10 seconds
   useEffect(() => {
-    if (!myFinished || !isRealPlayer || matchFinished || opponentFinished) return;
+    if (!myFinished || !matchId || matchFinished || opponentFinished) return;
     
     console.log("Starting free match opponent timeout timer");
     
@@ -894,15 +909,15 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       if (matchFinishedRef.current || opponentFinishedRef.current) return;
       
       console.log("Free match opponent timeout - auto-completing match");
-      toast.info("对手已离线，比赛结束");
+      toast.info("对手超时，比赛结束");
       
       // Use opponent's current score (0 if they never answered)
       const finalOpponentScore = opponentFinalScore ?? 0;
       finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
-    }, 15000); // 15 seconds timeout
+    }, 10000); // 10 seconds timeout
     
     return () => clearTimeout(timeoutTimer);
-  }, [myFinished, isRealPlayer, matchFinished, opponentFinished]);
+  }, [myFinished, matchId, matchFinished, opponentFinished, opponentFinalScore]);
 
   // Timer
   useEffect(() => {

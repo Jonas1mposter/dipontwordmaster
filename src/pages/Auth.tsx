@@ -118,7 +118,7 @@ const Auth = () => {
 
       <Card variant="glow" className="w-full max-w-md relative z-10 animate-scale-in">
         <CardHeader className="text-center pb-2">
-          <img alt="狄邦单词通" className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg shadow-primary/30" src="/lovable-uploads/122730b2-9017-437d-b8c7-3055cea14fe7.png" />
+          <img alt="狄邦单词通" className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg shadow-primary/30" src="/lovable-uploads/bc7d1c2a-b9e9-4f6e-8569-77324e67bc27.jpg" />
           <CardTitle className="text-2xl text-glow-purple">
             {isLogin ? "登录" : "注册"}
           </CardTitle>

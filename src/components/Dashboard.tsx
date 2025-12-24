@@ -14,6 +14,8 @@ import RankedBattle from "./RankedBattle";
 import ProfileCard from "./ProfileCard";
 import BadgeDisplay from "./BadgeDisplay";
 import LearningStats from "./LearningStats";
+import WrongWordBook from "./WrongWordBook";
+import WrongWordReview from "./WrongWordReview";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +28,8 @@ import {
   Sparkles,
   User,
   Crown,
-  Users
+  Users,
+  BookX
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,10 +43,11 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const { isAdmin } = useAdminRole();
   const { checkAndAwardBadges } = useBadgeChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "leaderboard" | "profile" | "friends" | "wrongbook">("home");
   const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
+  const [wrongWordsToReview, setWrongWordsToReview] = useState<any[] | null>(null);
 
   // Empty placeholder for removed leaderboard fetch
 
@@ -107,6 +111,23 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
       }}
       initialMatchId={friendBattleMatchId}
     />;
+  }
+
+  // Wrong word review mode
+  if (activeView === "wrongbook" && wrongWordsToReview) {
+    return (
+      <WrongWordReview
+        words={wrongWordsToReview}
+        onBack={() => {
+          setWrongWordsToReview(null);
+        }}
+        onComplete={() => {
+          setWrongWordsToReview(null);
+          setRefreshKey(prev => prev + 1);
+          refreshProfile();
+        }}
+      />
+    );
   }
 
   if (activeView === "learn" && selectedLevel) {
@@ -209,6 +230,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
             {[
               { id: "home", label: "主页", icon: Sparkles },
               { id: "learn", label: "闯关", icon: BookOpen },
+              { id: "wrongbook", label: "错题本", icon: BookX },
               { id: "battle", label: "排位赛", icon: Swords },
               { id: "friends", label: "好友", icon: Users },
               { id: "leaderboard", label: "排行榜", icon: Trophy },
@@ -262,6 +284,16 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
         {activeView === "leaderboard" && (
           <div className="max-w-2xl mx-auto">
             <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} />
+          </div>
+        )}
+
+        {activeView === "wrongbook" && profile && (
+          <div className="max-w-2xl mx-auto">
+            <WrongWordBook
+              onStartReview={(words) => {
+                setWrongWordsToReview(words);
+              }}
+            />
           </div>
         )}
 

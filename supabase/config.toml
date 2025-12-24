@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.update-challenge-stats]
 verify_jwt = false
+
+[functions.generate-examples]
+verify_jwt = false

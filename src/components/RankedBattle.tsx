@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import PlayerBattleCard from "@/components/battle/PlayerBattleCard";
+import BattleQuizCard, { BattleQuizType } from "@/components/battle/BattleQuizCard";
 import { toast } from "sonner";
 import { 
   Swords, 
@@ -26,6 +27,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
+
+// Available quiz types for battle
+const BATTLE_QUIZ_TYPES: BattleQuizType[] = ["meaning", "reverse", "spelling", "listening"];
 
 interface Word {
   id: string;
@@ -176,9 +180,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(120); // Increased to 120 seconds for 10 questions
+  const [timeLeft, setTimeLeft] = useState(150); // 150 seconds for varied quiz types
   const [options, setOptions] = useState<string[]>([]);
+  const [wordOptions, setWordOptions] = useState<string[]>([]); // Word options for reverse type
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [currentQuizType, setCurrentQuizType] = useState<BattleQuizType>("meaning");
+  const [quizTypes, setQuizTypes] = useState<BattleQuizType[]>([]); // Pre-generated quiz types for each question
   const [showResult, setShowResult] = useState(false);
   const [isWinner, setIsWinner] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
@@ -312,7 +319,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     return shuffled.slice(0, 10);
   }, [profile]);
 
-  // Generate quiz options
+  // Generate meaning options (for "meaning" quiz type)
   const generateOptions = useCallback((correctMeaning: string, allWords: Word[]) => {
     const otherMeanings = allWords
       .map(w => w.meaning)
@@ -321,6 +328,51 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const shuffled = otherMeanings.sort(() => Math.random() - 0.5).slice(0, 3);
     return [...shuffled, correctMeaning].sort(() => Math.random() - 0.5);
   }, []);
+
+  // Generate word options (for "reverse" quiz type)
+  const generateWordOptions = useCallback((correctWord: string, allWords: Word[]) => {
+    const otherWords = allWords
+      .map(w => w.word)
+      .filter(w => w !== correctWord);
+    
+    const shuffled = otherWords.sort(() => Math.random() - 0.5).slice(0, 3);
+    return [...shuffled, correctWord].sort(() => Math.random() - 0.5);
+  }, []);
+
+  // Generate random quiz types for all questions
+  const generateQuizTypes = useCallback((): BattleQuizType[] => {
+    const types: BattleQuizType[] = [];
+    for (let i = 0; i < 10; i++) {
+      // Weighted distribution: meaning 35%, reverse 30%, spelling 20%, listening 15%
+      const rand = Math.random();
+      if (rand < 0.35) {
+        types.push("meaning");
+      } else if (rand < 0.65) {
+        types.push("reverse");
+      } else if (rand < 0.85) {
+        types.push("spelling");
+      } else {
+        types.push("listening");
+      }
+    }
+    return types;
+  }, []);
+
+  // Setup quiz for current word and quiz type
+  const setupQuizForWord = useCallback((word: Word, qType: BattleQuizType, allWords: Word[]) => {
+    setCurrentQuizType(qType);
+    if (qType === "meaning") {
+      setOptions(generateOptions(word.meaning, allWords));
+      setWordOptions([]);
+    } else if (qType === "reverse") {
+      setWordOptions(generateWordOptions(word.word, allWords));
+      setOptions([]);
+    } else {
+      // spelling and listening don't need options
+      setOptions([]);
+      setWordOptions([]);
+    }
+  }, [generateOptions, generateWordOptions]);
 
   // AI opponent names
   const aiNames = ["小词霸", "单词达人", "词汇精灵", "学习小能手", "英语之星", "词汇王者"];
@@ -337,6 +389,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const aiName = aiNames[Math.floor(Math.random() * aiNames.length)];
     const aiLevel = Math.max(1, (profile?.level || 1) + Math.floor(Math.random() * 3) - 1);
     
+    // Generate quiz types for all 10 questions
+    const types = generateQuizTypes();
+    setQuizTypes(types);
+    
     setOpponent({
       id: "ai-opponent",
       username: aiName,
@@ -347,7 +403,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     });
     setIsRealPlayer(false); // AI opponent
     setWords(matchWords);
-    setOptions(generateOptions(matchWords[0].meaning, matchWords));
+    
+    // Setup first question with its quiz type
+    setupQuizForWord(matchWords[0], types[0], matchWords);
+    
     setMatchStatus("found");
     sounds.playMatchFound();
     
@@ -396,10 +455,19 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       if (!joinError && updatedMatch) {
         console.log("Successfully joined match:", updatedMatch.id);
+        
+        // Generate quiz types for all 10 questions
+        const types = generateQuizTypes();
+        setQuizTypes(types);
+        
         setMatchId(matchToJoin.id);
         setOpponent(matchToJoin.player1);
+        setIsRealPlayer(true); // Real player match
         setWords(matchWords);
-        setOptions(generateOptions(matchWords[0].meaning, matchWords));
+        
+        // Setup first question with its quiz type
+        setupQuizForWord(matchWords[0], types[0], matchWords);
+        
         setMatchStatus("found");
         sounds.playMatchFound();
         setTimeout(() => setMatchStatus("playing"), 2000);
@@ -515,12 +583,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           .eq("id", waitingMatchId);
       }
 
+      // Generate quiz types for all 10 questions
+      const types = generateQuizTypes();
+      setQuizTypes(types);
+      
       setMatchId(matchData.id);
       setOpponent(opponentData);
       setIsRealPlayer(true); // Real player opponent
       setWords(matchWords);
       if (matchWords.length > 0) {
-        setOptions(generateOptions(matchWords[0].meaning, matchWords));
+        setupQuizForWord(matchWords[0], types[0], matchWords);
       }
       setWaitingMatchId(null);
       setMatchStatus("found");
@@ -749,14 +821,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     startMatchWithAI();
   };
 
-  // Handle answer selection
-  const handleAnswer = async (selectedMeaning: string) => {
-    if (selectedOption || !words[currentWordIndex] || isAnswerLocked || myFinished || matchFinished) return;
+  // Handle answer from BattleQuizCard
+  const handleBattleAnswer = async (isCorrect: boolean) => {
+    if (!words[currentWordIndex] || isAnswerLocked || myFinished || matchFinished) return;
 
-    setSelectedOption(selectedMeaning);
-    setIsAnswerLocked(true); // Lock immediately to prevent double-clicking
+    setIsAnswerLocked(true);
     
-    const isCorrect = selectedMeaning === words[currentWordIndex].meaning;
     const newScore = isCorrect ? myScore + 1 : myScore;
     const newQuestionIndex = currentWordIndex + 1;
 
@@ -771,7 +841,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     // Broadcast progress to opponent (for real player matches)
     if (isRealPlayer && matchId && profile) {
-      // Try broadcast first
       if (battleChannel) {
         battleChannel.send({
           type: 'broadcast',
@@ -785,9 +854,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         });
       }
       
-      // Always update database with current progress as fallback sync mechanism
-      // Score encoding: actual_score + (questionIndex * 100) + (finished ? 10000 : 0)
-      // This allows us to extract: questionIndex, score, and finished status
       const { data: currentMatch } = await supabase
         .from("ranked_matches")
         .select("player1_id")
@@ -797,7 +863,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (currentMatch) {
         const isPlayer1 = currentMatch.player1_id === profile.id;
         const isFinished = newQuestionIndex >= 10;
-        // Encode progress: score + (questionIndex * 100) + (finished ? 10000 : 0)
         const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
         await supabase
           .from("ranked_matches")
@@ -805,7 +870,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
           })
           .eq("id", matchId);
-        console.log(`Updated DB progress: ${isPlayer1 ? 'player1' : 'player2'} = score:${newScore}, question:${newQuestionIndex}, finished:${isFinished}`);
       }
     }
 
@@ -815,12 +879,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       
       // Check if we've answered all 10 questions
       if (currentWordIndex >= 9) {
-        // Finished all questions
         setMyFinished(true);
         setWaitingForOpponent(true);
         
-        // For real player: wait for opponent to finish
-        // For AI: simulate opponent and finish
         if (!isRealPlayer) {
           setTimeout(() => {
             if (!matchFinished) {
@@ -828,7 +889,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             }
           }, 1500);
         } else {
-          // Check if opponent already finished
           if (opponentFinished && opponentFinalScore !== null) {
             setTimeout(() => {
               if (!matchFinished) {
@@ -836,20 +896,24 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               }
             }, 500);
           }
-          // Otherwise wait for opponent (handled by realtime listener + polling)
         }
         return;
       }
       
       // Move to next question after short delay
       setTimeout(() => {
-        setCurrentWordIndex(prev => prev + 1);
+        const nextIndex = currentWordIndex + 1;
+        setCurrentWordIndex(nextIndex);
         setSelectedOption(null);
-        setIsAnswerLocked(false); // Unlock for next question
-        setOptions(generateOptions(words[currentWordIndex + 1].meaning, words));
-      }, 500); // 0.5 second delay between questions
+        setIsAnswerLocked(false);
+        
+        // Setup next question with its quiz type
+        if (quizTypes[nextIndex] && words[nextIndex]) {
+          setupQuizForWord(words[nextIndex], quizTypes[nextIndex], words);
+        }
+      }, 500);
       
-    }, 600); // Show answer result for 600ms
+    }, 600);
   };
 
   // Finish match with AI opponent
@@ -1604,65 +1668,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           </div>
         </header>
 
-        {/* Word Card */}
+        {/* Quiz Card - using BattleQuizCard for multiple quiz types */}
         <main className="container mx-auto px-4 py-8">
-          <Card 
-            variant="glow" 
-            className={cn(
-              "max-w-lg mx-auto p-8 text-center animate-scale-in transition-all",
-              answerAnimation === 'correct' && "animate-correct-flash",
-              answerAnimation === 'wrong' && "animate-wrong-shake"
-            )}
-          >
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <h2 className="text-4xl font-gaming text-glow-purple">{currentWord.word}</h2>
-              <button
-                onClick={speakWord}
-                className="p-2 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
-              >
-                <Volume2 className="w-5 h-5 text-primary" />
-              </button>
-            </div>
-            {currentWord.phonetic && (
-              <p className="text-muted-foreground text-lg mb-8">{currentWord.phonetic}</p>
-            )}
-
-            <div className="grid grid-cols-1 gap-3">
-              {options.map((option, index) => {
-                const isCorrect = option === currentWord.meaning;
-                const isSelected = selectedOption === option;
-                
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleAnswer(option)}
-                    disabled={!!selectedOption || isAnswerLocked}
-                    className={cn(
-                      "p-4 rounded-xl border-2 text-left transition-all duration-300 font-medium",
-                      !selectedOption && !isAnswerLocked && "hover:border-primary/50 hover:bg-primary/5 border-border bg-card",
-                      (selectedOption || isAnswerLocked) && !isSelected && !isCorrect && "opacity-50 cursor-not-allowed",
-                      selectedOption && isCorrect && "border-success bg-success/10 text-success",
-                      selectedOption && isSelected && !isCorrect && "border-destructive bg-destructive/10 text-destructive"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{option}</span>
-                      {selectedOption && isCorrect && <CheckCircle className="w-5 h-5 text-success" />}
-                      {selectedOption && isSelected && !isCorrect && <XCircle className="w-5 h-5 text-destructive" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            
-            {/* Show delay indicator when transitioning */}
-            {selectedOption && !waitingForOpponent && (
-              <div className="mt-4 text-sm text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                下一题准备中...
-              </div>
-            )}
-          </Card>
+          <BattleQuizCard
+            word={currentWord}
+            quizType={currentQuizType}
+            options={options}
+            wordOptions={wordOptions}
+            onAnswer={handleBattleAnswer}
+            disabled={isAnswerLocked}
+            answerAnimation={answerAnimation}
+          />
 
           <p className="text-center text-muted-foreground mt-4">
             第 {currentWordIndex + 1} / 10 题

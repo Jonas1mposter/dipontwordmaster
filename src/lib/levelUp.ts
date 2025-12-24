@@ -61,10 +61,20 @@ export const updateProfileWithXp = async (
 ): Promise<LevelUpResult> => {
   const result = processLevelUp(currentLevel, currentXp, xpToNextLevel, xpGained);
 
+  // First get current total_xp to add to it
+  const { data: currentProfile } = await supabase
+    .from("profiles")
+    .select("total_xp")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  const currentTotalXp = (currentProfile?.total_xp as number) || 0;
+
   const updates: Record<string, any> = {
     xp: result.newXp,
     level: result.newLevel,
     xp_to_next_level: result.newXpToNextLevel,
+    total_xp: currentTotalXp + xpGained,
     ...additionalUpdates,
   };
 

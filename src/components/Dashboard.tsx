@@ -22,36 +22,34 @@ import SeasonPass from "./SeasonPass";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Swords, 
-  BookOpen, 
-  Trophy, 
-  LogOut,
-  ChevronLeft,
-  Sparkles,
-  User,
-  Crown,
-  Users,
-  BookX,
-  GraduationCap,
-  Target,
-  Globe,
-  Book
-} from "lucide-react";
+import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
 import { toast } from "sonner";
-
 interface DashboardProps {
   grade: 7 | 8;
   onBack: () => void;
 }
-
-const Dashboard = ({ grade, onBack }: DashboardProps) => {
+const Dashboard = ({
+  grade,
+  onBack
+}: DashboardProps) => {
   const navigate = useNavigate();
-  const { user, profile, signOut, refreshProfile } = useAuth();
-  const { isAdmin } = useAdminRole();
-  const { checkAndAwardBadges } = useBadgeChecker(profile);
+  const {
+    user,
+    profile,
+    signOut,
+    refreshProfile
+  } = useAuth();
+  const {
+    isAdmin
+  } = useAdminRole();
+  const {
+    checkAndAwardBadges
+  } = useBadgeChecker(profile);
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass">("home");
-  const [selectedLevel, setSelectedLevel] = useState<{ id: string; name: string } | null>(null);
+  const [selectedLevel, setSelectedLevel] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
   const [wrongWordsToReview, setWrongWordsToReview] = useState<any[] | null>(null);
@@ -63,12 +61,13 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     toast.success("已退出登录");
     onBack();
   };
-
   const handleSelectLevel = (levelId: string, levelName: string) => {
-    setSelectedLevel({ id: levelId, name: levelName });
+    setSelectedLevel({
+      id: levelId,
+      name: levelName
+    });
     setActiveView("learn");
   };
-
   const handleBackFromLearning = () => {
     setSelectedLevel(null);
     setActiveView("home");
@@ -87,8 +86,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
   // Show ranked battle
   if (activeView === "battle") {
     if (!user) {
-      return (
-        <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
+      return <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
           <div className="text-center">
             <Swords className="w-16 h-16 text-primary mx-auto mb-4" />
             <h2 className="font-gaming text-2xl mb-4">登录后参与排位赛</h2>
@@ -104,26 +102,21 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               </Button>
             </div>
           </div>
-        </div>
-      );
+        </div>;
     }
-    return <RankedBattle 
-      onBack={() => {
-        setActiveView("home");
-        setRefreshKey(prev => prev + 1);
-        refreshProfile();
-        setFriendBattleMatchId(null);
-        setTimeout(() => checkAndAwardBadges(), 500);
-      }}
-      initialMatchId={friendBattleMatchId}
-    />;
+    return <RankedBattle onBack={() => {
+      setActiveView("home");
+      setRefreshKey(prev => prev + 1);
+      refreshProfile();
+      setFriendBattleMatchId(null);
+      setTimeout(() => checkAndAwardBadges(), 500);
+    }} initialMatchId={friendBattleMatchId} />;
   }
 
   // Show free match battle
   if (activeView === "freematch") {
     if (!user) {
-      return (
-        <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
+      return <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6">
           <div className="text-center">
             <Globe className="w-16 h-16 text-neon-cyan mx-auto mb-4" />
             <h2 className="font-gaming text-2xl mb-4">登录后参与自由服</h2>
@@ -139,45 +132,28 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               </Button>
             </div>
           </div>
-        </div>
-      );
+        </div>;
     }
-    return <FreeMatchBattle 
-      onBack={() => {
-        setActiveView("home");
-        setRefreshKey(prev => prev + 1);
-        refreshProfile();
-        setTimeout(() => checkAndAwardBadges(), 500);
-      }}
-    />;
+    return <FreeMatchBattle onBack={() => {
+      setActiveView("home");
+      setRefreshKey(prev => prev + 1);
+      refreshProfile();
+      setTimeout(() => checkAndAwardBadges(), 500);
+    }} />;
   }
 
   // Wrong word review mode
   if (activeView === "wrongbook" && wrongWordsToReview) {
-    return (
-      <WrongWordReview
-        words={wrongWordsToReview}
-        onBack={() => {
-          setWrongWordsToReview(null);
-        }}
-        onComplete={() => {
-          setWrongWordsToReview(null);
-          setRefreshKey(prev => prev + 1);
-          refreshProfile();
-        }}
-      />
-    );
+    return <WrongWordReview words={wrongWordsToReview} onBack={() => {
+      setWrongWordsToReview(null);
+    }} onComplete={() => {
+      setWrongWordsToReview(null);
+      setRefreshKey(prev => prev + 1);
+      refreshProfile();
+    }} />;
   }
-
   if (activeView === "learn" && selectedLevel) {
-    return (
-      <WordLearning
-        levelId={selectedLevel.id}
-        levelName={selectedLevel.name}
-        onBack={handleBackFromLearning}
-        onComplete={handleBackFromLearning}
-      />
-    );
+    return <WordLearning levelId={selectedLevel.id} levelName={selectedLevel.name} onBack={handleBackFromLearning} onComplete={handleBackFromLearning} />;
   }
 
   // Player data from profile or default
@@ -190,7 +166,7 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     maxEnergy: profile.max_energy,
     coins: profile.coins,
     streak: profile.streak,
-    rank: profile.rank_tier.charAt(0).toUpperCase() + profile.rank_tier.slice(1),
+    rank: profile.rank_tier.charAt(0).toUpperCase() + profile.rank_tier.slice(1)
   } : {
     username: "游客",
     level: 1,
@@ -200,74 +176,47 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
     maxEnergy: 10,
     coins: 0,
     streak: 0,
-    rank: "Bronze",
+    rank: "Bronze"
   };
-
-  return (
-    <div className="min-h-screen bg-background bg-grid-pattern">
+  return <div className="min-h-screen bg-background bg-grid-pattern">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onBack}
-                className="hover:bg-primary/10"
-              >
+              <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-primary/10">
                 <ChevronLeft className="w-5 h-5" />
               </Button>
-              <img 
-                src="/logo.png" 
-                alt="狄邦单词通" 
-                className="w-10 h-10 rounded-lg shadow-md"
-              />
+              <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src="/lovable-uploads/591442c7-60d2-4ec6-b7a5-8250ff9a58b6.png" />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge 
-                    variant={grade === 7 ? "outline" : "champion"} 
-                    className="text-xs flex items-center gap-1"
-                  >
+                  <Badge variant={grade === 7 ? "outline" : "champion"} className="text-xs flex items-center gap-1">
                     <GraduationCap className="w-3 h-3" />
                     {grade === 7 ? "七" : "八"}年级专区
                   </Badge>
-                  {profile?.class && (
-                    <Badge variant="secondary" className="text-xs">
+                  {profile?.class && <Badge variant="secondary" className="text-xs">
                       {profile.class}班
-                    </Badge>
-                  )}
+                    </Badge>}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {!user && (
-                <Button variant="hero" size="sm" onClick={() => navigate("/auth")}>
+              {!user && <Button variant="hero" size="sm" onClick={() => navigate("/auth")}>
                   <User className="w-4 h-4 mr-2" />
                   登录
-                </Button>
-              )}
-              {user && (
-                <>
-                  {isAdmin && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => navigate('/admin')}
-                      className="border-accent text-accent hover:bg-accent hover:text-accent-foreground"
-                    >
+                </Button>}
+              {user && <>
+                  {isAdmin && <Button variant="outline" size="sm" onClick={() => navigate('/admin')} className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
                       <Crown className="w-4 h-4 mr-2" />
                       后台
-                    </Button>
-                  )}
+                    </Button>}
                   <SettingsSheet />
                   <Button variant="ghost" size="icon" onClick={handleSignOut}>
                     <LogOut className="w-5 h-5" />
                   </Button>
-                </>
-              )}
+                </>}
             </div>
           </div>
         </div>
@@ -277,37 +226,57 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
       <nav className="sticky top-[73px] z-40 bg-background/60 backdrop-blur-lg border-b border-border/30">
         <div className="container mx-auto px-2">
           <div className="flex gap-0.5 py-1.5 overflow-x-auto scrollbar-hide">
-            {[
-              { id: "home", label: "主页", icon: Sparkles },
-              { id: "learn", label: "闯关", icon: BookOpen },
-              { id: "wrongbook", label: "错题本", icon: BookX },
-              { id: "battle", label: "排位赛", icon: Swords },
-              { id: "freematch", label: "自由服", icon: Globe },
-              { id: "challenge", label: "挑战赛", icon: Target },
-              { id: "seasonpass", label: "手册", icon: Book },
-              { id: "friends", label: "好友", icon: Users },
-              { id: "leaderboard", label: "排行榜", icon: Trophy },
-              { id: "profile", label: "个人", icon: User },
-            ].map((tab) => (
-              <Button
-                key={tab.id}
-                variant={activeView === tab.id ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setActiveView(tab.id as typeof activeView)}
-                className="px-2 py-1 h-8 text-xs whitespace-nowrap"
-              >
+            {[{
+            id: "home",
+            label: "主页",
+            icon: Sparkles
+          }, {
+            id: "learn",
+            label: "闯关",
+            icon: BookOpen
+          }, {
+            id: "wrongbook",
+            label: "错题本",
+            icon: BookX
+          }, {
+            id: "battle",
+            label: "排位赛",
+            icon: Swords
+          }, {
+            id: "freematch",
+            label: "自由服",
+            icon: Globe
+          }, {
+            id: "challenge",
+            label: "挑战赛",
+            icon: Target
+          }, {
+            id: "seasonpass",
+            label: "手册",
+            icon: Book
+          }, {
+            id: "friends",
+            label: "好友",
+            icon: Users
+          }, {
+            id: "leaderboard",
+            label: "排行榜",
+            icon: Trophy
+          }, {
+            id: "profile",
+            label: "个人",
+            icon: User
+          }].map(tab => <Button key={tab.id} variant={activeView === tab.id ? "default" : "ghost"} size="sm" onClick={() => setActiveView(tab.id as typeof activeView)} className="px-2 py-1 h-8 text-xs whitespace-nowrap">
                 <tab.icon className="w-3.5 h-3.5 mr-1" />
                 {tab.label}
-              </Button>
-            ))}
+              </Button>)}
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
-        {activeView === "home" && (
-          <div className="grid lg:grid-cols-3 gap-6">
+        {activeView === "home" && <div className="grid lg:grid-cols-3 gap-6">
             {/* Left Column - Player Stats & Quests */}
             <div className="space-y-6">
               <PlayerStats {...playerData} />
@@ -324,71 +293,41 @@ const Dashboard = ({ grade, onBack }: DashboardProps) => {
               </div>
               <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
             </div>
-          </div>
-        )}
+          </div>}
 
-        {activeView === "learn" && (
-          <div className="max-w-3xl mx-auto">
+        {activeView === "learn" && <div className="max-w-3xl mx-auto">
             <h2 className="font-gaming text-xl mb-6">选择关卡</h2>
             <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
-          </div>
-        )}
+          </div>}
 
-        {activeView === "leaderboard" && (
-          <div className="max-w-2xl mx-auto">
+        {activeView === "leaderboard" && <div className="max-w-2xl mx-auto">
             <LeaderboardTabs grade={grade} currentUser={profile?.username} currentProfileId={profile?.id} currentClass={profile?.class} />
-          </div>
-        )}
+          </div>}
 
-        {activeView === "challenge" && (
-          <div className="max-w-2xl mx-auto">
-            <ChallengeArena 
-              grade={grade} 
-              currentClass={profile?.class} 
-              profileId={profile?.id} 
-            />
-          </div>
-        )}
+        {activeView === "challenge" && <div className="max-w-2xl mx-auto">
+            <ChallengeArena grade={grade} currentClass={profile?.class} profileId={profile?.id} />
+          </div>}
 
-        {activeView === "seasonpass" && profile && (
-          <div className="max-w-2xl mx-auto">
-            <SeasonPass 
-              grade={grade} 
-              profileId={profile.id} 
-            />
-          </div>
-        )}
+        {activeView === "seasonpass" && profile && <div className="max-w-2xl mx-auto">
+            <SeasonPass grade={grade} profileId={profile.id} />
+          </div>}
 
-        {activeView === "wrongbook" && profile && (
-          <div className="max-w-2xl mx-auto">
-            <WrongWordBook
-              onStartReview={(words) => {
-                setWrongWordsToReview(words);
-              }}
-            />
-          </div>
-        )}
+        {activeView === "wrongbook" && profile && <div className="max-w-2xl mx-auto">
+            <WrongWordBook onStartReview={words => {
+          setWrongWordsToReview(words);
+        }} />
+          </div>}
 
-        {activeView === "friends" && profile && (
-          <div className="max-w-2xl mx-auto">
-            <FriendsPanel
-              currentProfileId={profile.id}
-              currentGrade={profile.grade}
-              onBattleStart={handleFriendBattleStart}
-            />
-          </div>
-        )}
+        {activeView === "friends" && profile && <div className="max-w-2xl mx-auto">
+            <FriendsPanel currentProfileId={profile.id} currentGrade={profile.grade} onBattleStart={handleFriendBattleStart} />
+          </div>}
 
-        {activeView === "profile" && profile && (
-          <div className="max-w-2xl mx-auto space-y-6">
+        {activeView === "profile" && profile && <div className="max-w-2xl mx-auto space-y-6">
             <ProfileCard />
             <LearningStats />
             <BadgeDisplay />
-          </div>
-        )}
+          </div>}
       </main>
-    </div>
-  );
+    </div>;
 };
-
 export default Dashboard;

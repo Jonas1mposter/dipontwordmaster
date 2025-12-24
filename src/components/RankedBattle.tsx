@@ -183,6 +183,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [isAnswerLocked, setIsAnswerLocked] = useState(false); // Lock to prevent rapid clicking
   const [myFinished, setMyFinished] = useState(false); // Track if I finished all 10 questions
   const [waitingForOpponent, setWaitingForOpponent] = useState(false); // Waiting for opponent to finish
+  const [matchFinished, setMatchFinished] = useState(false); // Prevent double finishMatch calls
   const [rankChangeResult, setRankChangeResult] = useState<{
     starsChanged: number;
     promoted: boolean;
@@ -706,7 +707,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
   // Handle answer selection
   const handleAnswer = async (selectedMeaning: string) => {
-    if (selectedOption || !words[currentWordIndex] || isAnswerLocked || myFinished) return;
+    if (selectedOption || !words[currentWordIndex] || isAnswerLocked || myFinished || matchFinished) return;
 
     setSelectedOption(selectedMeaning);
     setIsAnswerLocked(true); // Lock immediately to prevent double-clicking
@@ -723,49 +724,65 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       sounds.playWrong();
     }
 
-    // After showing result, wait 1 second before moving to next question (prevents accidental clicks)
+    // After showing result, wait before moving to next question
     setTimeout(() => {
       setAnswerAnimation(null);
       
       // Check if we've answered all 10 questions
       if (currentWordIndex >= 9) {
-        // Finished all questions, wait for opponent
+        // Finished all questions - directly finish match (compare scores now)
         setMyFinished(true);
         setWaitingForOpponent(true);
         
-        // Simulate opponent finishing after a random delay (for AI/demo)
-        const opponentDelay = 1000 + Math.random() * 5000;
+        // Short delay to show "waiting" state, then finish
         setTimeout(() => {
-          finishMatch(newScore);
-        }, opponentDelay);
+          if (!matchFinished) {
+            finishMatch(newScore);
+          }
+        }, 1500);
         return;
       }
       
-      // Move to next question after 1 second delay
+      // Move to next question after short delay
       setTimeout(() => {
         setCurrentWordIndex(prev => prev + 1);
         setSelectedOption(null);
         setIsAnswerLocked(false); // Unlock for next question
         setOptions(generateOptions(words[currentWordIndex + 1].meaning, words));
-      }, 1000); // 1 second delay between questions
+      }, 500); // 0.5 second delay between questions
       
-    }, 800); // Show answer result for 800ms
+    }, 600); // Show answer result for 600ms
   };
 
-  // Finish match
+  // Finish match - prevent double calls
   const finishMatch = async (finalScore?: number) => {
+    // Prevent multiple calls
+    if (matchFinished) return;
+    setMatchFinished(true);
+    
     setMatchStatus("finished");
     setWaitingForOpponent(false);
     
     const playerScore = finalScore ?? myScore;
     
-    // Simulate opponent score based on current tier difficulty
-    // Higher tiers have smarter opponents
+    // Simulate opponent answering all 10 questions
+    // AI opponent accuracy based on tier - higher tier = smarter AI
     const currentTier = (profile?.rank_tier || "bronze") as RankTier;
     const tierIndex = TIER_ORDER.indexOf(currentTier);
-    const minOpponentScore = Math.min(tierIndex + 3, 7); // Higher tier = higher minimum opponent score
-    const maxOpponentScore = Math.min(tierIndex + 7, 10);
-    const simulatedOpponentScore = Math.floor(Math.random() * (maxOpponentScore - minOpponentScore + 1)) + minOpponentScore;
+    
+    // Each tier has different AI accuracy range
+    // Bronze: 40-60%, Silver: 50-70%, Gold: 55-75%, Platinum: 60-80%, Diamond: 70-85%, Champion: 75-90%
+    const baseAccuracy = 0.4 + tierIndex * 0.05;
+    const accuracyRange = 0.2;
+    const aiAccuracy = baseAccuracy + Math.random() * accuracyRange;
+    
+    // Simulate AI answering 10 questions with this accuracy
+    let simulatedOpponentScore = 0;
+    for (let i = 0; i < 10; i++) {
+      if (Math.random() < aiAccuracy) {
+        simulatedOpponentScore++;
+      }
+    }
     setOpponentScore(simulatedOpponentScore);
     
     // Compare scores - whoever got more correct wins
@@ -829,13 +846,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   };
 
-  // Timer
+  // Timer - only runs when playing and not finished
   useEffect(() => {
-    if (matchStatus === "playing" && timeLeft > 0) {
+    if (matchStatus === "playing" && timeLeft > 0 && !matchFinished && !myFinished) {
       const timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            finishMatch();
+            // Time's up - finish with current score
+            if (!matchFinished) {
+              finishMatch(myScore);
+            }
             return 0;
           }
           // Play urgent sound when time is low
@@ -849,7 +869,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [matchStatus, timeLeft]);
+  }, [matchStatus, timeLeft, matchFinished, myFinished, myScore]);
 
   // Search timer with sound
   useEffect(() => {

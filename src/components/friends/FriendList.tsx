@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, MessageCircle, Swords, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Users, MessageCircle, Swords, Trash2, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -9,6 +10,7 @@ interface FriendListProps {
   currentProfileId: string;
   onOpenChat: (friend: Friend) => void;
   onChallenge: (friend: Friend) => void;
+  onSpectate?: (matchId: string) => void;
 }
 
 export interface Friend {
@@ -19,9 +21,10 @@ export interface Friend {
   level: number;
   rank_tier: string;
   friendshipId: string;
+  activeMatchId?: string | null;
 }
 
-export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: FriendListProps) => {
+export const FriendList = ({ currentProfileId, onOpenChat, onChallenge, onSpectate }: FriendListProps) => {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -49,8 +52,30 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: Friend
         return {
           ...friend,
           friendshipId: f.id,
+          activeMatchId: null,
         };
       });
+
+      // Check for active matches for each friend
+      const friendIds = friendList.map(f => f.id);
+      if (friendIds.length > 0) {
+        const { data: activeMatches } = await supabase
+          .from("ranked_matches")
+          .select("id, player1_id, player2_id")
+          .eq("status", "in_progress")
+          .or(`player1_id.in.(${friendIds.join(',')}),player2_id.in.(${friendIds.join(',')})`);
+
+        if (activeMatches) {
+          friendList.forEach(friend => {
+            const activeMatch = activeMatches.find(
+              m => m.player1_id === friend.id || m.player2_id === friend.id
+            );
+            if (activeMatch) {
+              friend.activeMatchId = activeMatch.id;
+            }
+          });
+        }
+      }
 
       setFriends(friendList);
     } catch (error) {
@@ -62,6 +87,10 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: Friend
 
   useEffect(() => {
     fetchFriends();
+    
+    // Refresh every 30 seconds to check for active matches
+    const interval = setInterval(fetchFriends, 30000);
+    return () => clearInterval(interval);
   }, [currentProfileId]);
 
   const removeFriend = async (friendshipId: string, friendName: string) => {
@@ -129,19 +158,33 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: Friend
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold">
-                    {friend.avatar_url ? (
-                      <img
-                        src={friend.avatar_url}
-                        alt={friend.username}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    ) : (
-                      friend.username.charAt(0).toUpperCase()
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold">
+                      {friend.avatar_url ? (
+                        <img
+                          src={friend.avatar_url}
+                          alt={friend.username}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        friend.username.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    {friend.activeMatchId && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full flex items-center justify-center">
+                        <Swords className="w-2.5 h-2.5 text-destructive-foreground" />
+                      </span>
                     )}
                   </div>
                   <div>
-                    <div className="font-medium">{friend.username}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{friend.username}</span>
+                      {friend.activeMatchId && (
+                        <Badge variant="outline" className="text-xs text-destructive border-destructive/50 px-1.5 py-0">
+                          对战中
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {friend.grade}年级 · Lv.{friend.level} ·{" "}
                       <span className={getRankColor(friend.rank_tier)}>
@@ -151,6 +194,17 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: Friend
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  {friend.activeMatchId && onSpectate && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => onSpectate(friend.activeMatchId!)}
+                      title="观战"
+                      className="text-primary hover:text-primary"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -164,6 +218,7 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge }: Friend
                     variant="ghost"
                     onClick={() => onChallenge(friend)}
                     title="单挑"
+                    disabled={!!friend.activeMatchId}
                   >
                     <Swords className="h-4 w-4" />
                   </Button>

@@ -186,6 +186,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [matchFinished, setMatchFinished] = useState(false); // Prevent double finishMatch calls
   const [opponentFinished, setOpponentFinished] = useState(false); // Track if opponent finished
   const [opponentFinalScore, setOpponentFinalScore] = useState<number | null>(null); // Opponent's final score from realtime
+  const [opponentProgress, setOpponentProgress] = useState(0); // Opponent's current question index (0-10)
   const [isRealPlayer, setIsRealPlayer] = useState(false); // Track if playing against real player
   const [rankChangeResult, setRankChangeResult] = useState<{
     starsChanged: number;
@@ -870,6 +871,45 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         })
         .eq("id", matchId);
 
+      // Update daily quest progress for battle wins
+      if (won) {
+        const today = new Date().toISOString().split("T")[0];
+        
+        // Find the battle quest
+        const { data: battleQuest } = await supabase
+          .from("daily_quests")
+          .select("id, target")
+          .eq("quest_type", "battle")
+          .eq("is_active", true)
+          .single();
+
+        if (battleQuest) {
+          // Get current progress
+          const { data: currentProgress } = await supabase
+            .from("user_quest_progress")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .eq("quest_id", battleQuest.id)
+            .eq("quest_date", today)
+            .maybeSingle();
+
+          const newProgress = (currentProgress?.progress || 0) + 1;
+          const isCompleted = newProgress >= battleQuest.target;
+
+          // Upsert progress
+          await supabase
+            .from("user_quest_progress")
+            .upsert({
+              profile_id: profile.id,
+              quest_id: battleQuest.id,
+              quest_date: today,
+              progress: newProgress,
+              completed: isCompleted,
+              claimed: currentProgress?.claimed || false,
+            });
+        }
+      }
+
       // Update profile stats with level up logic
       // XP scales with tier - real player matches give bonus XP
       const tierMultiplier = tierIndex + 1;
@@ -910,6 +950,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         if (data.playerId === profile.id) return;
         
         console.log("Opponent progress:", data);
+        
+        // Update opponent's current progress
+        setOpponentProgress(data.questionIndex);
         
         // Update opponent's progress
         if (data.finished) {
@@ -1317,6 +1360,18 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             
             <h2 className="font-gaming text-2xl mb-2 text-glow-purple">答题完成！</h2>
             <p className="text-muted-foreground mb-4">你的得分：<span className="font-gaming text-xl text-primary">{myScore}/10</span></p>
+            
+            {isRealPlayer && (
+              <div className="mb-4 p-4 bg-secondary/30 rounded-xl border border-border/50">
+                <p className="text-sm text-muted-foreground mb-2">对手进度</p>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="font-gaming text-lg text-neon-blue">{opponentProgress}/10</span>
+                  <span className="text-muted-foreground text-sm">题</span>
+                </div>
+                <Progress value={(opponentProgress / 10) * 100} variant="xp" className="h-2" />
+              </div>
+            )}
+            
             <p className="text-muted-foreground">等待对手完成答题...</p>
             
             <div className="flex items-center justify-center gap-1 mt-4">
@@ -1370,27 +1425,36 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <div className="w-16" /> {/* Spacer for balance */}
             </div>
             
-            {/* Scores */}
+            {/* Scores and Progress */}
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-xs font-gaming text-primary-foreground">
-                  {profile?.username.charAt(0).toUpperCase()}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-xs font-gaming text-primary-foreground">
+                    {profile?.username.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-gaming text-lg text-primary">{myScore}/10</span>
                 </div>
-                <span className="font-gaming text-xl text-primary">{myScore}/10</span>
+                <Progress value={((currentWordIndex + 1) / 10) * 100} variant="xp" className="h-1.5" />
               </div>
               
-              <span className="font-gaming text-muted-foreground">VS</span>
+              <div className="px-4">
+                <span className="font-gaming text-muted-foreground">VS</span>
+              </div>
               
-              <div className="flex items-center gap-2">
-                <span className="font-gaming text-xl text-neon-blue">?/10</span>
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-xs font-gaming text-primary-foreground">
-                  {opponent?.username?.charAt(0).toUpperCase() || "?"}
+              <div className="flex-1">
+                <div className="flex items-center justify-end gap-2 mb-1">
+                  <span className="font-gaming text-lg text-neon-blue">
+                    {isRealPlayer ? `${opponentProgress}/10` : "?/10"}
+                  </span>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-xs font-gaming text-primary-foreground">
+                    {opponent?.username?.charAt(0).toUpperCase() || "?"}
+                  </div>
                 </div>
+                {isRealPlayer && (
+                  <Progress value={(opponentProgress / 10) * 100} variant="gold" className="h-1.5" />
+                )}
               </div>
             </div>
-
-            {/* Progress */}
-            <Progress value={((currentWordIndex + 1) / 10) * 100} variant="xp" className="h-1" />
           </div>
         </header>
 

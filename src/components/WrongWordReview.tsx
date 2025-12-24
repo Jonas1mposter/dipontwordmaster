@@ -156,10 +156,10 @@ const WrongWordReview = ({ words, onBack, onComplete }: WrongWordReviewProps) =>
 
   const finishReview = async () => {
     const accuracy = (correctCount + 1) / words.length;
-    const baseXp = 30;
-    const bonusXp = Math.floor(accuracy * 30);
-    const baseCoins = 15;
-    const bonusCoins = accuracy === 1 ? 20 : Math.floor(accuracy * 15);
+    const baseXp = 3;
+    const bonusXp = Math.floor(accuracy * 3);
+    const baseCoins = 1;
+    const bonusCoins = accuracy === 1 ? 2 : Math.floor(accuracy * 1);
 
     setXpEarned(baseXp + bonusXp);
     setCoinsEarned(baseCoins + bonusCoins);

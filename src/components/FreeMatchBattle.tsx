@@ -617,8 +617,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         .eq("id", matchId);
 
       // Free match gives bonus XP for cross-grade battle
-      const xpGained = won ? 60 : 25;
-      const coinsGained = won ? 35 : 12;
+      const xpGained = won ? 6 : 2;
+      const coinsGained = won ? 3 : 1;
 
       await supabase
         .from("profiles")

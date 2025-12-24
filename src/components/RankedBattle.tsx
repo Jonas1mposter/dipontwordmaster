@@ -184,6 +184,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [myFinished, setMyFinished] = useState(false); // Track if I finished all 10 questions
   const [waitingForOpponent, setWaitingForOpponent] = useState(false); // Waiting for opponent to finish
   const [matchFinished, setMatchFinished] = useState(false); // Prevent double finishMatch calls
+  const [opponentFinished, setOpponentFinished] = useState(false); // Track if opponent finished
+  const [opponentFinalScore, setOpponentFinalScore] = useState<number | null>(null); // Opponent's final score from realtime
+  const [isRealPlayer, setIsRealPlayer] = useState(false); // Track if playing against real player
   const [rankChangeResult, setRankChangeResult] = useState<{
     starsChanged: number;
     promoted: boolean;
@@ -306,6 +309,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       rank_stars: Math.floor(Math.random() * 3),
       isAI: true,
     });
+    setIsRealPlayer(false); // AI opponent
     setWords(matchWords);
     setOptions(generateOptions(matchWords[0].meaning, matchWords));
     setMatchStatus("found");
@@ -477,6 +481,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       setMatchId(matchData.id);
       setOpponent(opponentData);
+      setIsRealPlayer(true); // Real player opponent
       setWords(matchWords);
       if (matchWords.length > 0) {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
@@ -714,6 +719,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     const isCorrect = selectedMeaning === words[currentWordIndex].meaning;
     const newScore = isCorrect ? myScore + 1 : myScore;
+    const newQuestionIndex = currentWordIndex + 1;
 
     if (isCorrect) {
       setMyScore(newScore);
@@ -724,22 +730,50 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       sounds.playWrong();
     }
 
+    // Broadcast progress to opponent (for real player matches)
+    if (isRealPlayer && matchId && profile) {
+      const channel = supabase.channel(`battle-${matchId}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'player_progress',
+        payload: {
+          playerId: profile.id,
+          questionIndex: newQuestionIndex,
+          score: newScore,
+          finished: newQuestionIndex >= 10,
+        }
+      });
+    }
+
     // After showing result, wait before moving to next question
     setTimeout(() => {
       setAnswerAnimation(null);
       
       // Check if we've answered all 10 questions
       if (currentWordIndex >= 9) {
-        // Finished all questions - directly finish match (compare scores now)
+        // Finished all questions
         setMyFinished(true);
         setWaitingForOpponent(true);
         
-        // Short delay to show "waiting" state, then finish
-        setTimeout(() => {
-          if (!matchFinished) {
-            finishMatch(newScore);
+        // For real player: wait for opponent to finish
+        // For AI: simulate opponent and finish
+        if (!isRealPlayer) {
+          setTimeout(() => {
+            if (!matchFinished) {
+              finishMatchWithAI(newScore);
+            }
+          }, 1500);
+        } else {
+          // Check if opponent already finished
+          if (opponentFinished && opponentFinalScore !== null) {
+            setTimeout(() => {
+              if (!matchFinished) {
+                finishMatchWithRealPlayer(newScore, opponentFinalScore);
+              }
+            }, 500);
           }
-        }, 1500);
+          // Otherwise wait for opponent (handled by realtime listener)
+        }
         return;
       }
       
@@ -754,44 +788,59 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }, 600); // Show answer result for 600ms
   };
 
-  // Finish match - prevent double calls
-  const finishMatch = async (finalScore?: number) => {
-    // Prevent multiple calls
+  // Finish match with AI opponent
+  const finishMatchWithAI = async (finalScore: number) => {
     if (matchFinished) return;
     setMatchFinished(true);
     
     setMatchStatus("finished");
     setWaitingForOpponent(false);
     
-    const playerScore = finalScore ?? myScore;
+    const playerScore = finalScore;
     
-    // Simulate opponent answering all 10 questions
-    // AI opponent accuracy based on tier - higher tier = smarter AI
+    // AI opponent accuracy based on tier
     const currentTier = (profile?.rank_tier || "bronze") as RankTier;
     const tierIndex = TIER_ORDER.indexOf(currentTier);
     
-    // Each tier has different AI accuracy range
-    // Bronze: 40-60%, Silver: 50-70%, Gold: 55-75%, Platinum: 60-80%, Diamond: 70-85%, Champion: 75-90%
     const baseAccuracy = 0.4 + tierIndex * 0.05;
     const accuracyRange = 0.2;
     const aiAccuracy = baseAccuracy + Math.random() * accuracyRange;
     
-    // Simulate AI answering 10 questions with this accuracy
     let simulatedOpponentScore = 0;
     for (let i = 0; i < 10; i++) {
       if (Math.random() < aiAccuracy) {
         simulatedOpponentScore++;
       }
     }
-    setOpponentScore(simulatedOpponentScore);
+    
+    await completeMatch(playerScore, simulatedOpponentScore);
+  };
+
+  // Finish match with real player
+  const finishMatchWithRealPlayer = async (myFinalScore: number, theirFinalScore: number) => {
+    if (matchFinished) return;
+    setMatchFinished(true);
+    
+    setMatchStatus("finished");
+    setWaitingForOpponent(false);
+    
+    await completeMatch(myFinalScore, theirFinalScore);
+  };
+
+  // Complete match and update scores
+  const completeMatch = async (playerScore: number, opponentScoreValue: number) => {
+    setOpponentScore(opponentScoreValue);
+    
+    const currentTier = (profile?.rank_tier || "bronze") as RankTier;
+    const tierIndex = TIER_ORDER.indexOf(currentTier);
     
     // Compare scores - whoever got more correct wins
-    const won = playerScore > simulatedOpponentScore;
-    const tie = playerScore === simulatedOpponentScore;
+    const won = playerScore > opponentScoreValue;
+    const tie = playerScore === opponentScoreValue;
     setIsWinner(won);
 
     // Calculate rank changes
-    const scoreDiff = playerScore - simulatedOpponentScore;
+    const scoreDiff = playerScore - opponentScoreValue;
     const rankChange = calculateRankChange(
       currentTier,
       profile?.rank_stars || 0,
@@ -814,7 +863,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .from("ranked_matches")
         .update({
           player1_score: playerScore,
-          player2_score: simulatedOpponentScore,
+          player2_score: opponentScoreValue,
           winner_id: won ? profile.id : (tie ? null : opponent?.id),
           status: "completed",
           ended_at: new Date().toISOString(),
@@ -822,10 +871,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("id", matchId);
 
       // Update profile stats with level up logic
-      // XP scales with tier
+      // XP scales with tier - real player matches give bonus XP
       const tierMultiplier = tierIndex + 1;
-      const xpGained = won ? 30 * tierMultiplier : (tie ? 15 * tierMultiplier : 10 * tierMultiplier);
-      const coinsGained = won ? 20 * tierMultiplier : (tie ? 10 * tierMultiplier : 5 * tierMultiplier);
+      const realPlayerBonus = isRealPlayer ? 1.5 : 1;
+      const xpGained = Math.floor((won ? 30 * tierMultiplier : (tie ? 15 * tierMultiplier : 10 * tierMultiplier)) * realPlayerBonus);
+      const coinsGained = Math.floor((won ? 20 * tierMultiplier : (tie ? 10 * tierMultiplier : 5 * tierMultiplier)) * realPlayerBonus);
 
       await updateProfileWithXp(
         profile.id,
@@ -846,6 +896,48 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   };
 
+  // Realtime sync for battle progress (real player matches only)
+  useEffect(() => {
+    if (matchStatus !== "playing" || !matchId || !profile || !isRealPlayer) return;
+
+    console.log("Setting up battle sync channel for match:", matchId);
+    
+    const channel = supabase.channel(`battle-${matchId}`)
+      .on('broadcast', { event: 'player_progress' }, (payload) => {
+        const data = payload.payload as any;
+        
+        // Ignore our own messages
+        if (data.playerId === profile.id) return;
+        
+        console.log("Opponent progress:", data);
+        
+        // Update opponent's progress
+        if (data.finished) {
+          setOpponentFinished(true);
+          setOpponentFinalScore(data.score);
+          
+          // If we're also finished, complete the match
+          if (myFinished && !matchFinished) {
+            finishMatchWithRealPlayer(myScore, data.score);
+          }
+        }
+      })
+      .subscribe((status) => {
+        console.log("Battle sync channel status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [matchStatus, matchId, profile, isRealPlayer, myFinished, matchFinished, myScore]);
+
+  // Handle case where opponent finished before us
+  useEffect(() => {
+    if (myFinished && opponentFinished && opponentFinalScore !== null && !matchFinished) {
+      finishMatchWithRealPlayer(myScore, opponentFinalScore);
+    }
+  }, [myFinished, opponentFinished, opponentFinalScore, matchFinished, myScore]);
+
   // Timer - only runs when playing and not finished
   useEffect(() => {
     if (matchStatus === "playing" && timeLeft > 0 && !matchFinished && !myFinished) {
@@ -854,7 +946,18 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           if (prev <= 1) {
             // Time's up - finish with current score
             if (!matchFinished) {
-              finishMatch(myScore);
+              if (isRealPlayer) {
+                // For real player: check if opponent finished
+                if (opponentFinished && opponentFinalScore !== null) {
+                  finishMatchWithRealPlayer(myScore, opponentFinalScore);
+                } else {
+                  // Force finish - opponent ran out of time too
+                  setMyFinished(true);
+                  setWaitingForOpponent(true);
+                }
+              } else {
+                finishMatchWithAI(myScore);
+              }
             }
             return 0;
           }
@@ -869,7 +972,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [matchStatus, timeLeft, matchFinished, myFinished, myScore]);
+  }, [matchStatus, timeLeft, matchFinished, myFinished, myScore, isRealPlayer, opponentFinished, opponentFinalScore]);
 
   // Search timer with sound
   useEffect(() => {

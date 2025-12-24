@@ -601,6 +601,8 @@ export type Database = {
           coins: number
           created_at: string
           energy: number
+          free_match_losses: number
+          free_match_wins: number
           grade: number
           id: string
           level: number
@@ -625,6 +627,8 @@ export type Database = {
           coins?: number
           created_at?: string
           energy?: number
+          free_match_losses?: number
+          free_match_wins?: number
           grade: number
           id?: string
           level?: number
@@ -649,6 +653,8 @@ export type Database = {
           coins?: number
           created_at?: string
           energy?: number
+          free_match_losses?: number
+          free_match_wins?: number
           grade?: number
           id?: string
           level?: number
@@ -730,6 +736,56 @@ export type Database = {
             columns: ["winner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      season_pass_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          is_premium: boolean
+          level: number
+          name: string
+          reward_item_id: string | null
+          reward_type: string
+          reward_value: number
+          season_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon: string
+          id?: string
+          is_premium?: boolean
+          level: number
+          name: string
+          reward_item_id?: string | null
+          reward_type: string
+          reward_value?: number
+          season_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          is_premium?: boolean
+          level?: number
+          name?: string
+          reward_item_id?: string | null
+          reward_type?: string
+          reward_value?: number
+          season_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_pass_items_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
             referencedColumns: ["id"]
           },
         ]
@@ -845,6 +901,35 @@ export type Database = {
           },
         ]
       }
+      user_pass_rewards: {
+        Row: {
+          claimed_at: string
+          id: string
+          profile_id: string
+          season_pass_item_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          id?: string
+          profile_id: string
+          season_pass_item_id: string
+        }
+        Update: {
+          claimed_at?: string
+          id?: string
+          profile_id?: string
+          season_pass_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_pass_rewards_season_pass_item_id_fkey"
+            columns: ["season_pass_item_id"]
+            isOneToOne: false
+            referencedRelation: "season_pass_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_quest_progress: {
         Row: {
           claimed: boolean
@@ -916,6 +1001,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_season_pass: {
+        Row: {
+          created_at: string
+          current_level: number
+          current_xp: number
+          id: string
+          is_premium: boolean
+          profile_id: string
+          purchased_at: string | null
+          season_id: string
+          updated_at: string
+          xp_to_next_level: number
+        }
+        Insert: {
+          created_at?: string
+          current_level?: number
+          current_xp?: number
+          id?: string
+          is_premium?: boolean
+          profile_id: string
+          purchased_at?: string | null
+          season_id: string
+          updated_at?: string
+          xp_to_next_level?: number
+        }
+        Update: {
+          created_at?: string
+          current_level?: number
+          current_xp?: number
+          id?: string
+          is_premium?: boolean
+          profile_id?: string
+          purchased_at?: string | null
+          season_id?: string
+          updated_at?: string
+          xp_to_next_level?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_season_pass_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       words: {
         Row: {

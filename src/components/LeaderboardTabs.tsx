@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users } from "lucide-react";
+import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import FreeMatchLeaderboard from "./FreeMatchLeaderboard";
 
 interface LeaderboardEntry {
   rank: number;
@@ -27,6 +29,7 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
   const [xpLeaderboard, setXpLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [classLeaderboard, setClassLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [activeTab, setActiveTab] = useState("coins");
+  const [showFreeMatchLeaderboard, setShowFreeMatchLeaderboard] = useState(false);
 
   useEffect(() => {
     const fetchLeaderboards = async () => {
@@ -258,54 +261,82 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
     );
   };
 
+  if (showFreeMatchLeaderboard) {
+    return (
+      <div className="space-y-4">
+        <Button 
+          variant="outline" 
+          onClick={() => setShowFreeMatchLeaderboard(false)}
+          className="gap-2"
+        >
+          <Trophy className="w-4 h-4" />
+          返回年级排行榜
+        </Button>
+        <FreeMatchLeaderboard currentProfileId={currentProfileId} />
+      </div>
+    );
+  }
+
   return (
-    <Card variant="gaming" className="overflow-hidden">
-      <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-transparent to-accent/5">
-        <CardTitle className="flex items-center gap-3">
-          <Trophy className="w-6 h-6 text-accent" />
-          <span className="text-glow-gold">荣耀排行榜</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={cn("grid w-full mb-4", currentClass ? "grid-cols-4" : "grid-cols-3")}>
-            <TabsTrigger value="coins" className="flex items-center gap-2">
-              <Coins className="w-4 h-4" />
-              <span className="hidden sm:inline">狄邦豆</span>
-            </TabsTrigger>
-            <TabsTrigger value="wins" className="flex items-center gap-2">
-              <Swords className="w-4 h-4" />
-              <span className="hidden sm:inline">排位胜利</span>
-            </TabsTrigger>
-            <TabsTrigger value="xp" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              <span className="hidden sm:inline">经验值</span>
-            </TabsTrigger>
-            {currentClass && (
-              <TabsTrigger value="class" className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">{currentClass}班</span>
+    <div className="space-y-4">
+      {/* Free Match Leaderboard Button */}
+      <Button
+        variant="outline"
+        onClick={() => setShowFreeMatchLeaderboard(true)}
+        className="w-full gap-2 border-cyan-500/30 hover:bg-cyan-500/10"
+      >
+        <Globe className="w-4 h-4 text-neon-cyan" />
+        查看自由服排行榜
+      </Button>
+      
+      <Card variant="gaming" className="overflow-hidden">
+        <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-transparent to-accent/5">
+          <CardTitle className="flex items-center gap-3">
+            <Trophy className="w-6 h-6 text-accent" />
+            <span className="text-glow-gold">荣耀排行榜</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className={cn("grid w-full mb-4", currentClass ? "grid-cols-4" : "grid-cols-3")}>
+              <TabsTrigger value="coins" className="flex items-center gap-2">
+                <Coins className="w-4 h-4" />
+                <span className="hidden sm:inline">狄邦豆</span>
               </TabsTrigger>
-            )}
-          </TabsList>
-          
-          <TabsContent value="coins">
-            {renderLeaderboard(coinsLeaderboard, "coins")}
-          </TabsContent>
-          <TabsContent value="wins">
-            {renderLeaderboard(winsLeaderboard, "wins")}
-          </TabsContent>
-          <TabsContent value="xp">
-            {renderLeaderboard(xpLeaderboard, "xp")}
-          </TabsContent>
-          {currentClass && (
-            <TabsContent value="class">
-              {renderLeaderboard(classLeaderboard, "class")}
+              <TabsTrigger value="wins" className="flex items-center gap-2">
+                <Swords className="w-4 h-4" />
+                <span className="hidden sm:inline">排位胜利</span>
+              </TabsTrigger>
+              <TabsTrigger value="xp" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="hidden sm:inline">经验值</span>
+              </TabsTrigger>
+              {currentClass && (
+                <TabsTrigger value="class" className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">{currentClass}班</span>
+                </TabsTrigger>
+              )}
+            </TabsList>
+            
+            <TabsContent value="coins">
+              {renderLeaderboard(coinsLeaderboard, "coins")}
             </TabsContent>
-          )}
-        </Tabs>
-      </CardContent>
-    </Card>
+            <TabsContent value="wins">
+              {renderLeaderboard(winsLeaderboard, "wins")}
+            </TabsContent>
+            <TabsContent value="xp">
+              {renderLeaderboard(xpLeaderboard, "xp")}
+            </TabsContent>
+            {currentClass && (
+              <TabsContent value="class">
+                {renderLeaderboard(classLeaderboard, "class")}
+              </TabsContent>
+            )}
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

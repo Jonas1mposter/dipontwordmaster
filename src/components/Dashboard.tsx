@@ -21,6 +21,7 @@ import WrongWordReview from "./WrongWordReview";
 import SeasonPass from "./SeasonPass";
 import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
+import RankDisplay from "./RankDisplay";
 import { supabase } from "@/integrations/supabase/client";
 import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
 import { toast } from "sonner";
@@ -277,9 +278,17 @@ const Dashboard = ({
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         {activeView === "home" && <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column - Player Stats & Quests */}
+            {/* Left Column - Player Stats & Rank & Quests */}
             <div className="space-y-6">
               <PlayerStats {...playerData} />
+              {profile && (
+                <RankDisplay 
+                  tier={profile.rank_tier as "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion"} 
+                  stars={profile.rank_stars} 
+                  wins={profile.wins}
+                  losses={profile.losses}
+                />
+              )}
               <DailyQuest key={refreshKey} onQuestUpdate={() => refreshProfile()} />
             </div>
 

@@ -488,9 +488,6 @@ const ProfileCard = () => {
         
         {/* 勋章区域 - 覆盖在图片底部 */}
         <div className="absolute bottom-0 left-0 right-0 translate-y-1/2">
-          <div className="text-xs text-muted-foreground mb-2 text-center bg-background/80 backdrop-blur-sm mx-auto w-fit px-3 py-1 rounded-full">
-            勋章（解锁后可选择三个进行佩戴）
-          </div>
           <div className="flex justify-center gap-4">
             {[0, 1, 2].map((slot) => {
               const badge = equippedBadges[slot];

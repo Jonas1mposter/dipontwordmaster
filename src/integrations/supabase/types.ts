@@ -44,6 +44,27 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_users: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       challenge_rewards: {
         Row: {
           challenge_type: string
@@ -742,6 +763,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reports: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          reason: string
+          report_type: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          reason: string
+          report_type: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          reason?: string
+          report_type?: string
+          reported_user_id?: string
+          reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       season_pass_items: {
         Row: {

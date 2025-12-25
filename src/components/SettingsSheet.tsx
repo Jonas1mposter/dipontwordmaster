@@ -7,8 +7,10 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Volume2, VolumeX, Music, Bell, Moon, Sun, Vibrate, Gamepad2, Info, Shield, LogOut, Lock, School, User } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Settings, Volume2, VolumeX, Music, Bell, Moon, Sun, Vibrate, Gamepad2, Info, Shield, LogOut, Lock, School, User, Trash2, FileText, Mail, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 interface GameSettings {
@@ -39,6 +41,7 @@ const classOptions: Record<number, string[]> = {
   8: ["8A1", "8A2", "8A3", "8B", "8C", "8D", "8E", "8F"]
 };
 export const SettingsSheet = () => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<GameSettings>(defaultSettings);
   const {
@@ -57,6 +60,9 @@ export const SettingsSheet = () => {
   // Class selection state
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classLoading, setClassLoading] = useState(false);
+
+  // Account deletion state
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -167,6 +173,30 @@ export const SettingsSheet = () => {
       toast.error("退出登录失败");
     }
   };
+
+  const handleDeleteAccount = async () => {
+    if (!user?.id || !profile?.id) return;
+    
+    setDeleteLoading(true);
+    try {
+      // Delete user's profile data first
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", profile.id);
+      
+      if (profileError) throw profileError;
+
+      // Sign out the user
+      await signOut();
+      toast.success("账号已成功注销");
+      setOpen(false);
+    } catch (error: any) {
+      toast.error(error.message || "账号注销失败，请联系客服");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
   const availableClasses = profile?.grade ? classOptions[profile.grade] || [] : [];
   return <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -257,10 +287,38 @@ export const SettingsSheet = () => {
                   </div>
 
                   {/* Logout Button */}
-                  <Button variant="destructive" className="w-full" onClick={handleLogout}>
+                  <Button variant="outline" className="w-full" onClick={handleLogout}>
                     <LogOut className="w-4 h-4 mr-2" />
                     退出登录
                   </Button>
+
+                  {/* Delete Account Button */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full">
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        注销账号
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-card border-border">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>确认注销账号？</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          此操作不可撤销。您的所有学习数据、成绩记录将被永久删除。
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>取消</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteAccount}
+                          disabled={deleteLoading}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {deleteLoading ? "注销中..." : "确认注销"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
 
@@ -412,6 +470,56 @@ export const SettingsSheet = () => {
                 <span className="text-muted-foreground">开发者</span>
                 <span>Jonas Zhang</span>
               </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Legal & Support */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <FileText className="w-4 h-4" />
+              法律与支持
+            </div>
+            
+            <div className="pl-2 space-y-2">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-2"
+                onClick={() => {
+                  setOpen(false);
+                  navigate("/privacy");
+                }}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                隐私政策
+                <ExternalLink className="w-3 h-3 ml-auto text-muted-foreground" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-2"
+                onClick={() => {
+                  setOpen(false);
+                  navigate("/terms");
+                }}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                用户协议
+                <ExternalLink className="w-3 h-3 ml-auto text-muted-foreground" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-auto py-2"
+                onClick={() => {
+                  window.location.href = "mailto:support@dipontwordmaster.com";
+                }}
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                联系支持
+                <span className="text-xs text-muted-foreground ml-auto">support@dipontwordmaster.com</span>
+              </Button>
             </div>
           </div>
 

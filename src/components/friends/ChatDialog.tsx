@@ -8,10 +8,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Send, Loader2, MoreVertical, Flag, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Friend } from "./FriendList";
 import { format } from "date-fns";
+import { ReportDialog } from "@/components/ReportDialog";
+import { toast } from "sonner";
 
 interface ChatDialogProps {
   open: boolean;
@@ -38,7 +46,33 @@ export const ChatDialog = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleBlockUser = async () => {
+    if (!friend) return;
+    
+    try {
+      const { error } = await supabase.from("blocked_users").insert({
+        blocker_id: currentProfileId,
+        blocked_id: friend.id,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.info("你已经屏蔽了该用户");
+        } else {
+          throw error;
+        }
+      } else {
+        toast.success("已屏蔽该用户");
+        onOpenChange(false);
+      }
+    } catch (error: any) {
+      console.error("Block error:", error);
+      toast.error("屏蔽失败");
+    }
+  };
 
   const fetchMessages = async () => {
     if (!friend) return;
@@ -139,24 +173,45 @@ export const ChatDialog = ({
   if (!friend) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold">
-              {friend.avatar_url ? (
-                <img
-                  src={friend.avatar_url}
-                  alt={friend.username}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                friend.username.charAt(0).toUpperCase()
-              )}
-            </div>
-            {friend.username}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold">
+                  {friend.avatar_url ? (
+                    <img
+                      src={friend.avatar_url}
+                      alt={friend.username}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    friend.username.charAt(0).toUpperCase()
+                  )}
+                </div>
+                {friend.username}
+              </div>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-popover border-border">
+                  <DropdownMenuItem onClick={() => setReportOpen(true)} className="text-amber-500">
+                    <Flag className="w-4 h-4 mr-2" />
+                    举报用户
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleBlockUser} className="text-destructive">
+                    <UserX className="w-4 h-4 mr-2" />
+                    屏蔽用户
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </DialogTitle>
+          </DialogHeader>
 
         <ScrollArea className="h-80 pr-4" ref={scrollRef}>
           <div className="space-y-3">
@@ -215,5 +270,14 @@ export const ChatDialog = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    <ReportDialog
+      open={reportOpen}
+      onOpenChange={setReportOpen}
+      reportedUserId={friend.id}
+      reportedUsername={friend.username}
+      reportType="chat"
+    />
+  </>
   );
 };

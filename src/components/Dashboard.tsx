@@ -28,11 +28,9 @@ import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, U
 import { toast } from "sonner";
 interface DashboardProps {
   grade: 7 | 8;
-  onBack: () => void;
 }
 const Dashboard = ({
-  grade,
-  onBack
+  grade
 }: DashboardProps) => {
   const navigate = useNavigate();
   const {
@@ -62,7 +60,7 @@ const Dashboard = ({
   const handleSignOut = async () => {
     await signOut();
     toast.success("已退出登录");
-    onBack();
+    navigate("/auth");
   };
   const handleSelectLevel = (levelId: string, levelName: string) => {
     setSelectedLevel({
@@ -200,10 +198,7 @@ const Dashboard = ({
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={onBack} className="hover:bg-primary/10">
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
+            <div className="flex items-center gap-3">
               <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src="/lovable-uploads/0bbf2496-053c-4e4b-b122-9d2f4cc43b4b.jpg" />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>

@@ -29,7 +29,7 @@ const Index = () => {
   const userGrade = profile.grade as 7 | 8;
 
   return (
-    <Dashboard grade={userGrade} onBack={() => navigate("/auth")} />
+    <Dashboard grade={userGrade} />
   );
 };
 

@@ -11,7 +11,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: '狄邦单词通',
-    titleBarStyle: 'hiddenInset', // macOS 原生标题栏样式
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -19,16 +19,32 @@ function createWindow() {
     }
   });
 
-  // 检测是否为开发模式：检查 dist 目录是否存在
-  const isDev = !require('fs').existsSync(path.join(__dirname, '../dist/index.html'));
+  // 始终尝试加载开发服务器
+  const devUrl = 'http://localhost:8080';
   
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:8080');
-    // 开发模式下打开开发者工具
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-  }
+  console.log('正在加载:', devUrl);
+  
+  mainWindow.loadURL(devUrl).catch((err) => {
+    console.error('加载失败，尝试加载本地文件:', err.message);
+    // 如果开发服务器加载失败，尝试加载打包文件
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    mainWindow.loadFile(indexPath).catch((e) => {
+      console.error('本地文件也加载失败:', e.message);
+    });
+  });
+
+  // 总是打开开发者工具以便调试
+  mainWindow.webContents.openDevTools();
+
+  // 监听加载完成事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('页面加载完成');
+  });
+
+  // 监听加载失败事件
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('页面加载失败:', errorCode, errorDescription);
+  });
 
   // 在默认浏览器中打开外部链接
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -41,11 +57,9 @@ function createWindow() {
   });
 }
 
-// 当 Electron 完成初始化时创建窗口
 app.whenReady().then(() => {
   createWindow();
 
-  // macOS 点击 dock 图标时重新创建窗口
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -53,20 +67,8 @@ app.whenReady().then(() => {
   });
 });
 
-// 所有窗口关闭时退出应用（除了 macOS）
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-});
-
-// macOS 安全性设置
-app.on('web-contents-created', (event, contents) => {
-  contents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    // 只允许加载本地文件或开发服务器
-    if (parsedUrl.origin !== 'http://localhost:8080' && parsedUrl.protocol !== 'file:') {
-      event.preventDefault();
-    }
-  });
 });

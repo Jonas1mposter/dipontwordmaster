@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.lovable.dipontwordmaster',
-  appName: 'dipontwordmaster',
+  appName: '狄邦单词通',
   webDir: 'dist'
   // 开发模式：取消下面注释以启用热重载
   // server: {

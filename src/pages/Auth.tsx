@@ -179,6 +179,26 @@ const Auth = () => {
             </p>
           </div>
 
+          {/* Legal Links */}
+          <div className="mt-4 text-center text-xs text-muted-foreground">
+            <span>注册即表示您同意我们的</span>
+            <button 
+              type="button" 
+              onClick={() => navigate("/terms")} 
+              className="text-primary hover:underline mx-1"
+            >
+              用户协议
+            </button>
+            <span>和</span>
+            <button 
+              type="button" 
+              onClick={() => navigate("/privacy")} 
+              className="text-primary hover:underline mx-1"
+            >
+              隐私政策
+            </button>
+          </div>
+
           <Button variant="ghost" className="w-full mt-4" onClick={() => navigate("/")}>
             <ChevronLeft className="w-4 h-4 mr-2" />
             返回首页

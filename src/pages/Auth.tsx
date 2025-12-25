@@ -198,11 +198,6 @@ const Auth = () => {
               隐私政策
             </button>
           </div>
-
-          <Button variant="ghost" className="w-full mt-4" onClick={() => navigate("/")}>
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            返回首页
-          </Button>
         </CardContent>
       </Card>
     </div>;

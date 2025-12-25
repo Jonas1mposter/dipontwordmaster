@@ -367,8 +367,8 @@ export default function Admin() {
           <CardContent className="pt-6 text-center">
             <Shield className="w-12 h-12 mx-auto text-destructive mb-4" />
             <p className="text-muted-foreground mb-4">您没有管理员权限</p>
-            <Button variant="outline" onClick={() => navigate('/')}>
-              返回首页
+            <Button variant="outline" onClick={() => navigate('/auth')}>
+              返回登录
             </Button>
           </CardContent>
         </Card>

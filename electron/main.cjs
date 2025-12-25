@@ -19,8 +19,10 @@ function createWindow() {
     }
   });
 
-  // 开发模式加载本地服务，生产模式加载打包文件
-  if (process.env.NODE_ENV === 'development') {
+  // 检测是否为开发模式：检查 dist 目录是否存在
+  const isDev = !require('fs').existsSync(path.join(__dirname, '../dist/index.html'));
+  
+  if (isDev) {
     mainWindow.loadURL('http://localhost:8080');
     // 开发模式下打开开发者工具
     mainWindow.webContents.openDevTools();

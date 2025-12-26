@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Mail, Lock, User, ChevronLeft, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import logoAuth from "@/assets/logo-auth.jpg";
 const Auth = () => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
@@ -118,7 +119,7 @@ const Auth = () => {
 
       <Card variant="glow" className="w-full max-w-md relative z-10 animate-scale-in">
         <CardHeader className="text-center pb-2">
-          <img alt="狄邦单词通" className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg shadow-primary/30" src="/lovable-uploads/bc7d1c2a-b9e9-4f6e-8569-77324e67bc27.jpg" />
+          <img alt="狄邦单词通" className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg shadow-primary/30" src={logoAuth} />
           <CardTitle className="text-2xl text-glow-purple">
             {isLogin ? "登录" : "注册"}
           </CardTitle>

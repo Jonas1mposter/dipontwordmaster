@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // 使用相对路径，让 Electron 打包后能正确加载资源
+  base: './',
   server: {
     host: "::",
     port: 8080,

@@ -28,12 +28,16 @@ import {
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
 
-// Pre-computed animation data to avoid recalculating on every render
-const FREE_SEARCH_PARTICLES = Array.from({ length: 12 }, (_, i) => ({
-  left: `${(i * 8 + 4) % 100}%`,
-  top: `${(i * 7 + 10) % 100}%`,
-  delay: `${(i * 0.15) % 2}s`,
-  duration: `${2 + (i % 3)}s`,
+// Pre-computed animation data - REDUCED for better performance
+const FREE_SEARCH_PARTICLES = Array.from({ length: 6 }, (_, i) => ({
+  left: `${(i * 15 + 5) % 100}%`,
+  top: `${(i * 12 + 10) % 100}%`,
+}));
+
+// Pre-computed spark positions for VS animation
+const FREE_SPARK_POSITIONS = Array.from({ length: 4 }, (_, i) => ({
+  left: `${50 + 35 * Math.cos((i * 90 * Math.PI) / 180)}%`,
+  top: `${50 + 35 * Math.sin((i * 90 * Math.PI) / 180)}%`,
 }));
 
 interface Word {
@@ -1235,8 +1239,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               style={{
                 left: particle.left,
                 top: particle.top,
-                animationDelay: particle.delay,
-                animationDuration: particle.duration,
               }}
             />
           ))}
@@ -1319,15 +1321,14 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               <div className="absolute w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-accent/30 animate-energy-ring" />
               <div className="absolute w-32 h-32 md:w-40 md:h-40 rounded-full border border-accent/20 animate-energy-ring" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
               
-              {/* Sparks */}
-              {[...Array(8)].map((_, i) => (
+              {/* Sparks - using pre-computed positions, simplified animation */}
+              {FREE_SPARK_POSITIONS.map((spark, i) => (
                 <div
                   key={i}
-                  className="absolute w-2 h-2 bg-accent rounded-full animate-spark"
+                  className="absolute w-2 h-2 bg-accent rounded-full animate-pulse"
                   style={{
-                    left: `${50 + 40 * Math.cos((i * 45 * Math.PI) / 180)}%`,
-                    top: `${50 + 40 * Math.sin((i * 45 * Math.PI) / 180)}%`,
-                    animationDelay: `${i * 0.15}s`,
+                    left: spark.left,
+                    top: spark.top,
                   }}
                 />
               ))}

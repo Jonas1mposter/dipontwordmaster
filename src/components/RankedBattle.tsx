@@ -28,12 +28,10 @@ import {
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
 
-// Pre-computed animation data to avoid recalculating on every render
-const SEARCH_PARTICLES = Array.from({ length: 20 }, (_, i) => ({
-  left: `${(i * 5) % 100}%`,
-  top: `${(i * 7 + 10) % 100}%`,
-  duration: `${3 + (i % 4)}s`,
-  delay: `${(i * 0.1) % 2}s`,
+// Pre-computed animation data - REDUCED for better performance
+const SEARCH_PARTICLES = Array.from({ length: 8 }, (_, i) => ({
+  left: `${(i * 12 + 5) % 100}%`,
+  top: `${(i * 11 + 8) % 100}%`,
 }));
 
 const SPARK_POSITIONS = Array.from({ length: 8 }, (_, i) => ({
@@ -58,6 +56,11 @@ const DEMOTION_PARTICLES = Array.from({ length: 10 }, (_, i) => ({
   left: `${(i * 10) % 100}%`,
   duration: `${1.5 + (i % 2)}s`,
   delay: `${(i * 0.05) % 0.5}s`,
+}));
+
+// Pre-computed promotion rays (12 rays at 30-degree intervals)
+const PROMOTION_RAYS = Array.from({ length: 12 }, (_, i) => ({
+  transform: `rotate(${i * 30}deg) translateX(-50%)`,
 }));
 
 // Available quiz types for battle
@@ -1431,12 +1434,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           {SEARCH_PARTICLES.map((particle, i) => (
             <div
               key={i}
-              className="absolute w-1 h-1 bg-primary/40 rounded-full"
+              className="absolute w-1 h-1 bg-primary/40 rounded-full animate-pulse"
               style={{
                 left: particle.left,
                 top: particle.top,
-                animation: `float ${particle.duration} ease-in-out infinite`,
-                animationDelay: particle.delay,
               }}
             />
           ))}
@@ -1479,29 +1480,22 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <div className="w-4 h-4 bg-primary rounded-full animate-search-pulse shadow-lg shadow-primary/50" />
             </div>
             
-            {/* Random blips */}
+            {/* Search blip - static position with animation */}
             {searchTime > 3 && (
               <div 
                 className="absolute w-2 h-2 bg-accent rounded-full animate-pulse"
-                style={{ 
-                  left: `${30 + Math.sin(searchTime) * 20}%`, 
-                  top: `${40 + Math.cos(searchTime) * 15}%` 
-                }}
+                style={{ left: '35%', top: '45%' }}
               />
             )}
           </div>
           
           <h2 className="font-gaming text-2xl mb-2 text-glow-purple">正在匹配对手</h2>
           
-          {/* Animated dots */}
+          {/* Animated dots - simplified with CSS only */}
           <div className="flex items-center justify-center gap-1 mb-4">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-2 h-2 bg-primary rounded-full animate-dot-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
+            <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0s' }} />
+            <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.15s' }} />
+            <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.3s' }} />
           </div>
           
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full border border-border/50 mb-4">
@@ -1667,13 +1661,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             <p className="text-muted-foreground">等待对手完成答题...</p>
             
             <div className="flex items-center justify-center gap-1 mt-4">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="w-2 h-2 bg-primary rounded-full animate-dot-bounce"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
+              <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.15s' }} />
+              <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.3s' }} />
             </div>
           </div>
         </div>
@@ -1823,14 +1813,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             {/* Background glow */}
             <div className="absolute inset-0 bg-gradient-to-t from-accent/40 via-accent/20 to-transparent animate-pulse" />
             
-            {/* Rotating rays */}
+            {/* Rotating rays - using pre-computed positions */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute w-[800px] h-[800px] animate-promotion-rays">
-                {[...Array(12)].map((_, i) => (
+                {PROMOTION_RAYS.map((ray, i) => (
                   <div
                     key={i}
                     className="absolute top-1/2 left-1/2 w-2 h-[400px] bg-gradient-to-t from-accent/30 to-transparent origin-bottom"
-                    style={{ transform: `rotate(${i * 30}deg) translateX(-50%)` }}
+                    style={{ transform: ray.transform }}
                   />
                 ))}
               </div>

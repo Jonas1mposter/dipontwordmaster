@@ -226,6 +226,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         })
         .eq("id", matchToJoin.id)
         .eq("status", "waiting")
+        .is("player2_id", null) // Atomic check - ensure no one else joined
         .select()
         .maybeSingle();
 
@@ -289,13 +290,52 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     setShowAIOption(false);
 
     try {
-      // Cancel any old waiting free matches from this user
-      await supabase
+      // CRITICAL: First check if player is already in an active match
+      const { data: existingActiveMatch } = await supabase
         .from("ranked_matches")
-        .update({ status: "cancelled" })
-        .eq("player1_id", profile.id)
-        .eq("status", "waiting")
-        .eq("grade", 0);
+        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+        .eq("grade", 0)
+        .in("status", ["waiting", "in_progress"])
+        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingActiveMatch) {
+        console.log("Player already in active free match:", existingActiveMatch.id, existingActiveMatch.status);
+        
+        if (existingActiveMatch.status === "in_progress") {
+          // Rejoin the existing match
+          const isPlayer1 = existingActiveMatch.player1_id === profile.id;
+          const opponentData = isPlayer1 ? existingActiveMatch.player2 : existingActiveMatch.player1;
+          const matchWords = (existingActiveMatch.words as any[])?.map((w: any) => ({
+            id: w.id,
+            word: w.word,
+            meaning: w.meaning,
+            phonetic: w.phonetic,
+            grade: w.grade,
+          })) || [];
+          
+          if (matchWords.length > 0 && opponentData) {
+            setMatchId(existingActiveMatch.id);
+            setOpponent(opponentData);
+            setIsRealPlayer(true);
+            setWords(matchWords);
+            setOptions(generateOptions(matchWords[0].meaning, matchWords));
+            setMatchStatus("found");
+            sounds.playMatchFound();
+            setTimeout(() => setMatchStatus("playing"), 2000);
+            isJoiningRef.current = false;
+            return;
+          }
+        }
+        
+        // Cancel the existing waiting match
+        await supabase
+          .from("ranked_matches")
+          .update({ status: "cancelled" })
+          .eq("id", existingActiveMatch.id);
+      }
 
       // Clean up stale free matches
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -416,6 +456,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               })
               .eq("id", record.id)
               .eq("status", "waiting")
+              .is("player2_id", null) // Atomic check
               .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
               .maybeSingle();
 
@@ -479,6 +520,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           })
           .eq("id", data.matchId)
           .eq("status", "waiting")
+          .is("player2_id", null) // Atomic check
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
           .maybeSingle();
 

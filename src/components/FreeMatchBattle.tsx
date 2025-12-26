@@ -262,11 +262,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     return false;
   };
 
-  // Broadcast match request to other players
+  // Broadcast match request to other players (uses same channel name as matchmaking)
   const broadcastMatchRequest = useCallback((matchId: string) => {
     if (!profile) return;
     
-    const channel = supabase.channel(`free-matchmaking-broadcast`);
+    const channel = supabase.channel(`free-matchmaking-${profile.id}`);
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.send({
@@ -280,6 +280,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             timestamp: Date.now(),
           }
         });
+        // Channel will be cleaned up by the matchmaking useEffect
       }
     });
   }, [profile]);
@@ -459,9 +460,10 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       setTimeout(() => setMatchStatus("playing"), 8000);
     };
 
-    // Realtime channel for database changes
-    const dbChannel = supabase
-      .channel(`free-matchmaking-db-${profile.id}-${Date.now()}`)
+    // OPTIMIZED: Single combined channel for both DB changes and broadcast
+    // This reduces connection count from 2 to 1 per user
+    const matchmakingChannel = supabase
+      .channel(`free-matchmaking-${profile.id}`)
       .on(
         "postgres_changes",
         {
@@ -499,7 +501,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               })
               .eq("id", record.id)
               .eq("status", "waiting")
-              .is("player2_id", null) // Atomic check
+              .is("player2_id", null)
               .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
               .maybeSingle();
 
@@ -535,13 +537,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log("Free DB Realtime subscription status:", status);
-      });
-
-    // Broadcast channel
-    const broadcastChannel = supabase
-      .channel(`free-matchmaking-broadcast`)
       .on('broadcast', { event: 'free_match_request' }, async (payload) => {
         // CRITICAL: Check all locks
         if (!isActive || !waitingMatchId || globalMatchLockRef.current || matchJoinedRef.current) return;
@@ -564,7 +559,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           })
           .eq("id", data.matchId)
           .eq("status", "waiting")
-          .is("player2_id", null) // Atomic check
+          .is("player2_id", null)
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
           .maybeSingle();
 
@@ -573,7 +568,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       })
       .subscribe((status) => {
-        console.log("Free Broadcast subscription status:", status);
+        console.log("Free combined matchmaking channel status:", status);
       });
 
     // Polling - check both our match and other waiting matches
@@ -654,7 +649,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           }
         }
       }
-    }, 2000); // Poll every 2 seconds for faster matching
+    }, 4000); // Poll every 4 seconds (optimized for server capacity)
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
@@ -663,8 +658,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     return () => {
       console.log("Cleaning up free match subscription");
       isActive = false;
-      supabase.removeChannel(dbChannel);
-      supabase.removeChannel(broadcastChannel);
+      supabase.removeChannel(matchmakingChannel);
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
@@ -1044,7 +1038,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
-    }, 1500);
+    }, 4000); // Poll every 4 seconds (optimized for server capacity)
 
     return () => {
       isActive = false;

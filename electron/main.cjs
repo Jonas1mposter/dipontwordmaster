@@ -32,13 +32,29 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // 生产模式：加载打包后的文件
-    // 在打包后的 app 中，__dirname 指向 app.asar/electron/
-    // 需要使用 app.getAppPath() 获取正确路径
+    // app.getAppPath() 返回 app.asar 根目录
     const appPath = app.getAppPath();
     const indexPath = path.join(appPath, 'dist', 'index.html');
-    console.log('生产模式：加载', indexPath);
-    mainWindow.loadFile(indexPath).catch((err) => {
+    
+    console.log('App Path:', appPath);
+    console.log('Index Path:', indexPath);
+    console.log('File exists:', fs.existsSync(indexPath));
+    
+    // 如果文件不存在，尝试备用路径
+    let finalPath = indexPath;
+    if (!fs.existsSync(indexPath)) {
+      // 尝试 __dirname 相对路径
+      const altPath = path.join(__dirname, '..', 'dist', 'index.html');
+      console.log('Alt Path:', altPath);
+      if (fs.existsSync(altPath)) {
+        finalPath = altPath;
+      }
+    }
+    
+    mainWindow.loadFile(finalPath).catch((err) => {
       console.error('本地文件加载失败:', err.message);
+      // 显示错误信息给用户
+      mainWindow.loadURL(`data:text/html,<h1>加载失败</h1><p>路径: ${finalPath}</p><p>错误: ${err.message}</p>`);
     });
   }
 

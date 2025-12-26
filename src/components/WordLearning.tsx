@@ -280,9 +280,9 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   };
 
   const finishLevel = async () => {
-    const totalAnswered = correctCount + incorrectCount + 1; // +1 for current
-    const finalCorrect = correctCount + (currentIndex === words.length - 1 ? 1 : 0);
-    const accuracy = finalCorrect / words.length;
+    // correctCount is already updated by handleCorrect/handleIncorrect before nextWord() calls finishLevel()
+    const totalAnswered = correctCount + incorrectCount;
+    const accuracy = words.length > 0 ? correctCount / words.length : 0;
     
     const baseXp = 5;
     const bonusXp = Math.floor(accuracy * 5);
@@ -402,7 +402,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             .eq("quest_date", today)
             .maybeSingle();
 
-          const newProgress = (questProgress?.progress || 0) + finalCorrect;
+          const newProgress = (questProgress?.progress || 0) + correctCount;
           const completed = newProgress >= wordsQuest.target;
 
           await supabase

@@ -34,6 +34,7 @@ interface EquippedNameCard {
   background_gradient: string;
   icon: string | null;
   rank_position: number | null;
+  rarity: string;
 }
 
 const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps) => {
@@ -83,7 +84,8 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
             id,
             name,
             background_gradient,
-            icon
+            icon,
+            rarity
           )
         `)
         .eq("profile_id", profile.id)
@@ -98,6 +100,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
           background_gradient: card.background_gradient,
           icon: card.icon,
           rank_position: data.rank_position,
+          rarity: card.rarity || 'legendary',
         });
       }
     };
@@ -208,31 +211,41 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
         {/* Name card area */}
         <div 
           className={cn(
-            "rounded-lg p-3 border min-h-[60px] flex items-center gap-2",
+            "rounded-lg p-3 border min-h-[60px] flex items-center gap-2 relative overflow-hidden",
             equippedNameCard 
-              ? "border-accent/30" 
+              ? equippedNameCard.rarity === 'mythology' 
+                ? "border-red-500/50 shadow-lg shadow-red-500/30" 
+                : "border-accent/30"
               : "border-border/30 bg-secondary/20"
           )}
           style={equippedNameCard ? {
             background: equippedNameCard.background_gradient,
           } : undefined}
         >
+          {/* Mythology shimmer effect */}
+          {equippedNameCard?.rarity === 'mythology' && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+          )}
+          
           {equippedNameCard ? (
-            <>
+            <div className="relative z-10 flex items-center gap-2 w-full">
               {equippedNameCard.icon && (
                 <span className="text-xl">{equippedNameCard.icon}</span>
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-gaming text-sm text-foreground truncate">
+                <p className={cn(
+                  "font-gaming text-sm truncate",
+                  equippedNameCard.rarity === 'mythology' ? "text-white font-bold" : "text-foreground"
+                )}>
                   {equippedNameCard.name}
                 </p>
                 {equippedNameCard.rank_position && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-white/70">
                     #{equippedNameCard.rank_position}
                   </p>
                 )}
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex-1 text-center">
               <p className="text-xs text-muted-foreground">

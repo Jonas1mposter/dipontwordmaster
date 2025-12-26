@@ -63,6 +63,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   const [onlineCount, setOnlineCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [answerAnimation, setAnswerAnimation] = useState<'correct' | 'wrong' | null>(null);
+  const [vsCountdown, setVsCountdown] = useState(8);
   
   // Real-time battle sync state
   const [isRealPlayer, setIsRealPlayer] = useState(false);
@@ -1076,6 +1077,23 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     }
   }, [matchStatus]);
 
+  // VS countdown timer
+  useEffect(() => {
+    if (matchStatus === "found") {
+      setVsCountdown(8);
+      const timer = setInterval(() => {
+        setVsCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [matchStatus]);
+
   const speakWord = () => {
     if (words[currentWordIndex]) {
       const utterance = new SpeechSynthesisUtterance(words[currentWordIndex].word);
@@ -1311,21 +1329,18 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
                 </div>
               </div>
               
-              <p className="text-muted-foreground mt-4 md:mt-6 text-sm font-gaming animate-pulse">比赛即将开始...</p>
-              
-              {/* Loading dots */}
-              <div className="flex gap-2 mt-3">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div 
-                    key={i} 
-                    className="w-2 h-2 rounded-full bg-neon-cyan"
-                    style={{ 
-                      animation: 'bounce 1s infinite',
-                      animationDelay: `${i * 0.1}s` 
-                    }}
-                  />
-                ))}
+              {/* Countdown timer */}
+              <div className="mt-4 md:mt-6">
+                <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-background/80 border-2 border-neon-cyan/50 flex items-center justify-center shadow-lg">
+                  <span className="font-gaming text-3xl md:text-4xl text-neon-cyan animate-pulse">
+                    {vsCountdown}
+                  </span>
+                </div>
               </div>
+              
+              <p className="text-muted-foreground mt-3 text-xs font-gaming">
+                对战即将开始
+              </p>
             </div>
 
             {/* Opponent Profile Card */}

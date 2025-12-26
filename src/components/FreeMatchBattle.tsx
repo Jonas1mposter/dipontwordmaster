@@ -564,11 +564,12 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         console.log("Free Broadcast subscription status:", status);
       });
 
-    // Polling
+    // Polling - check both our match and other waiting matches
     const pollInterval = setInterval(async () => {
       // CRITICAL: Check all locks
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
+      // First check if someone joined our match
       if (waitingMatchId) {
         const { data: ourMatch } = await supabase
           .from("ranked_matches")
@@ -590,12 +591,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       }
       
-      // Skip polling for other matches if we already have a waiting match
-      if (waitingMatchId) return;
-      
       // Also skip if we're already in a match
       if (globalMatchLockRef.current || matchJoinedRef.current) return;
       
+      // IMPORTANT: Also check for other waiting matches even if we have our own
+      // This fixes the case where two players create waiting matches at the same time
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
         .from("ranked_matches")
@@ -608,7 +608,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         .limit(5);
 
       if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-        console.log("Polling: Found", waitingMatches.length, "waiting free matches");
+        console.log("Polling: Found", waitingMatches.length, "waiting free matches to potentially join");
         const matchWords = await fetchMatchWords();
         if (matchWords.length === 0 || !isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
         
@@ -630,12 +630,19 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             .maybeSingle();
 
           if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+            // Cancel our own waiting match if we joined someone else's
+            if (waitingMatchId && waitingMatchId !== matchToJoin.id) {
+              await supabase
+                .from("ranked_matches")
+                .update({ status: "cancelled" })
+                .eq("id", waitingMatchId);
+            }
             await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
             return;
           }
         }
       }
-    }, 2500); // Increased interval to reduce race conditions
+    }, 2000); // Poll every 2 seconds for faster matching
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);

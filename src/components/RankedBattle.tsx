@@ -229,7 +229,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   useEffect(() => {
     if (initialMatchId && profile) {
       setMatchId(initialMatchId);
-      setMatchStatus("playing");
+      setIsRealPlayer(true); // Friend battles are always real player matches
       
       // Fetch match data
       supabase
@@ -248,7 +248,19 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               phonetic: w.phonetic,
             }));
             setWords(matchWords);
-            setOptions(generateOptions(matchWords[0].meaning, matchWords));
+            
+            // Generate quiz types for all 10 questions
+            const types = generateQuizTypes();
+            setQuizTypes(types);
+            
+            // Setup first question with its quiz type
+            if (matchWords.length > 0) {
+              setupQuizForWord(matchWords[0], types[0], matchWords);
+            }
+            
+            // Show VS screen briefly before starting
+            setMatchStatus("found");
+            setTimeout(() => setMatchStatus("playing"), 2000);
           }
         });
     }

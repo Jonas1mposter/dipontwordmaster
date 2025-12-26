@@ -122,31 +122,26 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     };
   }, [profile]);
 
-  // Fetch random words for the match (mixed from both grades)
+  // Fetch random words for the match (from all grades)
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
-    // Get words from both grade 7 and grade 8
-    const { data: grade7Words, error: error7 } = await supabase
+    // Get all words from both grades (7 and 8)
+    const { data: allWords, error } = await supabase
       .from("words")
       .select("id, word, meaning, phonetic, grade")
-      .eq("grade", 7)
-      .limit(5);
+      .in("grade", [7, 8]);
 
-    const { data: grade8Words, error: error8 } = await supabase
-      .from("words")
-      .select("id, word, meaning, phonetic, grade")
-      .eq("grade", 8)
-      .limit(5);
-
-    if (error7 || error8) {
-      console.error("Error fetching words:", error7 || error8);
+    if (error) {
+      console.error("Error fetching words:", error);
       return [];
     }
 
-    // Mix words from both grades
-    const allWords = [...(grade7Words || []), ...(grade8Words || [])];
-    // Shuffle the words
+    if (!allWords || allWords.length === 0) {
+      return [];
+    }
+
+    // Shuffle all words and pick 10 random ones
     const shuffled = allWords.sort(() => Math.random() - 0.5).slice(0, 10);
     return shuffled;
   }, [profile]);

@@ -270,12 +270,19 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     });
   }, [profile]);
 
+  // Ref to prevent double-joining
+  const isJoiningRef = useRef(false);
+  
   // Start searching for a free match
   const startSearch = async () => {
     if (!profile) {
       toast.error("请先登录");
       return;
     }
+
+    // Prevent double start
+    if (isJoiningRef.current) return;
+    isJoiningRef.current = true;
 
     setMatchStatus("searching");
     setSearchTime(0);
@@ -301,7 +308,10 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
       // Try to join an existing match first
       const joined = await tryJoinExistingMatch();
-      if (joined) return;
+      if (joined) {
+        isJoiningRef.current = false;
+        return;
+      }
 
       // No match to join, create our own with grade = 0 (free match)
       const { data: newMatch, error: createError } = await supabase
@@ -321,27 +331,36 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       setWaitingMatchId(newMatch.id);
       
       broadcastMatchRequest(newMatch.id);
+      isJoiningRef.current = false;
 
     } catch (error) {
       console.error("Match error:", error);
       toast.error("匹配失败，请重试");
       setMatchStatus("idle");
+      isJoiningRef.current = false;
     }
   };
 
+  // Ref to track if match has been joined
+  const matchJoinedRef = useRef(false);
+  
   // Realtime + Polling for reliable matchmaking
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
 
     console.log("Setting up free match subscription");
     let isActive = true;
+    matchJoinedRef.current = false;
     
     const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
-      if (!isActive) return;
+      // Double-check to prevent joining multiple matches
+      if (!isActive || matchJoinedRef.current) return;
+      matchJoinedRef.current = true;
       isActive = false;
       
       console.log("Free match joined successfully:", matchData.id);
       
+      // Cancel our waiting match if we joined a different one
       if (waitingMatchId && waitingMatchId !== matchData.id) {
         await supabase
           .from("ranked_matches")
@@ -473,7 +492,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
     // Polling
     const pollInterval = setInterval(async () => {
-      if (!isActive) return;
+      if (!isActive || matchJoinedRef.current) return;
       
       if (waitingMatchId) {
         const { data: ourMatch } = await supabase
@@ -482,7 +501,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           .eq("id", waitingMatchId)
           .single();
         
-        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive) {
+        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedRef.current) {
           console.log("Polling: Opponent joined our free match!");
           const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
             id: w.id,
@@ -496,6 +515,9 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       }
       
+      // Skip polling for other matches if we already have a waiting match
+      if (waitingMatchId) return;
+      
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
         .from("ranked_matches")
@@ -507,12 +529,14 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         .order("created_at", { ascending: true })
         .limit(5);
 
-      if (waitingMatches && waitingMatches.length > 0 && isActive) {
+      if (waitingMatches && waitingMatches.length > 0 && isActive && !matchJoinedRef.current) {
         console.log("Polling: Found", waitingMatches.length, "waiting free matches");
         const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive) return;
+        if (matchWords.length === 0 || !isActive || matchJoinedRef.current) return;
         
         for (const matchToJoin of waitingMatches) {
+          if (matchJoinedRef.current) return;
+          
           const { data: updatedMatch, error } = await supabase
             .from("ranked_matches")
             .update({
@@ -523,16 +547,17 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             })
             .eq("id", matchToJoin.id)
             .eq("status", "waiting")
+            .is("player2_id", null) // Atomic check - ensure no one else joined
             .select()
             .maybeSingle();
 
-          if (!error && updatedMatch && isActive) {
+          if (!error && updatedMatch && isActive && !matchJoinedRef.current) {
             await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
             return;
           }
         }
       }
-    }, 1000);
+    }, 2000); // Increased interval to reduce race conditions
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
@@ -843,13 +868,13 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       });
 
-    // Polling fallback
+    // Polling fallback for opponent progress
     const pollInterval = setInterval(async () => {
       if (!isActive || matchFinishedRef.current) return;
       
       const { data: matchData } = await supabase
         .from("ranked_matches")
-        .select("*")
+        .select("player1_id, player2_id, player1_score, player2_score, status")
         .eq("id", matchId)
         .single();
       
@@ -858,14 +883,18 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       const isPlayer1 = matchData.player1_id === profile.id;
       const rawOpponentProgress = isPlayer1 ? matchData.player2_score : matchData.player1_score;
       
+      console.log("Polling free match progress:", { isPlayer1, rawOpponentProgress, player1_score: matchData.player1_score, player2_score: matchData.player2_score });
+      
       // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
       const opponentHasFinished = rawOpponentProgress >= 10000;
       const progressWithoutFinished = opponentHasFinished ? rawOpponentProgress - 10000 : rawOpponentProgress;
       const opponentQuestionIndex = Math.floor(progressWithoutFinished / 100);
       const actualOpponentScore = progressWithoutFinished % 100;
       
-      // Update opponent's current progress
-      if (opponentQuestionIndex > 0) {
+      console.log("Decoded opponent progress:", { opponentHasFinished, opponentQuestionIndex, actualOpponentScore });
+      
+      // Update opponent's current progress (visible progress bar)
+      if (opponentQuestionIndex > 0 && opponentQuestionIndex !== opponentProgress) {
         setOpponentProgress(opponentQuestionIndex);
       }
       
@@ -880,16 +909,19 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       }
       
-      // Check if match was marked completed
+      // Check if match was marked completed by opponent
       if (matchData.status === "completed" && !matchFinishedRef.current) {
+        console.log("Match marked completed, finalizing...");
         setOpponentFinished(true);
-        setOpponentFinalScore(actualOpponentScore);
+        if (actualOpponentScore > 0 || opponentHasFinished) {
+          setOpponentFinalScore(actualOpponentScore);
+        }
         
         if (myFinishedRef.current) {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
-    }, 1000);
+    }, 1500);
 
     return () => {
       isActive = false;

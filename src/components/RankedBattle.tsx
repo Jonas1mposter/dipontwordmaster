@@ -225,9 +225,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     opponentFinishedRef.current = opponentFinished;
   }, [myFinished, matchFinished, myScore, opponentFinished]);
 
-  // Handle initial match from friend challenge
+  // Handle initial match from friend challenge - only run once when idle
+  const friendMatchInitialized = useRef(false);
+  
   useEffect(() => {
-    if (initialMatchId && profile) {
+    // Only initialize friend match once and only when idle
+    if (initialMatchId && profile && matchStatus === "idle" && !friendMatchInitialized.current) {
+      friendMatchInitialized.current = true;
       setMatchId(initialMatchId);
       setIsRealPlayer(true); // Friend battles are always real player matches
       
@@ -264,7 +268,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           }
         });
     }
-  }, [initialMatchId, profile]);
+  }, [initialMatchId, profile, matchStatus]);
 
   // Track online presence
   useEffect(() => {

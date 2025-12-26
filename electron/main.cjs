@@ -1,8 +1,12 @@
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 // 保持对窗口对象的全局引用
 let mainWindow;
+
+// 检测是否为开发模式
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,32 +23,21 @@ function createWindow() {
     }
   });
 
-  // 始终尝试加载开发服务器
-  const devUrl = 'http://localhost:8080';
-  
-  console.log('正在加载:', devUrl);
-  
-  mainWindow.loadURL(devUrl).catch((err) => {
-    console.error('加载失败，尝试加载本地文件:', err.message);
-    // 如果开发服务器加载失败，尝试加载打包文件
-    const indexPath = path.join(__dirname, '../dist/index.html');
-    mainWindow.loadFile(indexPath).catch((e) => {
-      console.error('本地文件也加载失败:', e.message);
+  if (isDev) {
+    // 开发模式：加载开发服务器
+    console.log('开发模式：加载 http://localhost:8080');
+    mainWindow.loadURL('http://localhost:8080').catch((err) => {
+      console.error('开发服务器加载失败:', err.message);
     });
-  });
-
-  // 总是打开开发者工具以便调试
-  mainWindow.webContents.openDevTools();
-
-  // 监听加载完成事件
-  mainWindow.webContents.on('did-finish-load', () => {
-    console.log('页面加载完成');
-  });
-
-  // 监听加载失败事件
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('页面加载失败:', errorCode, errorDescription);
-  });
+    mainWindow.webContents.openDevTools();
+  } else {
+    // 生产模式：加载打包后的文件
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    console.log('生产模式：加载', indexPath);
+    mainWindow.loadFile(indexPath).catch((err) => {
+      console.error('本地文件加载失败:', err.message);
+    });
+  }
 
   // 在默认浏览器中打开外部链接
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

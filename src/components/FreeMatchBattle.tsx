@@ -28,6 +28,14 @@ import {
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
 
+// Pre-computed animation data to avoid recalculating on every render
+const FREE_SEARCH_PARTICLES = Array.from({ length: 12 }, (_, i) => ({
+  left: `${(i * 8 + 4) % 100}%`,
+  top: `${(i * 7 + 10) % 100}%`,
+  delay: `${(i * 0.15) % 2}s`,
+  duration: `${2 + (i % 3)}s`,
+}));
+
 interface Word {
   id: string;
   word: string;
@@ -1220,15 +1228,15 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     return (
       <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
-          {[...Array(20)].map((_, i) => (
+          {FREE_SEARCH_PARTICLES.map((particle, i) => (
             <div
               key={i}
               className="absolute w-2 h-2 bg-neon-cyan/30 rounded-full animate-pulse"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                animationDuration: `${2 + Math.random() * 2}s`,
+                left: particle.left,
+                top: particle.top,
+                animationDelay: particle.delay,
+                animationDuration: particle.duration,
               }}
             />
           ))}

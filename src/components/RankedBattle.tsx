@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
@@ -27,6 +27,38 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
+
+// Pre-computed animation data to avoid recalculating on every render
+const SEARCH_PARTICLES = Array.from({ length: 20 }, (_, i) => ({
+  left: `${(i * 5) % 100}%`,
+  top: `${(i * 7 + 10) % 100}%`,
+  duration: `${3 + (i % 4)}s`,
+  delay: `${(i * 0.1) % 2}s`,
+}));
+
+const SPARK_POSITIONS = Array.from({ length: 8 }, (_, i) => ({
+  left: `${50 + 40 * Math.cos((i * 45 * Math.PI) / 180)}%`,
+  top: `${50 + 40 * Math.sin((i * 45 * Math.PI) / 180)}%`,
+  delay: `${i * 0.15}s`,
+}));
+
+const CONFETTI_ITEMS = Array.from({ length: 15 }, (_, i) => ({
+  left: `${(i * 7) % 100}%`,
+  color: ['hsl(45, 100%, 55%)', 'hsl(265, 89%, 66%)', 'hsl(200, 100%, 60%)', 'hsl(142, 76%, 45%)', 'hsl(330, 85%, 60%)'][i % 5],
+  duration: `${2 + (i % 3)}s`,
+  delay: `${(i * 0.1) % 1}s`,
+}));
+
+const PROMOTION_STARS = Array.from({ length: 8 }, (_, i) => ({
+  left: `${10 + (i % 6) * 15}%`,
+  delay: `${i * 0.1}s`,
+}));
+
+const DEMOTION_PARTICLES = Array.from({ length: 10 }, (_, i) => ({
+  left: `${(i * 10) % 100}%`,
+  duration: `${1.5 + (i % 2)}s`,
+  delay: `${(i * 0.05) % 0.5}s`,
+}));
 
 // Available quiz types for battle
 const BATTLE_QUIZ_TYPES: BattleQuizType[] = ["meaning", "reverse", "spelling", "listening"];
@@ -1394,17 +1426,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   if (matchStatus === "searching") {
     return (
       <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center relative overflow-hidden">
-        {/* Animated background particles */}
+        {/* Animated background particles - using pre-computed positions */}
         <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
+          {SEARCH_PARTICLES.map((particle, i) => (
             <div
               key={i}
               className="absolute w-1 h-1 bg-primary/40 rounded-full"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-                animationDelay: `${Math.random() * 2}s`,
+                left: particle.left,
+                top: particle.top,
+                animation: `float ${particle.duration} ease-in-out infinite`,
+                animationDelay: particle.delay,
               }}
             />
           ))}
@@ -1548,15 +1580,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <div className="absolute w-32 h-32 rounded-full border-2 border-accent/30 animate-energy-ring" />
               <div className="absolute w-40 h-40 rounded-full border border-accent/20 animate-energy-ring" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
               
-              {/* Sparks */}
-              {[...Array(8)].map((_, i) => (
+              {/* Sparks - using pre-computed positions */}
+              {SPARK_POSITIONS.map((spark, i) => (
                 <div
                   key={i}
                   className="absolute w-2 h-2 bg-accent rounded-full animate-spark"
                   style={{
-                    left: `${50 + 40 * Math.cos((i * 45 * Math.PI) / 180)}%`,
-                    top: `${50 + 40 * Math.sin((i * 45 * Math.PI) / 180)}%`,
-                    animationDelay: `${i * 0.15}s`,
+                    left: spark.left,
+                    top: spark.top,
+                    animationDelay: spark.delay,
                   }}
                 />
               ))}
@@ -1766,19 +1798,19 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     return (
       <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-6 relative overflow-hidden">
-        {/* Victory confetti effect */}
+        {/* Victory confetti effect - using pre-computed values */}
         {isWinner && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            {[...Array(30)].map((_, i) => (
+            {CONFETTI_ITEMS.map((confetti, i) => (
               <div
                 key={i}
                 className="absolute w-3 h-3 rounded-sm"
                 style={{
-                  left: `${Math.random() * 100}%`,
+                  left: confetti.left,
                   top: '-10px',
-                  backgroundColor: ['hsl(45, 100%, 55%)', 'hsl(265, 89%, 66%)', 'hsl(200, 100%, 60%)', 'hsl(142, 76%, 45%)', 'hsl(330, 85%, 60%)'][i % 5],
-                  animation: `confettiFall ${2 + Math.random() * 3}s linear forwards`,
-                  animationDelay: `${Math.random() * 1}s`,
+                  backgroundColor: confetti.color,
+                  animation: `confettiFall ${confetti.duration} linear forwards`,
+                  animationDelay: confetti.delay,
                 }}
               />
             ))}
@@ -1804,15 +1836,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               </div>
             </div>
             
-            {/* Rising stars */}
-            {[...Array(12)].map((_, i) => (
+            {/* Rising stars - using pre-computed positions */}
+            {PROMOTION_STARS.map((star, i) => (
               <div
                 key={i}
                 className="absolute text-2xl animate-promotion-stars"
                 style={{
-                  left: `${10 + (i % 6) * 15}%`,
+                  left: star.left,
                   bottom: '30%',
-                  animationDelay: `${i * 0.1}s`,
+                  animationDelay: star.delay,
                 }}
               >
                 ⭐
@@ -1827,16 +1859,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             {/* Dark overlay with red tint */}
             <div className="absolute inset-0 bg-gradient-to-b from-destructive/20 via-transparent to-destructive/10" />
             
-            {/* Falling particles */}
-            {[...Array(20)].map((_, i) => (
+            {/* Falling particles - using pre-computed values */}
+            {DEMOTION_PARTICLES.map((particle, i) => (
               <div
                 key={i}
                 className="absolute w-2 h-2 bg-destructive/60 rounded-sm"
                 style={{
-                  left: `${Math.random() * 100}%`,
+                  left: particle.left,
                   top: '-10px',
-                  animation: `confettiFall ${1.5 + Math.random() * 2}s linear forwards`,
-                  animationDelay: `${Math.random() * 0.5}s`,
+                  animation: `confettiFall ${particle.duration} linear forwards`,
+                  animationDelay: particle.delay,
                 }}
               />
             ))}

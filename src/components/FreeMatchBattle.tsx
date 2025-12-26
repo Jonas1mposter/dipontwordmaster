@@ -80,11 +80,16 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   const matchFinishedRef = useRef(false);
   const opponentFinishedRef = useRef(false);
   
+  // CRITICAL: Global lock to prevent joining multiple matches
+  const globalMatchLockRef = useRef(false);
+  const activeMatchIdRef = useRef<string | null>(null);
+  
   // Keep refs in sync
   useEffect(() => { myScoreRef.current = myScore; }, [myScore]);
   useEffect(() => { myFinishedRef.current = myFinished; }, [myFinished]);
   useEffect(() => { matchFinishedRef.current = matchFinished; }, [matchFinished]);
   useEffect(() => { opponentFinishedRef.current = opponentFinished; }, [opponentFinished]);
+  useEffect(() => { activeMatchIdRef.current = matchId; }, [matchId]);
 
   // Track online presence for free match (all grades)
   useEffect(() => {
@@ -381,8 +386,23 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     }
   };
 
-  // Ref to track if match has been joined
+  // Ref to track if match has been joined - MOVED TO COMPONENT LEVEL
   const matchJoinedRef = useRef(false);
+  
+  // Helper to check if player is already in an active match (server-side check)
+  const checkPlayerInActiveMatch = async () => {
+    if (!profile) return false;
+    
+    const { data } = await supabase
+      .from("ranked_matches")
+      .select("id, status")
+      .eq("grade", 0)
+      .in("status", ["in_progress"])
+      .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+      .limit(1);
+    
+    return data && data.length > 0;
+  };
   
   // Realtime + Polling for reliable matchmaking
   useEffect(() => {
@@ -390,11 +410,21 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
     console.log("Setting up free match subscription");
     let isActive = true;
-    matchJoinedRef.current = false;
+    // DO NOT reset matchJoinedRef here - it should persist across effect runs
     
     const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
-      // Double-check to prevent joining multiple matches
-      if (!isActive || matchJoinedRef.current) return;
+      // CRITICAL: Use global lock to prevent joining multiple matches
+      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) {
+        console.log("Match join blocked - already joined:", { 
+          isActive, 
+          globalLock: globalMatchLockRef.current, 
+          matchJoined: matchJoinedRef.current 
+        });
+        return;
+      }
+      
+      // Acquire lock immediately
+      globalMatchLockRef.current = true;
       matchJoinedRef.current = true;
       isActive = false;
       
@@ -432,7 +462,9 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           table: "ranked_matches",
         },
         async (payload) => {
-          if (!isActive) return;
+          // CRITICAL: Check all locks before processing
+          if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
+          
           const record = payload.new as any;
           if (!record || record.grade !== 0) return; // Only free matches
           
@@ -443,8 +475,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               record.player1_id !== profile.id) {
             console.log("Realtime: New waiting free match detected:", record.id);
             
+            // Double-check we're not already in a match
+            if (globalMatchLockRef.current || matchJoinedRef.current) return;
+            
             const matchWords = await fetchMatchWords();
-            if (matchWords.length === 0 || !isActive) return;
+            if (matchWords.length === 0 || !isActive || globalMatchLockRef.current) return;
             
             const { data: updatedMatch, error } = await supabase
               .from("ranked_matches")
@@ -460,7 +495,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
               .maybeSingle();
 
-            if (!error && updatedMatch && isActive) {
+            if (!error && updatedMatch && isActive && !globalMatchLockRef.current) {
               await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
             }
           }
@@ -486,7 +521,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
               grade: w.grade,
             })) || [];
             
-            if (isActive) {
+            if (isActive && !globalMatchLockRef.current) {
               await onMatchJoined(record, opponentData, matchWords);
             }
           }
@@ -500,7 +535,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     const broadcastChannel = supabase
       .channel(`free-matchmaking-broadcast`)
       .on('broadcast', { event: 'free_match_request' }, async (payload) => {
-        if (!isActive || !waitingMatchId) return;
+        // CRITICAL: Check all locks
+        if (!isActive || !waitingMatchId || globalMatchLockRef.current || matchJoinedRef.current) return;
         
         const data = payload.payload as any;
         if (data.playerId === profile.id) return;
@@ -508,7 +544,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         console.log("Broadcast: Received free match request from", data.username, "Grade", data.grade);
         
         const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive) return;
+        if (matchWords.length === 0 || !isActive || globalMatchLockRef.current) return;
         
         const { data: updatedMatch, error } = await supabase
           .from("ranked_matches")
@@ -524,7 +560,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
           .maybeSingle();
 
-        if (!error && updatedMatch && isActive) {
+        if (!error && updatedMatch && isActive && !globalMatchLockRef.current) {
           await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
         }
       })
@@ -534,7 +570,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
 
     // Polling
     const pollInterval = setInterval(async () => {
-      if (!isActive || matchJoinedRef.current) return;
+      // CRITICAL: Check all locks
+      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
       if (waitingMatchId) {
         const { data: ourMatch } = await supabase
@@ -543,7 +580,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           .eq("id", waitingMatchId)
           .single();
         
-        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedRef.current) {
+        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
           console.log("Polling: Opponent joined our free match!");
           const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
             id: w.id,
@@ -560,6 +597,9 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       // Skip polling for other matches if we already have a waiting match
       if (waitingMatchId) return;
       
+      // Also skip if we're already in a match
+      if (globalMatchLockRef.current || matchJoinedRef.current) return;
+      
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
         .from("ranked_matches")
@@ -571,13 +611,13 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         .order("created_at", { ascending: true })
         .limit(5);
 
-      if (waitingMatches && waitingMatches.length > 0 && isActive && !matchJoinedRef.current) {
+      if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
         console.log("Polling: Found", waitingMatches.length, "waiting free matches");
         const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive || matchJoinedRef.current) return;
+        if (matchWords.length === 0 || !isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
         
         for (const matchToJoin of waitingMatches) {
-          if (matchJoinedRef.current) return;
+          if (globalMatchLockRef.current || matchJoinedRef.current) return;
           
           const { data: updatedMatch, error } = await supabase
             .from("ranked_matches")
@@ -593,13 +633,13 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             .select()
             .maybeSingle();
 
-          if (!error && updatedMatch && isActive && !matchJoinedRef.current) {
+          if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
             await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
             return;
           }
         }
       }
-    }, 2000); // Increased interval to reduce race conditions
+    }, 2500); // Increased interval to reduce race conditions
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
@@ -623,6 +663,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         .update({ status: "cancelled" })
         .eq("id", matchId);
     }
+    // Reset all locks
+    globalMatchLockRef.current = false;
+    matchJoinedRef.current = false;
+    isJoiningRef.current = false;
+    
     setMatchStatus("idle");
     setMatchId(null);
     setWaitingMatchId(null);
@@ -757,6 +802,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     setMatchStatus("finished");
     setWaitingForOpponent(false);
     
+    // CRITICAL: Reset locks for next match
+    globalMatchLockRef.current = false;
+    matchJoinedRef.current = false;
+    isJoiningRef.current = false;
+    
     const playerScore = finalScore;
     const simulatedOpponentScore = Math.floor(Math.random() * 10);
     setOpponentScore(simulatedOpponentScore);
@@ -811,6 +861,11 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     setMatchStatus("finished");
     setWaitingForOpponent(false);
     
+    // CRITICAL: Reset locks for next match
+    globalMatchLockRef.current = false;
+    matchJoinedRef.current = false;
+    isJoiningRef.current = false;
+    
     setOpponentScore(theirFinalScore);
     
     const won = myFinalScore > theirFinalScore;
@@ -824,16 +879,27 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     }
 
     if (profile && matchId) {
-      await supabase
+      // Check which player we are to correctly update scores
+      const { data: currentMatch } = await supabase
         .from("ranked_matches")
-        .update({
-          player1_score: myFinalScore,
-          player2_score: theirFinalScore,
-          winner_id: won ? profile.id : (tie ? null : opponent?.id),
-          status: "completed",
-          ended_at: new Date().toISOString(),
-        })
-        .eq("id", matchId);
+        .select("player1_id, player2_id")
+        .eq("id", matchId)
+        .single();
+      
+      if (currentMatch) {
+        const isPlayer1 = currentMatch.player1_id === profile.id;
+        
+        await supabase
+          .from("ranked_matches")
+          .update({
+            // Use correct field based on player position
+            [isPlayer1 ? "player1_score" : "player2_score"]: myFinalScore,
+            winner_id: won ? profile.id : (tie ? null : opponent?.id),
+            status: "completed",
+            ended_at: new Date().toISOString(),
+          })
+          .eq("id", matchId);
+      }
 
       // Free match gives bonus XP for cross-grade battle
       const xpGained = won ? 6 : 2;

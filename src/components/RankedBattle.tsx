@@ -532,11 +532,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     return false;
   };
 
-  // Broadcast match request to other players
+  // Broadcast match request to other players (uses temporary channel, closes after send)
   const broadcastMatchRequest = useCallback((matchId: string) => {
     if (!profile) return;
     
-    const channel = supabase.channel(`matchmaking-broadcast-${profile.grade}`);
+    const channel = supabase.channel(`ranked-matchmaking-${profile.grade}-${profile.id}`);
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.send({
@@ -550,7 +550,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             timestamp: Date.now(),
           }
         });
-        // Keep channel open for responses
+        // Channel will be cleaned up by the matchmaking useEffect
       }
     });
   }, [profile]);
@@ -652,9 +652,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setTimeout(() => setMatchStatus("playing"), 8000);
     };
 
-    // Realtime channel for database changes
-    const dbChannel = supabase
-      .channel(`matchmaking-db-${profile.id}-${Date.now()}`)
+    // OPTIMIZED: Single combined channel for both DB changes and broadcast
+    // This reduces connection count from 2 to 1 per user
+    const matchmakingChannel = supabase
+      .channel(`ranked-matchmaking-${profile.grade}-${profile.id}`)
       .on(
         "postgres_changes",
         {
@@ -688,7 +689,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               })
               .eq("id", record.id)
               .eq("status", "waiting")
-              .is("player2_id", null) // Ensure no one else joined
+              .is("player2_id", null)
               .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
               .maybeSingle();
 
@@ -724,13 +725,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           }
         }
       )
-      .subscribe((status) => {
-        console.log("DB Realtime subscription status:", status);
-      });
-
-    // Broadcast channel - listen for match requests from other players
-    const broadcastChannel = supabase
-      .channel(`matchmaking-broadcast-${profile.grade}`)
       .on('broadcast', { event: 'match_request' }, async (payload) => {
         if (!isActive || !waitingMatchId) return;
         
@@ -739,7 +733,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         console.log("Broadcast: Received match request from", data.username);
         
-        // Try to join their match
         const matchWords = await fetchMatchWords();
         if (matchWords.length === 0 || !isActive) return;
         
@@ -753,7 +746,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           })
           .eq("id", data.matchId)
           .eq("status", "waiting")
-          .is("player2_id", null) // Ensure no one else joined
+          .is("player2_id", null)
           .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
           .maybeSingle();
 
@@ -762,10 +755,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         }
       })
       .subscribe((status) => {
-        console.log("Broadcast subscription status:", status);
+        console.log("Combined matchmaking channel status:", status);
       });
 
-    // Faster polling every 1 second to catch missed events
+    // Polling every 4 seconds (optimized for server capacity)
     const pollInterval = setInterval(async () => {
       if (!isActive) return;
       
@@ -828,7 +821,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           }
         }
       }
-    }, 1000); // Poll every 1 second for faster matching
+    }, 4000); // Poll every 4 seconds (optimized for server capacity)
 
     // Show AI option after 15 seconds (reduced from 30)
     const aiTimeout = setTimeout(() => {
@@ -838,8 +831,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     return () => {
       console.log("Cleaning up matchmaking subscription");
       isActive = false;
-      supabase.removeChannel(dbChannel);
-      supabase.removeChannel(broadcastChannel);
+      supabase.removeChannel(matchmakingChannel);
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
@@ -1192,8 +1184,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     const channel = setupChannel();
 
-    // Polling fallback to ensure we catch opponent progress even if broadcast fails
-    // Poll more frequently (every 1 second) for responsiveness
+    // Polling fallback (every 4 seconds for server optimization)
     const pollInterval = setInterval(async () => {
       if (!isActive || matchFinishedRef.current) return;
       
@@ -1242,7 +1233,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
-    }, 1000); // Poll every 1 second for responsiveness
+    }, 4000); // Poll every 4 seconds (optimized for server capacity)
 
     return () => {
       isActive = false;

@@ -91,8 +91,8 @@ export const FriendList = ({ currentProfileId, onOpenChat, onChallenge, onSpecta
   useEffect(() => {
     fetchFriends();
     
-    // Refresh every 30 seconds to check for active matches
-    const interval = setInterval(fetchFriends, 30000);
+    // Refresh every 60 seconds (optimized for server capacity)
+    const interval = setInterval(fetchFriends, 60000);
     return () => clearInterval(interval);
   }, [currentProfileId]);
 

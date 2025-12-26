@@ -299,12 +299,15 @@ export const BattleInviteReceiver = ({
     setProcessing(true);
     try {
       if (accept) {
-        // Get random words for the match
-        const { data: words } = await supabase
+        // Get random words for the match - fetch more and shuffle
+        const { data: allWords } = await supabase
           .from("words")
           .select("*")
-          .eq("grade", currentGrade)
-          .limit(10);
+          .eq("grade", currentGrade);
+        
+        // Shuffle and pick 10 random words
+        const shuffled = (allWords || []).sort(() => Math.random() - 0.5);
+        const words = shuffled.slice(0, 10);
 
         // Create the match
         const { data: match, error: matchError } = await supabase

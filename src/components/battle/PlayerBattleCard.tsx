@@ -119,6 +119,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
+      case 'mythology': return 'bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-500 shadow-red-500/50 shadow-lg';
       case 'legendary': return 'bg-gradient-to-r from-amber-500 to-yellow-400 text-background border-amber-400';
       case 'epic': return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white border-purple-400';
       case 'rare': return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-blue-400';

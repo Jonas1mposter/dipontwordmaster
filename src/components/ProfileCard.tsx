@@ -406,6 +406,7 @@ const ProfileCard = () => {
       case "rare": return "text-blue-400";
       case "epic": return "text-purple-400";
       case "legendary": return "text-amber-400";
+      case "mythology": return "text-red-500";
       default: return "text-gray-400";
     }
   };

@@ -32,7 +32,10 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     // 生产模式：加载打包后的文件
-    const indexPath = path.join(__dirname, '../dist/index.html');
+    // 在打包后的 app 中，__dirname 指向 app.asar/electron/
+    // 需要使用 app.getAppPath() 获取正确路径
+    const appPath = app.getAppPath();
+    const indexPath = path.join(appPath, 'dist', 'index.html');
     console.log('生产模式：加载', indexPath);
     mainWindow.loadFile(indexPath).catch((err) => {
       console.error('本地文件加载失败:', err.message);

@@ -26,6 +26,7 @@ import SpectateView from "./SpectateView";
 import { supabase } from "@/integrations/supabase/client";
 import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
 import { toast } from "sonner";
+import logoDashboard from "@/assets/logo-dashboard.jpg";
 interface DashboardProps {
   grade: 7 | 8;
 }
@@ -199,7 +200,7 @@ const Dashboard = ({
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src="/lovable-uploads/0bbf2496-053c-4e4b-b122-9d2f4cc43b4b.jpg" />
+              <img alt="狄邦单词通" className="w-10 h-10 rounded-lg shadow-md" src={logoDashboard} />
               <div>
                 <h1 className="font-gaming text-xl text-glow-purple">狄邦单词通</h1>
                 <div className="flex items-center gap-2 mt-1">

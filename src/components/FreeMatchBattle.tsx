@@ -191,7 +191,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     setMatchStatus("found");
     sounds.playMatchFound();
     
-    setTimeout(() => setMatchStatus("playing"), 2000);
+    setTimeout(() => setMatchStatus("playing"), 8000);
   };
 
   // Try to join an existing free match (cross-grade)
@@ -244,7 +244,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
         sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 2000);
+        setTimeout(() => setMatchStatus("playing"), 8000);
         return true;
       } else {
         console.log("Failed to join free match:", matchToJoin.id, joinError?.message);
@@ -329,7 +329,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
             setMatchStatus("found");
             sounds.playMatchFound();
-            setTimeout(() => setMatchStatus("playing"), 2000);
+            setTimeout(() => setMatchStatus("playing"), 8000);
             isJoiningRef.current = false;
             return;
           }
@@ -448,7 +448,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       setWaitingMatchId(null);
       setMatchStatus("found");
       sounds.playMatchFound();
-      setTimeout(() => setMatchStatus("playing"), 2000);
+      setTimeout(() => setMatchStatus("playing"), 8000);
     };
 
     // Realtime channel for database changes
@@ -1253,30 +1253,97 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   // Found state
   if (matchStatus === "found") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center animate-fade-in">
-          <div className="flex items-center justify-center gap-8 mb-8">
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-4 overflow-hidden relative">
+        {/* Background energy effects */}
+        <div className="absolute inset-0 overflow-hidden">
+          {/* Left side glow */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-96 h-96 bg-neon-cyan/20 rounded-full blur-3xl animate-pulse" />
+          {/* Right side glow */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-96 h-96 bg-neon-green/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+          {/* Center explosion */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/10 rounded-full blur-2xl animate-vs-pulse" />
+        </div>
+
+        <div className="w-full max-w-5xl relative z-10">
+          <h2 className="font-gaming text-3xl mb-8 text-glow-cyan text-center animate-slide-up">
+            ⚔️ 对手找到！⚔️
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center justify-items-center">
+            {/* My Profile Card */}
             <PlayerBattleCard 
-              profile={profile}
+              profile={profile ? {
+                id: profile.id,
+                username: profile.username,
+                level: profile.level,
+                rank_tier: profile.rank_tier,
+                rank_stars: profile.rank_stars,
+                wins: profile.wins,
+                losses: profile.losses,
+                avatar_url: profile.avatar_url,
+              } : null}
               variant="left"
             />
-            
-            <div className="relative">
-              <div className="w-16 h-16 bg-gradient-to-br from-neon-cyan to-neon-green rounded-full flex items-center justify-center animate-pulse">
-                <Swords className="w-8 h-8 text-primary-foreground" />
+
+            {/* VS - Dramatic center animation */}
+            <div className="flex flex-col items-center justify-center py-4 md:py-8 relative">
+              {/* Outer rings */}
+              <div className="absolute w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-accent/30 animate-energy-ring" />
+              <div className="absolute w-32 h-32 md:w-40 md:h-40 rounded-full border border-accent/20 animate-energy-ring" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
+              
+              {/* Sparks */}
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-2 h-2 bg-accent rounded-full animate-spark"
+                  style={{
+                    left: `${50 + 40 * Math.cos((i * 45 * Math.PI) / 180)}%`,
+                    top: `${50 + 40 * Math.sin((i * 45 * Math.PI) / 180)}%`,
+                    animationDelay: `${i * 0.15}s`,
+                  }}
+                />
+              ))}
+              
+              {/* VS badge */}
+              <div className="animate-vs-appear">
+                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-neon-cyan via-neon-green to-accent flex items-center justify-center shadow-2xl animate-vs-pulse">
+                  <span className="font-gaming text-3xl md:text-4xl text-background drop-shadow-lg">VS</span>
+                </div>
               </div>
-              <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-gaming text-lg whitespace-nowrap text-glow-cyan">
-                VS
-              </span>
+              
+              <p className="text-muted-foreground mt-4 md:mt-6 text-sm font-gaming animate-pulse">比赛即将开始...</p>
+              
+              {/* Loading dots */}
+              <div className="flex gap-2 mt-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div 
+                    key={i} 
+                    className="w-2 h-2 rounded-full bg-neon-cyan"
+                    style={{ 
+                      animation: 'bounce 1s infinite',
+                      animationDelay: `${i * 0.1}s` 
+                    }}
+                  />
+                ))}
+              </div>
             </div>
-            
+
+            {/* Opponent Profile Card */}
             <PlayerBattleCard 
-              profile={opponent}
+              profile={opponent ? {
+                id: opponent.id,
+                username: opponent.username,
+                level: opponent.level,
+                rank_tier: opponent.rank_tier,
+                rank_stars: opponent.rank_stars,
+                wins: opponent.wins || 0,
+                losses: opponent.losses || 0,
+                avatar_url: opponent.avatar_url,
+                isAI: opponent.isAI,
+              } : null}
               variant="right"
             />
           </div>
-          
-          <p className="text-muted-foreground animate-pulse">对战即将开始...</p>
         </div>
       </div>
     );

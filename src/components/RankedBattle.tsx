@@ -264,7 +264,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             
             // Show VS screen briefly before starting
             setMatchStatus("found");
-            setTimeout(() => setMatchStatus("playing"), 2000);
+            setTimeout(() => setMatchStatus("playing"), 8000);
           }
         });
     }
@@ -426,7 +426,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setMatchStatus("found");
     sounds.playMatchFound();
     
-    setTimeout(() => setMatchStatus("playing"), 2000);
+    setTimeout(() => setMatchStatus("playing"), 8000);
   };
 
   // Try to join an existing match (called once at start)
@@ -486,7 +486,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         setMatchStatus("found");
         sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 2000);
+        setTimeout(() => setMatchStatus("playing"), 8000);
         return true;
       } else {
         console.log("Failed to join match:", matchToJoin.id, joinError?.message);
@@ -613,7 +613,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setWaitingMatchId(null);
       setMatchStatus("found");
       sounds.playMatchFound();
-      setTimeout(() => setMatchStatus("playing"), 2000);
+      setTimeout(() => setMatchStatus("playing"), 8000);
     };
 
     // Realtime channel for database changes

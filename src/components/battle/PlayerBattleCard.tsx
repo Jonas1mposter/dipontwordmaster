@@ -229,9 +229,21 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
           )}
           
           {equippedNameCard ? (
-            <div className="relative z-10 flex items-center gap-2 w-full">
+            <div className="relative z-10 flex items-center gap-3 w-full">
               {equippedNameCard.icon && (
-                <span className="text-xl">{equippedNameCard.icon}</span>
+                <div className="flex flex-col items-center shrink-0">
+                  <span className="text-2xl">{equippedNameCard.icon}</span>
+                  {equippedNameCard.rank_position && (
+                    <span className={cn(
+                      "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full",
+                      equippedNameCard.rarity === 'mythology' 
+                        ? "bg-white/20 text-white" 
+                        : "bg-black/20 text-white"
+                    )}>
+                      第{equippedNameCard.rank_position}名
+                    </span>
+                  )}
+                </div>
               )}
               <div className="flex-1 min-w-0">
                 <p className={cn(
@@ -240,11 +252,6 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
                 )}>
                   {equippedNameCard.name}
                 </p>
-                {equippedNameCard.rank_position && (
-                  <p className="text-xs text-white/70">
-                    #{equippedNameCard.rank_position}
-                  </p>
-                )}
               </div>
             </div>
           ) : (

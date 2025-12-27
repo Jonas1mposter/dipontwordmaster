@@ -205,9 +205,54 @@ const calculateRankChange = (
   return { newTier, newStars, starsChanged, promoted, demoted };
 };
 
+// Convert Tailwind gradient classes to CSS gradient
+const getGradientStyle = (gradientClasses: string) => {
+  if (gradientClasses.startsWith('linear-gradient') || gradientClasses.startsWith('radial-gradient')) {
+    return gradientClasses;
+  }
+  
+  const colorMap: Record<string, string> = {
+    'amber-500': '#f59e0b', 'amber-600': '#d97706', 'amber-400': '#fbbf24',
+    'yellow-400': '#facc15', 'yellow-500': '#eab308',
+    'purple-600': '#9333ea', 'purple-500': '#a855f7',
+    'pink-500': '#ec4899', 'pink-600': '#db2777',
+    'cyan-500': '#06b6d4', 'cyan-600': '#0891b2',
+    'blue-500': '#3b82f6', 'blue-600': '#2563eb',
+    'indigo-600': '#4f46e5', 'indigo-500': '#6366f1',
+    'red-500': '#ef4444', 'red-600': '#dc2626',
+    'green-500': '#22c55e', 'green-600': '#16a34a',
+    'orange-500': '#f97316', 'orange-600': '#ea580c',
+    'primary': 'hsl(265, 89%, 66%)', 'neon-pink': 'hsl(330, 85%, 60%)',
+    'neon-blue': 'hsl(200, 100%, 60%)', 'neon-cyan': 'hsl(180, 100%, 50%)',
+  };
+  
+  const fromMatch = gradientClasses.match(/from-([a-z]+-?\d*)/);
+  const viaMatch = gradientClasses.match(/via-([a-z]+-?\d*)/);
+  const toMatch = gradientClasses.match(/to-([a-z]+-?\d*)/);
+  
+  const fromColor = fromMatch ? colorMap[fromMatch[1]] || '#8b5cf6' : '#8b5cf6';
+  const viaColor = viaMatch ? colorMap[viaMatch[1]] : null;
+  const toColor = toMatch ? colorMap[toMatch[1]] || '#ec4899' : '#ec4899';
+  
+  if (viaColor) {
+    return `linear-gradient(135deg, ${fromColor} 0%, ${viaColor} 50%, ${toColor} 100%)`;
+  }
+  return `linear-gradient(135deg, ${fromColor} 0%, ${toColor} 100%)`;
+};
+
+interface EquippedNameCard {
+  id: string;
+  name: string;
+  background_gradient: string;
+  icon: string | null;
+  rank_position: number | null;
+}
+
 const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
+  const [myNameCard, setMyNameCard] = useState<EquippedNameCard | null>(null);
+  const [opponentNameCard, setOpponentNameCard] = useState<EquippedNameCard | null>(null);
   const [matchStatus, setMatchStatus] = useState<MatchStatus>("idle");
   const [matchId, setMatchId] = useState<string | null>(null);
   const [opponent, setOpponent] = useState<any>(null);
@@ -340,6 +385,76 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         });
     }
   }, [initialMatchId, profile, matchStatus]);
+
+  // Fetch equipped name cards for result display
+  useEffect(() => {
+    if (!profile) return;
+
+    const fetchMyNameCard = async () => {
+      const { data } = await supabase
+        .from("user_name_cards")
+        .select(`
+          rank_position,
+          name_cards:name_card_id (
+            id,
+            name,
+            background_gradient,
+            icon
+          )
+        `)
+        .eq("profile_id", profile.id)
+        .eq("is_equipped", true)
+        .single();
+
+      if (data && data.name_cards) {
+        const card = data.name_cards as any;
+        setMyNameCard({
+          id: card.id,
+          name: card.name,
+          background_gradient: card.background_gradient,
+          icon: card.icon,
+          rank_position: data.rank_position,
+        });
+      }
+    };
+
+    fetchMyNameCard();
+  }, [profile]);
+
+  // Fetch opponent's name card when opponent is set
+  useEffect(() => {
+    if (!opponent || opponent.isAI) return;
+
+    const fetchOpponentNameCard = async () => {
+      const { data } = await supabase
+        .from("user_name_cards")
+        .select(`
+          rank_position,
+          name_cards:name_card_id (
+            id,
+            name,
+            background_gradient,
+            icon
+          )
+        `)
+        .eq("profile_id", opponent.id)
+        .eq("is_equipped", true)
+        .single();
+
+      if (data && data.name_cards) {
+        const card = data.name_cards as any;
+        setOpponentNameCard({
+          id: card.id,
+          name: card.name,
+          background_gradient: card.background_gradient,
+          icon: card.icon,
+          rank_position: data.rank_position,
+        });
+      }
+    };
+
+    fetchOpponentNameCard();
+  }, [opponent]);
 
   // Track online presence
   useEffect(() => {
@@ -2113,10 +2228,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="text-center flex-1">
-                  <div className={cn(
-                    "w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
-                    isWinner && "ring-4 ring-accent/50"
-                  )}>
+                  <div 
+                    className={cn(
+                      "w-14 h-14 mx-auto rounded-xl flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
+                      isWinner && "ring-4 ring-accent/50"
+                    )}
+                    style={{
+                      background: myNameCard 
+                        ? getGradientStyle(myNameCard.background_gradient)
+                        : 'linear-gradient(135deg, hsl(265, 89%, 66%) 0%, hsl(330, 85%, 60%) 100%)'
+                    }}
+                  >
                     {profile?.username.charAt(0).toUpperCase()}
                   </div>
                   <p className="font-semibold mb-1">{profile?.username}</p>
@@ -2129,10 +2251,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 <div className="font-gaming text-2xl text-muted-foreground px-4">VS</div>
                 
                 <div className="text-center flex-1">
-                  <div className={cn(
-                    "w-14 h-14 mx-auto rounded-xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
-                    !isWinner && myScore !== opponentScore && "ring-4 ring-neon-blue/50"
-                  )}>
+                  <div 
+                    className={cn(
+                      "w-14 h-14 mx-auto rounded-xl flex items-center justify-center text-lg font-gaming text-primary-foreground mb-2",
+                      !isWinner && myScore !== opponentScore && "ring-4 ring-neon-blue/50"
+                    )}
+                    style={{
+                      background: opponentNameCard 
+                        ? getGradientStyle(opponentNameCard.background_gradient)
+                        : 'linear-gradient(135deg, hsl(200, 100%, 60%) 0%, hsl(180, 100%, 50%) 100%)'
+                    }}
+                  >
                     {opponent?.username?.charAt(0).toUpperCase() || "?"}
                   </div>
                   <p className="font-semibold mb-1">{opponent?.username || "对手"}</p>

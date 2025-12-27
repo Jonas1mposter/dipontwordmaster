@@ -4,31 +4,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBadgeChecker } from "@/hooks/useBadgeChecker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { BadgeIcon } from "@/components/ui/badge-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { 
-  Award, Lock, RefreshCw, HandMetal, Sprout, BookOpenCheck, Library, 
-  Compass, GraduationCap, Sword, Star, Medal, Crown, Flame, Gem, 
-  Trophy, Zap, Coins, LucideIcon 
-} from "lucide-react";
-
-const iconMap: Record<string, LucideIcon> = {
-  HandMetal,
-  Sprout,
-  BookOpenCheck,
-  Library,
-  Compass,
-  GraduationCap,
-  Sword,
-  Star,
-  Medal,
-  Crown,
-  Flame,
-  Gem,
-  Trophy,
-  Zap,
-  Coins,
-};
+import { Award, Lock, RefreshCw } from "lucide-react";
 
 interface BadgeItem {
   id: string;
@@ -175,14 +154,7 @@ const BadgeDisplay = () => {
                 badge.earned && "group-hover:scale-110"
               )}>
                 {badge.earned ? (
-                  (() => {
-                    const IconComponent = iconMap[badge.icon];
-                    return IconComponent ? (
-                      <IconComponent className="h-7 w-7 text-white drop-shadow-lg" />
-                    ) : (
-                      <span>{badge.icon}</span>
-                    );
-                  })()
+                  <BadgeIcon icon={badge.icon} className="h-7 w-7 text-white drop-shadow-lg" />
                 ) : (
                   <Lock className="h-6 w-6 text-muted-foreground" />
                 )}

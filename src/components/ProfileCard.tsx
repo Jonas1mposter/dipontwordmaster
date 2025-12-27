@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { BadgeIcon } from "@/components/ui/badge-icon";
 import { 
   User, Award, Crown, Coins, Swords, TrendingUp, 
   BookOpen, Flame, Star, Check, X, Palette, Upload, Loader2, Trash2, Pencil,
-  HandMetal, Sprout, BookOpenCheck, Library, Compass, GraduationCap, Sword, Medal, Gem, Trophy, Zap, LucideIcon,
   ChevronUp, Shield
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -38,28 +38,6 @@ interface NameCardData {
   rank_position?: number | null;
 }
 
-const iconMap: Record<string, LucideIcon> = {
-  User,
-  BookOpen,
-  Flame,
-  Coins,
-  Crown,
-  Award,
-  Swords,
-  TrendingUp,
-  Star,
-  HandMetal,
-  Sprout,
-  BookOpenCheck,
-  Library,
-  Compass,
-  GraduationCap,
-  Sword,
-  Medal,
-  Gem,
-  Trophy,
-  Zap,
-};
 
 // 预设背景选项
 const backgroundOptions = [
@@ -411,9 +389,6 @@ const ProfileCard = () => {
     }
   };
 
-  const getIconComponent = (iconName: string) => {
-    return iconMap[iconName] || Award;
-  };
 
   const getBackgroundStyle = () => {
     if (backgroundType === "image" && backgroundValue) {
@@ -549,10 +524,7 @@ const ProfileCard = () => {
                       )}
                     >
                       {badge ? (
-                        (() => {
-                          const IconComp = getIconComponent(badge.icon);
-                          return <IconComp className={cn("w-7 h-7", getRarityColor(badge.rarity))} />;
-                        })()
+                        <BadgeIcon icon={badge.icon} className={cn("w-7 h-7", getRarityColor(badge.rarity))} />
                       ) : (
                         <Award className="w-5 h-5 text-muted-foreground/50" />
                       )}
@@ -586,7 +558,6 @@ const ProfileCard = () => {
                         userBadges
                           .filter((b) => !equippedBadges.some((e) => e?.id === b.id) || b.id === badge?.id)
                           .map((b) => {
-                            const IconComp = getIconComponent(b.icon);
                             return (
                               <Card
                                 key={b.id}
@@ -601,7 +572,7 @@ const ProfileCard = () => {
                                     "w-12 h-12 rounded-full flex items-center justify-center",
                                     "bg-gradient-to-br from-primary/20 to-accent/20"
                                   )}>
-                                    <IconComp className={cn("w-6 h-6", getRarityColor(b.rarity))} />
+                                    <BadgeIcon icon={b.icon} className={cn("w-6 h-6", getRarityColor(b.rarity))} />
                                   </div>
                                   <div className="flex-1">
                                     <div className="font-semibold">{b.name}</div>
@@ -828,7 +799,6 @@ const ProfileCard = () => {
                   </div>
                 ) : (
                   userNameCards.map((card) => {
-                    const IconComp = getIconComponent(card.icon || "Award");
                     return (
                       <Card
                         key={card.id}
@@ -840,7 +810,7 @@ const ProfileCard = () => {
                         onClick={() => handleEquipNameCard(card)}
                       >
                         <CardContent className="p-4 flex items-center gap-3 text-white">
-                          <IconComp className="w-8 h-8" />
+                          <BadgeIcon icon={card.icon || "Award"} className="w-8 h-8" />
                           <div className="flex-1">
                             <div className="font-gaming text-lg">{card.name}</div>
                             <div className="text-sm opacity-80">{card.description}</div>

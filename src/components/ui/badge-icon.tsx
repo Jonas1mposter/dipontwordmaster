@@ -59,25 +59,27 @@ interface BadgeIconProps {
  * - Emoji characters (e.g., "🔥", "⭐", "🏆")
  */
 export const BadgeIcon = ({ icon, className, fallbackClassName }: BadgeIconProps) => {
-  // Check if it's a lucide icon name
-  const IconComponent = iconMap[icon];
+  // Handle null/undefined/empty string
+  if (!icon) {
+    return <Award className={cn("w-5 h-5", className)} />;
+  }
+
+  // Trim the icon name and check if it's a lucide icon name
+  const trimmedIcon = icon.trim();
+  const IconComponent = iconMap[trimmedIcon];
   if (IconComponent) {
     return <IconComponent className={cn("w-5 h-5", className)} />;
   }
 
   // Check if it's an emoji (common emoji Unicode ranges)
-  const isEmoji = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2300}-\u{23FF}]|[\u{2B50}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]/u.test(icon);
+  const isEmoji = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2300}-\u{23FF}]|[\u{2B50}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]/u.test(trimmedIcon);
   
   if (isEmoji) {
-    return <span className={cn("text-lg leading-none", className)}>{icon}</span>;
+    return <span className={cn("text-lg leading-none", className)}>{trimmedIcon}</span>;
   }
 
-  // Fallback: show first character
-  return (
-    <span className={cn("text-xs font-medium", fallbackClassName || className)}>
-      {icon.charAt(0).toUpperCase()}
-    </span>
-  );
+  // Fallback: show Award icon instead of text
+  return <Award className={cn("w-5 h-5", className)} />;
 };
 
 /**

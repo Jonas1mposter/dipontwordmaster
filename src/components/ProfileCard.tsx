@@ -808,7 +808,7 @@ const ProfileCard = () => {
                 <div className="flex items-center gap-2 relative z-10">
                   {equippedNameCard ? (
                     <>
-                      <BadgeIcon icon={equippedNameCard.icon} className="w-6 h-6 text-white" />
+                      <BadgeIcon icon={equippedNameCard.icon || "Award"} className="w-6 h-6 text-white" />
                       <div>
                         <div className="text-sm font-gaming text-white">{equippedNameCard.name}</div>
                         {equippedNameCard.rank_position && (

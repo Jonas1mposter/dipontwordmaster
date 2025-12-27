@@ -131,6 +131,42 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
     }
   };
 
+  // Convert Tailwind gradient classes to CSS gradient
+  const getGradientStyle = (gradientClasses: string) => {
+    // If it's already a CSS gradient, use it directly
+    if (gradientClasses.startsWith('linear-gradient') || gradientClasses.startsWith('radial-gradient')) {
+      return gradientClasses;
+    }
+    
+    // Parse Tailwind gradient classes to CSS
+    const colorMap: Record<string, string> = {
+      'amber-500': '#f59e0b', 'amber-600': '#d97706', 'amber-400': '#fbbf24',
+      'yellow-400': '#facc15', 'yellow-500': '#eab308',
+      'purple-600': '#9333ea', 'purple-500': '#a855f7',
+      'pink-500': '#ec4899', 'pink-600': '#db2777',
+      'cyan-500': '#06b6d4', 'cyan-600': '#0891b2',
+      'blue-500': '#3b82f6', 'blue-600': '#2563eb',
+      'indigo-600': '#4f46e5', 'indigo-500': '#6366f1',
+      'red-500': '#ef4444', 'red-600': '#dc2626',
+      'green-500': '#22c55e', 'green-600': '#16a34a',
+      'orange-500': '#f97316', 'orange-600': '#ea580c',
+    };
+    
+    // Extract colors from class string
+    const fromMatch = gradientClasses.match(/from-([a-z]+-\d+)/);
+    const viaMatch = gradientClasses.match(/via-([a-z]+-\d+)/);
+    const toMatch = gradientClasses.match(/to-([a-z]+-\d+)/);
+    
+    const fromColor = fromMatch ? colorMap[fromMatch[1]] || '#8b5cf6' : '#8b5cf6';
+    const viaColor = viaMatch ? colorMap[viaMatch[1]] : null;
+    const toColor = toMatch ? colorMap[toMatch[1]] || '#ec4899' : '#ec4899';
+    
+    if (viaColor) {
+      return `linear-gradient(135deg, ${fromColor} 0%, ${viaColor} 50%, ${toColor} 100%)`;
+    }
+    return `linear-gradient(135deg, ${fromColor} 0%, ${toColor} 100%)`;
+  };
+
   // Generate 3 badge slots (empty or filled)
   const badgeSlots = [0, 1, 2].map(slot => {
     const badge = equippedBadges.find(b => b.slot === slot + 1);
@@ -220,7 +256,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
               : "border-border/30 bg-secondary/20"
           )}
           style={equippedNameCard ? {
-            background: equippedNameCard.background_gradient,
+            background: getGradientStyle(equippedNameCard.background_gradient),
           } : undefined}
         >
           {/* Mythology shimmer effect */}
@@ -232,7 +268,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
             <div className="relative z-10 flex items-center gap-3 w-full">
               {equippedNameCard.icon && (
                 <div className="flex flex-col items-center shrink-0">
-                  <span className="text-2xl">{equippedNameCard.icon}</span>
+                  <BadgeIcon icon={equippedNameCard.icon} className="w-8 h-8 text-white" />
                   {equippedNameCard.rank_position && (
                     <span className={cn(
                       "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full",

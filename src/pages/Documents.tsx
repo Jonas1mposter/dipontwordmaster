@@ -244,6 +244,9 @@ const DeliveryDoc = () => (
           <tr><td rowSpan={2}>激励系统 / Incentive System</td><td>每日任务 / Daily Quests</td><td>✅ 已完成 / Completed</td></tr>
           <tr><td>赛季通行证 / Season Pass</td><td>✅ 已完成 / Completed</td></tr>
           <tr><td>辅助功能 / Auxiliary</td><td>错词本 / Wrong Word Book</td><td>✅ 已完成 / Completed</td></tr>
+          <tr><td rowSpan={3}>应用商店 / App Store</td><td>iOS 手机版 / iOS Phone</td><td>📤 已提交审核 / Submitted for Review</td></tr>
+          <tr><td>iOS 平板版 / iOS Tablet (iPad)</td><td>📤 已提交审核 / Submitted for Review</td></tr>
+          <tr><td>macOS 电脑版 / macOS Desktop</td><td>📤 已提交审核 / Submitted for Review</td></tr>
         </tbody>
       </table>
     </section>

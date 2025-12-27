@@ -389,6 +389,38 @@ const ProfileCard = () => {
     }
   };
 
+  // Convert Tailwind gradient classes to CSS gradient for name cards
+  const getNameCardGradientStyle = (gradientClasses: string) => {
+    if (gradientClasses.startsWith('linear-gradient') || gradientClasses.startsWith('radial-gradient')) {
+      return gradientClasses;
+    }
+    
+    const colorMap: Record<string, string> = {
+      'amber-500': '#f59e0b', 'amber-600': '#d97706', 'amber-400': '#fbbf24',
+      'yellow-400': '#facc15', 'yellow-500': '#eab308',
+      'purple-600': '#9333ea', 'purple-500': '#a855f7',
+      'pink-500': '#ec4899', 'pink-600': '#db2777',
+      'cyan-500': '#06b6d4', 'cyan-600': '#0891b2',
+      'blue-500': '#3b82f6', 'blue-600': '#2563eb',
+      'indigo-600': '#4f46e5', 'indigo-500': '#6366f1',
+      'red-500': '#ef4444', 'red-600': '#dc2626',
+      'green-500': '#22c55e', 'green-600': '#16a34a',
+      'orange-500': '#f97316', 'orange-600': '#ea580c',
+    };
+    
+    const fromMatch = gradientClasses.match(/from-([a-z]+-\d+)/);
+    const viaMatch = gradientClasses.match(/via-([a-z]+-\d+)/);
+    const toMatch = gradientClasses.match(/to-([a-z]+-\d+)/);
+    
+    const fromColor = fromMatch ? colorMap[fromMatch[1]] || '#8b5cf6' : '#8b5cf6';
+    const viaColor = viaMatch ? colorMap[viaMatch[1]] : null;
+    const toColor = toMatch ? colorMap[toMatch[1]] || '#ec4899' : '#ec4899';
+    
+    if (viaColor) {
+      return `linear-gradient(135deg, ${fromColor} 0%, ${viaColor} 50%, ${toColor} 100%)`;
+    }
+    return `linear-gradient(135deg, ${fromColor} 0%, ${toColor} 100%)`;
+  };
 
   const getBackgroundStyle = () => {
     if (backgroundType === "image" && backgroundValue) {
@@ -764,17 +796,35 @@ const ProfileCard = () => {
           {/* 名片区域 */}
           <Dialog open={nameCardDialogOpen} onOpenChange={setNameCardDialogOpen}>
             <DialogTrigger asChild>
-              <div className="flex-1 p-4 cursor-pointer border-l border-border/50 hover:bg-secondary/30 transition-all">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-primary" />
-                  <div>
-                    <div className="text-xs text-muted-foreground">名片区</div>
-                    {equippedNameCard ? (
-                      <div className="text-sm font-medium text-primary">{equippedNameCard.name}</div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">可佩戴自己获得的名片</div>
-                    )}
-                  </div>
+              <div 
+                className={cn(
+                  "flex-1 p-4 cursor-pointer border-l border-border/50 hover:bg-secondary/30 transition-all",
+                  equippedNameCard && "relative overflow-hidden"
+                )}
+                style={equippedNameCard ? {
+                  background: getNameCardGradientStyle(equippedNameCard.background_gradient),
+                } : undefined}
+              >
+                <div className="flex items-center gap-2 relative z-10">
+                  {equippedNameCard ? (
+                    <>
+                      <BadgeIcon icon={equippedNameCard.icon} className="w-6 h-6 text-white" />
+                      <div>
+                        <div className="text-sm font-gaming text-white">{equippedNameCard.name}</div>
+                        {equippedNameCard.rank_position && (
+                          <div className="text-xs text-white/80">#{equippedNameCard.rank_position}</div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-5 h-5 text-primary" />
+                      <div>
+                        <div className="text-xs text-muted-foreground">名片区</div>
+                        <div className="text-sm text-muted-foreground">可佩戴自己获得的名片</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </DialogTrigger>

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useBadgeChecker } from "@/hooks/useBadgeChecker";
+import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import LeaderboardTabs from "./LeaderboardTabs";
@@ -23,10 +24,12 @@ import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import RankDisplay from "./RankDisplay";
 import SpectateView from "./SpectateView";
+import { ReconnectDialog } from "./ReconnectDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
+
 interface DashboardProps {
   grade: 7 | 8;
 }
@@ -55,6 +58,14 @@ const Dashboard = ({
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
   const [wrongWordsToReview, setWrongWordsToReview] = useState<any[] | null>(null);
   const [spectateMatchId, setSpectateMatchId] = useState<string | null>(null);
+  const [reconnectMatchId, setReconnectMatchId] = useState<string | null>(null);
+  const [reconnectMatchType, setReconnectMatchType] = useState<"ranked" | "free">("ranked");
+
+  // Check for active matches to reconnect
+  const { activeMatch, dismissMatch, clearActiveMatch } = useMatchReconnect({
+    profileId: profile?.id,
+    enabled: activeView === "home", // Only check when on home view
+  });
 
   // Empty placeholder for removed leaderboard fetch
 
@@ -91,6 +102,27 @@ const Dashboard = ({
     setActiveView("spectate");
   };
 
+  // Handle reconnect to match
+  const handleReconnect = () => {
+    if (!activeMatch) return;
+    
+    setReconnectMatchId(activeMatch.id);
+    setReconnectMatchType(activeMatch.type);
+    clearActiveMatch();
+    
+    if (activeMatch.type === "ranked") {
+      setActiveView("battle");
+    } else {
+      setActiveView("freematch");
+    }
+  };
+
+  // Handle dismiss reconnect
+  const handleDismissReconnect = async () => {
+    await dismissMatch();
+    toast.info("已放弃比赛");
+  };
+
   // Show spectate view
   if (activeView === "spectate" && spectateMatchId) {
     return <SpectateView matchId={spectateMatchId} onBack={() => {
@@ -120,13 +152,16 @@ const Dashboard = ({
           </div>
         </div>;
     }
+    // Use reconnectMatchId if available, otherwise friendBattleMatchId
+    const matchIdToUse = reconnectMatchId || friendBattleMatchId;
     return <RankedBattle onBack={() => {
       setActiveView("home");
       setRefreshKey(prev => prev + 1);
       refreshProfile();
       setFriendBattleMatchId(null);
+      setReconnectMatchId(null);
       setTimeout(() => checkAndAwardBadges(), 500);
-    }} initialMatchId={friendBattleMatchId} />;
+    }} initialMatchId={matchIdToUse} />;
   }
 
   // Show free match battle
@@ -154,8 +189,9 @@ const Dashboard = ({
       setActiveView("home");
       setRefreshKey(prev => prev + 1);
       refreshProfile();
+      setReconnectMatchId(null);
       setTimeout(() => checkAndAwardBadges(), 500);
-    }} />;
+    }} initialMatchId={reconnectMatchType === "free" ? reconnectMatchId : null} />;
   }
 
   // Wrong word review mode
@@ -342,6 +378,22 @@ const Dashboard = ({
             <BadgeDisplay />
           </div>}
       </main>
+
+      {/* Reconnect Dialog */}
+      {activeMatch && (
+        <ReconnectDialog
+          open={true}
+          matchType={activeMatch.type}
+          opponentName={activeMatch.opponentName}
+          opponentAvatar={activeMatch.opponentAvatar}
+          myScore={activeMatch.myScore}
+          opponentScore={activeMatch.opponentScore}
+          currentQuestion={activeMatch.currentQuestion}
+          timeRemaining={activeMatch.timeRemaining}
+          onReconnect={handleReconnect}
+          onDismiss={handleDismissReconnect}
+        />
+      )}
     </div>;
 };
 export default Dashboard;

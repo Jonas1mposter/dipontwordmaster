@@ -268,7 +268,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
             <div className="relative z-10 flex items-center gap-3 w-full">
               {equippedNameCard.icon && (
                 <div className="flex flex-col items-center shrink-0">
-                  <BadgeIcon icon={equippedNameCard.icon} className="w-8 h-8 text-white" />
+                  <BadgeIcon icon={equippedNameCard.icon || "Swords"} className="w-8 h-8 text-white" />
                   {equippedNameCard.rank_position && (
                     <span className={cn(
                       "text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded-full",

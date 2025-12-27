@@ -87,6 +87,9 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
   
+  // OPTIMIZED: Cache player position to avoid repeated DB queries
+  const [isPlayer1, setIsPlayer1] = useState<boolean | null>(null);
+  
   // Refs for realtime callbacks
   const myScoreRef = useRef(0);
   const myFinishedRef = useRef(false);
@@ -104,9 +107,10 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   useEffect(() => { opponentFinishedRef.current = opponentFinished; }, [opponentFinished]);
   useEffect(() => { activeMatchIdRef.current = matchId; }, [matchId]);
 
-  // Track online presence for free match (all grades)
+  // OPTIMIZED: Only track presence when in idle state to reduce connections
+  // Presence is only needed on the idle screen, not during matches
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || matchStatus !== "idle") return;
 
     const channel = supabase.channel(`free-match-lobby`, {
       config: { presence: { key: profile.id } }
@@ -124,7 +128,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             user_id: profile.id,
             username: profile.username,
             grade: profile.grade,
-            online_at: new Date().toISOString(),
           });
         }
       });
@@ -132,7 +135,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile]);
+  }, [profile, matchStatus]);
 
   // Fetch random words for the match (from all grades)
   const fetchMatchWords = useCallback(async () => {
@@ -185,6 +188,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     const aiGrade = Math.random() > 0.5 ? 7 : 8;
     
     setIsRealPlayer(false);
+    setIsPlayer1(true); // AI match, we're always player1
     setOpponent({
       id: "ai-opponent",
       username: aiName,
@@ -248,6 +252,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         setMatchId(matchToJoin.id);
         setOpponent(matchToJoin.player1);
         setIsRealPlayer(true);
+        setIsPlayer1(false); // We joined, so we're player2
         setWords(matchWords);
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
@@ -262,28 +267,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     return false;
   };
 
-  // Broadcast match request to other players (uses same channel name as matchmaking)
-  const broadcastMatchRequest = useCallback((matchId: string) => {
-    if (!profile) return;
-    
-    const channel = supabase.channel(`free-matchmaking-${profile.id}`);
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.send({
-          type: 'broadcast',
-          event: 'free_match_request',
-          payload: {
-            matchId,
-            playerId: profile.id,
-            username: profile.username,
-            grade: profile.grade,
-            timestamp: Date.now(),
-          }
-        });
-        // Channel will be cleaned up by the matchmaking useEffect
-      }
-    });
-  }, [profile]);
+  // OPTIMIZED: Removed separate broadcast function - now uses combined channel in matchmaking useEffect
 
   // Ref to prevent double-joining
   const isJoiningRef = useRef(false);
@@ -334,6 +318,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
             setMatchId(existingActiveMatch.id);
             setOpponent(opponentData);
             setIsRealPlayer(true);
+            setIsPlayer1(existingActiveMatch.player1_id === profile.id);
             setWords(matchWords);
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
             setMatchStatus("found");
@@ -384,7 +369,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
       
-      broadcastMatchRequest(newMatch.id);
+      // Broadcast is now handled via the combined matchmaking channel
       isJoiningRef.current = false;
 
     } catch (error) {
@@ -450,6 +435,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       setMatchId(matchData.id);
       setOpponent(opponentData);
       setIsRealPlayer(true);
+      // OPTIMIZED: Cache player position - if we're joining, we're player2
+      setIsPlayer1(matchData.player1_id === profile.id);
       setWords(matchWords);
       if (matchWords.length > 0) {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
@@ -731,39 +718,20 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         });
       }
       
-      // ALWAYS update database with current progress
-      try {
-        const { data: currentMatch } = await supabase
-          .from("ranked_matches")
-          .select("player1_id, player2_id")
-          .eq("id", matchId)
-          .single();
+      // OPTIMIZED: Use cached player position instead of querying DB every answer
+      if (isPlayer1 !== null) {
+        const isFinished = newQuestionIndex >= 10;
+        const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
         
-        if (currentMatch) {
-          const isPlayer1 = currentMatch.player1_id === profile.id;
-          const isPlayer2 = currentMatch.player2_id === profile.id;
-          const isFinished = newQuestionIndex >= 10;
-          const encodedProgress = newScore + (newQuestionIndex * 100) + (isFinished ? 10000 : 0);
-          
-          console.log("Free match - Updating progress:", { isPlayer1, isPlayer2, encodedProgress, matchId });
-          
-          if (isPlayer1 || isPlayer2) {
-            const { error } = await supabase
-              .from("ranked_matches")
-              .update({
-                [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
-              })
-              .eq("id", matchId);
-            
-            if (error) {
-              console.error("Failed to update free match progress:", error);
-            }
-          } else {
-            console.error("Player not found in free match!", { profileId: profile.id, player1: currentMatch.player1_id, player2: currentMatch.player2_id });
-          }
-        }
-      } catch (err) {
-        console.error("Error updating free match progress:", err);
+        supabase
+          .from("ranked_matches")
+          .update({
+            [isPlayer1 ? "player1_score" : "player2_score"]: encodedProgress,
+          })
+          .eq("id", matchId)
+          .then(({ error }) => {
+            if (error) console.error("Failed to update free match progress:", error);
+          });
       }
     }
 
@@ -887,28 +855,17 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       sounds.playDefeat();
     }
 
-    if (profile && matchId) {
-      // Check which player we are to correctly update scores
-      const { data: currentMatch } = await supabase
+    if (profile && matchId && isPlayer1 !== null) {
+      // OPTIMIZED: Use cached player position instead of querying DB
+      await supabase
         .from("ranked_matches")
-        .select("player1_id, player2_id")
-        .eq("id", matchId)
-        .single();
-      
-      if (currentMatch) {
-        const isPlayer1 = currentMatch.player1_id === profile.id;
-        
-        await supabase
-          .from("ranked_matches")
-          .update({
-            // Use correct field based on player position
-            [isPlayer1 ? "player1_score" : "player2_score"]: myFinalScore,
-            winner_id: won ? profile.id : (tie ? null : opponent?.id),
-            status: "completed",
-            ended_at: new Date().toISOString(),
-          })
-          .eq("id", matchId);
-      }
+        .update({
+          [isPlayer1 ? "player1_score" : "player2_score"]: myFinalScore,
+          winner_id: won ? profile.id : (tie ? null : opponent?.id),
+          status: "completed",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", matchId);
 
       // Free match gives bonus XP for cross-grade battle
       const xpGained = won ? 6 : 2;
@@ -985,30 +942,26 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         }
       });
 
-    // Polling fallback for opponent progress
+    // OPTIMIZED: Polling fallback for opponent progress - uses cached isPlayer1
     const pollInterval = setInterval(async () => {
-      if (!isActive || matchFinishedRef.current) return;
+      if (!isActive || matchFinishedRef.current || isPlayer1 === null) return;
       
       const { data: matchData } = await supabase
         .from("ranked_matches")
-        .select("player1_id, player2_id, player1_score, player2_score, status")
+        .select("player1_score, player2_score, status")
         .eq("id", matchId)
         .single();
       
       if (!matchData) return;
       
-      const isPlayer1 = matchData.player1_id === profile.id;
+      // Use cached isPlayer1 instead of querying player1_id again
       const rawOpponentProgress = isPlayer1 ? matchData.player2_score : matchData.player1_score;
-      
-      console.log("Polling free match progress:", { isPlayer1, rawOpponentProgress, player1_score: matchData.player1_score, player2_score: matchData.player2_score });
       
       // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
       const opponentHasFinished = rawOpponentProgress >= 10000;
       const progressWithoutFinished = opponentHasFinished ? rawOpponentProgress - 10000 : rawOpponentProgress;
       const opponentQuestionIndex = Math.floor(progressWithoutFinished / 100);
       const actualOpponentScore = progressWithoutFinished % 100;
-      
-      console.log("Decoded opponent progress:", { opponentHasFinished, opponentQuestionIndex, actualOpponentScore });
       
       // Update opponent's current progress (visible progress bar)
       if (opponentQuestionIndex > 0 && opponentQuestionIndex !== opponentProgress) {
@@ -1017,7 +970,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       
       // If opponent has finished and we haven't marked them finished
       if (opponentHasFinished && !opponentFinishedRef.current) {
-        console.log("Polling: Free match opponent finished with score:", actualOpponentScore);
         setOpponentFinished(true);
         setOpponentFinalScore(actualOpponentScore);
         
@@ -1028,7 +980,6 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       
       // Check if match was marked completed by opponent
       if (matchData.status === "completed" && !matchFinishedRef.current) {
-        console.log("Match marked completed, finalizing...");
         setOpponentFinished(true);
         if (actualOpponentScore > 0 || opponentHasFinished) {
           setOpponentFinalScore(actualOpponentScore);
@@ -1038,7 +989,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
-    }, 4000); // Poll every 4 seconds (optimized for server capacity)
+    }, 4000); // Poll every 4 seconds
 
     return () => {
       isActive = false;
@@ -1046,7 +997,7 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [matchStatus, matchId, profile, isRealPlayer]);
+  }, [matchStatus, matchId, profile, isRealPlayer, isPlayer1, opponentProgress]);
 
 
   // Timer
@@ -1561,7 +1512,19 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
                 setOpponentScore(0);
                 setTimeLeft(60);
                 setSelectedOption(null);
-              }} 
+                setIsPlayer1(null);
+                setIsRealPlayer(false);
+                setOpponentFinished(false);
+                setOpponentFinalScore(null);
+                setMyFinished(false);
+                setMatchFinished(false);
+                setWaitingForOpponent(false);
+                setOpponentProgress(0);
+                // Reset locks
+                globalMatchLockRef.current = false;
+                matchJoinedRef.current = false;
+                isJoiningRef.current = false;
+              }}
               className="flex-1 bg-gradient-to-r from-neon-cyan to-neon-green"
             >
               再来一局

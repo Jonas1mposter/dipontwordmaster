@@ -1182,9 +1182,31 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     console.log("Finishing match:", { isPlayer1, myFinalScore, theirFinalScore });
     
     if (isPlayer1) {
-      // Player 1 is the authority - update winner_id and status
-      const won = myFinalScore > theirFinalScore;
-      const tie = myFinalScore === theirFinalScore;
+      // Player 1 is the authority - but first get the latest opponent score from DB
+      // to ensure we have the correct score for winner calculation
+      const { data: latestMatch } = await supabase
+        .from("ranked_matches")
+        .select("player2_score")
+        .eq("id", matchId)
+        .single();
+      
+      // Decode player2's score from the database
+      let actualOpponentScore = theirFinalScore;
+      if (latestMatch) {
+        const rawScore = latestMatch.player2_score;
+        if (rawScore >= 10000) {
+          actualOpponentScore = (rawScore - 10000) % 100;
+        } else if (rawScore >= 100) {
+          actualOpponentScore = rawScore % 100;
+        } else {
+          actualOpponentScore = rawScore;
+        }
+      }
+      
+      console.log("Player1 finishing match:", { myFinalScore, actualOpponentScore, rawFromBroadcast: theirFinalScore });
+      
+      const won = myFinalScore > actualOpponentScore;
+      const tie = myFinalScore === actualOpponentScore;
       const winnerId = won ? profile.id : (tie ? null : currentMatch.player2_id);
       
       await supabase
@@ -1197,8 +1219,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         })
         .eq("id", matchId);
       
-      // Complete match with our known scores
-      await completeMatch(myFinalScore, theirFinalScore, isPlayer1);
+      // Complete match with the correct opponent score
+      await completeMatch(myFinalScore, actualOpponentScore, isPlayer1);
     } else {
       // Player 2 - only update our score, then wait for authoritative result
       await supabase

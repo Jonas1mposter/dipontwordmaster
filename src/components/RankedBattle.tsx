@@ -1006,7 +1006,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     await completeMatch(playerScore, simulatedOpponentScore);
   };
 
-  // Finish match with real player
+  // Finish match with real player - FIXED: Only player1 updates winner_id to prevent double-win
   const finishMatchWithRealPlayer = async (myFinalScore: number, theirFinalScore: number) => {
     if (matchFinished) return;
     setMatchFinished(true);
@@ -1014,19 +1014,108 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setMatchStatus("finished");
     setWaitingForOpponent(false);
     
-    await completeMatch(myFinalScore, theirFinalScore);
+    if (!profile || !matchId) return;
+    
+    // Get current match to determine if we're player1 or player2
+    const { data: currentMatch } = await supabase
+      .from("ranked_matches")
+      .select("player1_id, player2_id")
+      .eq("id", matchId)
+      .single();
+    
+    if (!currentMatch) {
+      console.error("Could not fetch match data");
+      return;
+    }
+    
+    const isPlayer1 = currentMatch.player1_id === profile.id;
+    console.log("Finishing match:", { isPlayer1, myFinalScore, theirFinalScore });
+    
+    if (isPlayer1) {
+      // Player 1 is the authority - update winner_id and status
+      const won = myFinalScore > theirFinalScore;
+      const tie = myFinalScore === theirFinalScore;
+      const winnerId = won ? profile.id : (tie ? null : currentMatch.player2_id);
+      
+      await supabase
+        .from("ranked_matches")
+        .update({
+          player1_score: myFinalScore,
+          winner_id: winnerId,
+          status: "completed",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("id", matchId);
+      
+      // Complete match with our known scores
+      await completeMatch(myFinalScore, theirFinalScore, isPlayer1);
+    } else {
+      // Player 2 - only update our score, then wait for authoritative result
+      await supabase
+        .from("ranked_matches")
+        .update({
+          player2_score: myFinalScore,
+        })
+        .eq("id", matchId);
+      
+      // Wait a bit for player1 to finalize, then fetch the authoritative result
+      setTimeout(async () => {
+        const { data: finalMatch } = await supabase
+          .from("ranked_matches")
+          .select("player1_score, player2_score, winner_id, player1_id")
+          .eq("id", matchId)
+          .single();
+        
+        if (finalMatch) {
+          // Decode player1's score if it's encoded
+          let player1FinalScore = finalMatch.player1_score;
+          if (player1FinalScore >= 10000) {
+            player1FinalScore = (player1FinalScore - 10000) % 100;
+          } else if (player1FinalScore >= 100) {
+            player1FinalScore = player1FinalScore % 100;
+          }
+          
+          // Use authoritative winner_id from database
+          const authoritativeWon = finalMatch.winner_id === profile.id;
+          const authoritativeTie = finalMatch.winner_id === null;
+          
+          // Complete match with authoritative result
+          await completeMatch(myFinalScore, player1FinalScore, isPlayer1, authoritativeWon, authoritativeTie);
+        } else {
+          // Fallback: use our own calculation
+          await completeMatch(myFinalScore, theirFinalScore, isPlayer1);
+        }
+      }, 1500);
+    }
   };
 
   // Complete match and update scores
-  const completeMatch = async (playerScore: number, opponentScoreValue: number) => {
+  const completeMatch = async (
+    playerScore: number, 
+    opponentScoreValue: number, 
+    isPlayer1: boolean = true,
+    authoritativeWon?: boolean,
+    authoritativeTie?: boolean
+  ) => {
     setOpponentScore(opponentScoreValue);
     
     const currentTier = (profile?.rank_tier || "bronze") as RankTier;
     const tierIndex = TIER_ORDER.indexOf(currentTier);
     
-    // Compare scores - whoever got more correct wins
-    const won = playerScore > opponentScoreValue;
-    const tie = playerScore === opponentScoreValue;
+    // Determine win/loss - use authoritative result if provided (for player2)
+    let won: boolean;
+    let tie: boolean;
+    
+    if (authoritativeWon !== undefined && authoritativeTie !== undefined) {
+      // Player2: use authoritative result from database
+      won = authoritativeWon;
+      tie = authoritativeTie;
+    } else {
+      // Player1 or AI match: calculate ourselves
+      won = playerScore > opponentScoreValue;
+      tie = playerScore === opponentScoreValue;
+    }
+    
     setIsWinner(won);
 
     // Calculate rank changes
@@ -1048,18 +1137,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
 
     if (profile && matchId) {
-      // Update match result
-      await supabase
-        .from("ranked_matches")
-        .update({
-          player1_score: playerScore,
-          player2_score: opponentScoreValue,
-          winner_id: won ? profile.id : (tie ? null : opponent?.id),
-          status: "completed",
-          ended_at: new Date().toISOString(),
-        })
-        .eq("id", matchId);
-
       // Update daily quest progress for battle wins
       if (won) {
         const today = new Date().toISOString().split("T")[0];

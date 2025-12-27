@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { BadgeIcon } from "@/components/ui/badge-icon";
 import { cn } from "@/lib/utils";
-import { icons } from "lucide-react";
 
 interface PlayerBattleCardProps {
   profile: {
@@ -131,23 +131,6 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
     }
   };
 
-  // Helper to render icon - handles both lucide icon names and emoji
-  const renderBadgeIcon = (iconName: string) => {
-    // Check if it's an emoji (starts with non-ASCII or is a single character emoji)
-    if (/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(iconName)) {
-      return <span className="text-lg">{iconName}</span>;
-    }
-    
-    // Try to get lucide icon by name
-    const IconComponent = icons[iconName as keyof typeof icons];
-    if (IconComponent) {
-      return <IconComponent className="w-5 h-5" />;
-    }
-    
-    // Fallback to text
-    return <span className="text-xs">{iconName.charAt(0)}</span>;
-  };
-
   // Generate 3 badge slots (empty or filled)
   const badgeSlots = [0, 1, 2].map(slot => {
     const badge = equippedBadges.find(b => b.slot === slot + 1);
@@ -205,7 +188,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
               )}
               title={badge?.name || "空勋章槽"}
             >
-              {badge ? renderBadgeIcon(badge.icon) : <span className="text-muted-foreground">○</span>}
+              {badge ? <BadgeIcon icon={badge.icon} className="w-5 h-5" /> : <span className="text-muted-foreground">○</span>}
             </div>
           ))}
         </div>

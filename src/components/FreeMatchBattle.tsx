@@ -50,11 +50,12 @@ interface Word {
 
 interface FreeMatchBattleProps {
   onBack: () => void;
+  initialMatchId?: string | null;
 }
 
 type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 
-const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
+const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
   const [matchStatus, setMatchStatus] = useState<MatchStatus>("idle");
@@ -107,6 +108,79 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
   useEffect(() => { opponentFinishedRef.current = opponentFinished; }, [opponentFinished]);
   useEffect(() => { activeMatchIdRef.current = matchId; }, [matchId]);
 
+  // Handle reconnect to an existing match
+  const reconnectInitialized = useRef(false);
+  
+  useEffect(() => {
+    if (initialMatchId && profile && matchStatus === "idle" && !reconnectInitialized.current) {
+      reconnectInitialized.current = true;
+      
+      // Fetch match data for reconnect
+      supabase
+        .from("ranked_matches")
+        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+        .eq("id", initialMatchId)
+        .single()
+        .then(async ({ data: match }) => {
+          if (match) {
+            const isP1 = match.player1_id === profile.id;
+            setIsPlayer1(isP1);
+            const opp = isP1 ? match.player2 : match.player1;
+            setOpponent(opp);
+            setIsRealPlayer(true);
+            setMatchId(initialMatchId);
+            
+            const matchWords = (match.words as any[]).map((w: any) => ({
+              id: w.id,
+              word: w.word,
+              meaning: w.meaning,
+              phonetic: w.phonetic,
+              grade: w.grade || 7,
+            }));
+            setWords(matchWords);
+            
+            // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
+            const rawMyProgress = isP1 ? match.player1_score : match.player2_score;
+            const myProgressWithoutFinished = rawMyProgress >= 10000 ? rawMyProgress - 10000 : rawMyProgress;
+            const myQuestionIndex = Math.floor(myProgressWithoutFinished / 100);
+            const myActualScore = myProgressWithoutFinished % 100;
+            
+            // Calculate remaining time based on match start time
+            const matchAge = Date.now() - new Date(match.created_at).getTime();
+            const totalTime = 60; // 60 seconds for free match
+            const elapsedSeconds = Math.floor(matchAge / 1000);
+            const remainingTime = Math.max(10, totalTime - elapsedSeconds);
+            
+            if (match.status === "playing") {
+              console.log("Reconnecting to free match:", { myQuestionIndex, myActualScore, remainingTime });
+              
+              setCurrentWordIndex(myQuestionIndex);
+              setMyScore(myActualScore);
+              setTimeLeft(remainingTime);
+              
+              // Generate options for current word
+              if (matchWords.length > myQuestionIndex) {
+                const currentWord = matchWords[myQuestionIndex];
+                const opts = generateOptions(currentWord.meaning, matchWords);
+                setOptions(opts);
+              }
+              
+              // Skip VS screen, go straight to playing
+              setMatchStatus("playing");
+              toast.success("已重新连接到比赛");
+            } else {
+              // Match not in playing state, just set up normally
+              if (matchWords.length > 0) {
+                const opts = generateOptions(matchWords[0].meaning, matchWords);
+                setOptions(opts);
+              }
+              setMatchStatus("found");
+              setTimeout(() => setMatchStatus("playing"), 5000);
+            }
+          }
+        });
+    }
+  }, [initialMatchId, profile, matchStatus]);
   // OPTIMIZED: Only track presence when in idle state to reduce connections
   // Presence is only needed on the idle screen, not during matches
   useEffect(() => {

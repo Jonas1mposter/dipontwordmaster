@@ -261,7 +261,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     opponentFinishedRef.current = opponentFinished;
   }, [myFinished, matchFinished, myScore, opponentFinished]);
 
-  // Handle initial match from friend challenge - only run once when idle
+  // Handle initial match from friend challenge or reconnect - only run once when idle
   const friendMatchInitialized = useRef(false);
   
   useEffect(() => {
@@ -269,7 +269,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     if (initialMatchId && profile && matchStatus === "idle" && !friendMatchInitialized.current) {
       friendMatchInitialized.current = true;
       setMatchId(initialMatchId);
-      setIsRealPlayer(true); // Friend battles are always real player matches
+      setIsRealPlayer(true); // Friend battles and reconnects are always real player matches
       
       // Fetch match data
       supabase
@@ -279,7 +279,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .single()
         .then(({ data: match }) => {
           if (match) {
-            const opp = match.player1_id === profile.id ? match.player2 : match.player1;
+            const isPlayer1 = match.player1_id === profile.id;
+            const opp = isPlayer1 ? match.player2 : match.player1;
             setOpponent(opp);
             const matchWords = (match.words as any[]).map((w: any) => ({
               id: w.id,
@@ -293,14 +294,48 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             const types = generateQuizTypes();
             setQuizTypes(types);
             
-            // Setup first question with its quiz type
-            if (matchWords.length > 0) {
-              setupQuizForWord(matchWords[0], types[0], matchWords);
-            }
+            // Check if this is a reconnect (match already in progress)
+            const rawMyProgress = isPlayer1 ? match.player1_score : match.player2_score;
+            const myHasProgress = rawMyProgress > 0;
             
-            // Show VS screen briefly before starting
-            setMatchStatus("found");
-            setTimeout(() => setMatchStatus("playing"), 8000);
+            // Decode progress: encodedProgress = score + (questionIndex * 100) + (finished ? 10000 : 0)
+            const myProgressWithoutFinished = rawMyProgress >= 10000 ? rawMyProgress - 10000 : rawMyProgress;
+            const myQuestionIndex = Math.floor(myProgressWithoutFinished / 100);
+            const myActualScore = myProgressWithoutFinished % 100;
+            
+            // Calculate remaining time based on match start time
+            const matchAge = Date.now() - new Date(match.created_at).getTime();
+            const totalTime = 150; // 150 seconds for ranked
+            const elapsedSeconds = Math.floor(matchAge / 1000);
+            const remainingTime = Math.max(10, totalTime - elapsedSeconds); // At least 10 seconds
+            
+            if (myHasProgress && match.status === "playing") {
+              // This is a reconnect - restore progress
+              console.log("Reconnecting to match:", { myQuestionIndex, myActualScore, remainingTime });
+              
+              setCurrentWordIndex(myQuestionIndex);
+              setMyScore(myActualScore);
+              setTimeLeft(remainingTime);
+              
+              // Setup current question with its quiz type
+              if (matchWords.length > myQuestionIndex) {
+                setupQuizForWord(matchWords[myQuestionIndex], types[myQuestionIndex], matchWords);
+              }
+              
+              // Skip VS screen, go straight to playing
+              setMatchStatus("playing");
+              toast.success("已重新连接到比赛");
+            } else {
+              // Normal friend battle start
+              // Setup first question with its quiz type
+              if (matchWords.length > 0) {
+                setupQuizForWord(matchWords[0], types[0], matchWords);
+              }
+              
+              // Show VS screen briefly before starting
+              setMatchStatus("found");
+              setTimeout(() => setMatchStatus("playing"), 8000);
+            }
           }
         });
     }

@@ -845,44 +845,123 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
     
     setOpponentScore(theirFinalScore);
     
-    const won = myFinalScore > theirFinalScore;
-    const tie = myFinalScore === theirFinalScore;
-    setIsWinner(won);
-
-    if (won) {
-      sounds.playVictory();
-    } else if (!tie) {
-      sounds.playDefeat();
-    }
-
+    // IMPORTANT: Player1 is the authority for determining winner
+    // Player2 should read the final result from DB to avoid race conditions
     if (profile && matchId && isPlayer1 !== null) {
-      // OPTIMIZED: Use cached player position instead of querying DB
-      await supabase
-        .from("ranked_matches")
-        .update({
-          [isPlayer1 ? "player1_score" : "player2_score"]: myFinalScore,
-          winner_id: won ? profile.id : (tie ? null : opponent?.id),
-          status: "completed",
-          ended_at: new Date().toISOString(),
-        })
-        .eq("id", matchId);
+      if (isPlayer1) {
+        // Player1 is the authority - set winner and complete match
+        const won = myFinalScore > theirFinalScore;
+        const tie = myFinalScore === theirFinalScore;
+        setIsWinner(won);
 
-      // Free match gives bonus XP for cross-grade battle
-      const xpGained = won ? 6 : 2;
-      const coinsGained = won ? 3 : 1;
-
-      await updateProfileWithXp(
-        profile.id,
-        profile.level,
-        profile.xp,
-        profile.xp_to_next_level,
-        xpGained,
-        {
-          coins: profile.coins + coinsGained,
-          wins: won ? profile.wins + 1 : profile.wins,
-          losses: won ? profile.losses : profile.losses + 1,
+        if (won) {
+          sounds.playVictory();
+        } else if (!tie) {
+          sounds.playDefeat();
         }
-      );
+
+        await supabase
+          .from("ranked_matches")
+          .update({
+            player1_score: myFinalScore,
+            winner_id: won ? profile.id : (tie ? null : opponent?.id),
+            status: "completed",
+            ended_at: new Date().toISOString(),
+          })
+          .eq("id", matchId);
+
+        // Award XP based on result
+        const xpGained = won ? 6 : 2;
+        const coinsGained = won ? 3 : 1;
+
+        await updateProfileWithXp(
+          profile.id,
+          profile.level,
+          profile.xp,
+          profile.xp_to_next_level,
+          xpGained,
+          {
+            coins: profile.coins + coinsGained,
+            wins: won ? profile.wins + 1 : profile.wins,
+            losses: won ? profile.losses : profile.losses + 1,
+          }
+        );
+      } else {
+        // Player2 - update our score first, then read authoritative result from DB
+        await supabase
+          .from("ranked_matches")
+          .update({
+            player2_score: myFinalScore,
+          })
+          .eq("id", matchId);
+
+        // Wait a moment for player1 to finalize, then read result
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const { data: finalMatch } = await supabase
+          .from("ranked_matches")
+          .select("player1_score, player2_score, winner_id, status")
+          .eq("id", matchId)
+          .single();
+
+        if (finalMatch) {
+          // Use authoritative scores from DB
+          const dbMyScore = finalMatch.player2_score;
+          const dbOpponentScore = finalMatch.player1_score;
+          setOpponentScore(dbOpponentScore);
+          
+          // Determine win based on DB data or winner_id
+          let won = false;
+          let tie = false;
+          
+          if (finalMatch.winner_id) {
+            won = finalMatch.winner_id === profile.id;
+          } else if (finalMatch.status === "completed") {
+            // If no winner_id, it's a tie
+            tie = true;
+          } else {
+            // Fallback to local calculation if DB not yet updated
+            won = dbMyScore > dbOpponentScore;
+            tie = dbMyScore === dbOpponentScore;
+          }
+          
+          setIsWinner(won);
+
+          if (won) {
+            sounds.playVictory();
+          } else if (!tie) {
+            sounds.playDefeat();
+          }
+
+          // Award XP based on result
+          const xpGained = won ? 6 : 2;
+          const coinsGained = won ? 3 : 1;
+
+          await updateProfileWithXp(
+            profile.id,
+            profile.level,
+            profile.xp,
+            profile.xp_to_next_level,
+            xpGained,
+            {
+              coins: profile.coins + coinsGained,
+              wins: won ? profile.wins + 1 : profile.wins,
+              losses: won ? profile.losses : profile.losses + 1,
+            }
+          );
+        } else {
+          // Fallback if DB read fails
+          const won = myFinalScore > theirFinalScore;
+          const tie = myFinalScore === theirFinalScore;
+          setIsWinner(won);
+          
+          if (won) {
+            sounds.playVictory();
+          } else if (!tie) {
+            sounds.playDefeat();
+          }
+        }
+      }
 
       refreshProfile();
     }

@@ -19,8 +19,28 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs')
+      preload: path.join(__dirname, 'preload.cjs'),
+      // 允许 SVG 和内联样式正确渲染
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
+  });
+
+  // 设置 CSP 允许 inline SVG 和样式
+  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self' https: wss:; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' https://fonts.gstatic.com data:; " +
+          "img-src 'self' data: blob: https:; " +
+          "connect-src 'self' https: wss:;"
+        ]
+      }
+    });
   });
 
   if (isDev) {

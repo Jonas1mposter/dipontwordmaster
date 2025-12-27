@@ -1240,8 +1240,8 @@ const FreeMatchBattle = ({ onBack }: FreeMatchBattleProps) => {
         </div>
 
         <div className="w-full max-w-5xl relative z-10">
-          <h2 className="font-gaming text-3xl mb-8 text-glow-cyan text-center animate-slide-up">
-            ⚔️ 对手找到！⚔️
+          <h2 className="font-gaming text-3xl mb-8 text-glow-cyan text-center animate-slide-up flex items-center justify-center gap-3">
+            <Swords className="w-8 h-8" /> 对手找到！<Swords className="w-8 h-8" />
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center justify-items-center">

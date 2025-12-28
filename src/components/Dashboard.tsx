@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminRole } from "@/hooks/useAdminRole";
 import { useBadgeChecker } from "@/hooks/useBadgeChecker";
+import { useNameCardChecker } from "@/hooks/useNameCardChecker";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
@@ -49,6 +50,7 @@ const Dashboard = ({
   const {
     checkAndAwardBadges
   } = useBadgeChecker(profile);
+  const checkNameCards = useNameCardChecker(profile);
   const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
@@ -86,8 +88,11 @@ const Dashboard = ({
     setActiveView("home");
     setRefreshKey(prev => prev + 1);
     refreshProfile();
-    // Check for new badges after learning
-    setTimeout(() => checkAndAwardBadges(), 500);
+    // Check for new badges and name cards after learning
+    setTimeout(() => {
+      checkAndAwardBadges();
+      checkNameCards();
+    }, 500);
   };
 
   // Handle friend battle start
@@ -160,7 +165,10 @@ const Dashboard = ({
       refreshProfile();
       setFriendBattleMatchId(null);
       setReconnectMatchId(null);
-      setTimeout(() => checkAndAwardBadges(), 500);
+      setTimeout(() => {
+        checkAndAwardBadges();
+        checkNameCards();
+      }, 500);
     }} initialMatchId={matchIdToUse} />;
   }
 
@@ -190,7 +198,10 @@ const Dashboard = ({
       setRefreshKey(prev => prev + 1);
       refreshProfile();
       setReconnectMatchId(null);
-      setTimeout(() => checkAndAwardBadges(), 500);
+      setTimeout(() => {
+        checkAndAwardBadges();
+        checkNameCards();
+      }, 500);
     }} initialMatchId={reconnectMatchType === "free" ? reconnectMatchId : null} />;
   }
 

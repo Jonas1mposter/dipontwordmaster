@@ -752,22 +752,22 @@ const PlanDoc = () => (
         <tbody>
           <tr>
             <td>硬件选型与采购 / Hardware Selection & Procurement</td>
-            <td>第1周 / Week 1</td>
+            <td>第1-2周 / Week 1-2</td>
             <td>确定方案、下单采购现成设备 / Select solution, order ready-made devices</td>
           </tr>
           <tr>
             <td>软件封装与部署 / Software Packaging & Deployment</td>
-            <td>第2周 / Week 2</td>
+            <td>第3-4周 / Week 3-4</td>
             <td>Capacitor封装、系统配置、应用预装 / Capacitor packaging, system config, app pre-installation</td>
           </tr>
           <tr>
-            <td>功能测试 / Function Testing</td>
-            <td>第3周 / Week 3</td>
-            <td>全功能测试、续航验证 / Full function testing, battery verification</td>
+            <td>功能测试与优化 / Function Testing & Optimization</td>
+            <td>第5周 / Week 5</td>
+            <td>全功能测试、续航验证、问题修复 / Full function testing, battery verification, bug fixes</td>
           </tr>
           <tr>
             <td>首批交付 / First Batch Delivery</td>
-            <td>第4周 / Week 4</td>
+            <td>第6周 / Week 6</td>
             <td>首批设备交付使用 / First batch devices delivered</td>
           </tr>
         </tbody>

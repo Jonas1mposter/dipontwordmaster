@@ -25,6 +25,8 @@ const rarityColors: Record<string, string> = {
   rare: "from-blue-400 to-blue-600",
   epic: "from-purple-400 to-purple-600",
   legendary: "from-yellow-400 to-orange-500",
+  mythology: "from-pink-500 via-purple-500 to-cyan-500",
+  hidden: "from-rose-500 via-amber-500 via-emerald-500 via-cyan-500 to-violet-500",
 };
 
 const rarityLabels: Record<string, string> = {
@@ -32,6 +34,8 @@ const rarityLabels: Record<string, string> = {
   rare: "稀有",
   epic: "史诗",
   legendary: "传说",
+  mythology: "神话",
+  hidden: "隐藏",
 };
 
 const categoryLabels: Record<string, string> = {
@@ -44,7 +48,11 @@ const categoryLabels: Record<string, string> = {
   wealth: "财富",
   special: "特殊",
   welcome: "欢迎",
+  hidden: "隐藏",
 };
+
+// Check if rarity is special (mythology or hidden)
+const isSpecialRarity = (rarity: string) => rarity === "mythology" || rarity === "hidden";
 
 const BadgeDisplay = () => {
   const { profile } = useAuth();
@@ -149,13 +157,19 @@ const BadgeDisplay = () => {
                 badge.earned 
                   ? "bg-gradient-to-br opacity-100 hover:scale-105 cursor-pointer" 
                   : "bg-muted/30 opacity-50 grayscale",
-                badge.earned && rarityColors[badge.rarity]
+                badge.earned && rarityColors[badge.rarity],
+                badge.earned && isSpecialRarity(badge.rarity) && "animate-pulse shadow-lg"
               )}
               title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
             >
+              {/* Animated ring for mythology/hidden badges */}
+              {badge.earned && isSpecialRarity(badge.rarity) && (
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 opacity-50 blur-sm animate-pulse" />
+              )}
+              
               {/* Badge icon */}
               <div className={cn(
-                "text-3xl mb-1 transition-transform",
+                "relative text-3xl mb-1 transition-transform z-10",
                 badge.earned && "group-hover:scale-110"
               )}>
                 {badge.earned ? (
@@ -167,7 +181,7 @@ const BadgeDisplay = () => {
               
               {/* Badge name */}
               <span className={cn(
-                "text-[10px] font-medium text-center leading-tight",
+                "relative text-[10px] font-medium text-center leading-tight z-10",
                 badge.earned ? "text-white" : "text-muted-foreground"
               )}>
                 {badge.name}

@@ -6,6 +6,82 @@
 
 @layer base {
   :root {
+    /* Light mode */
+    --background: 220 20% 97%;
+    --foreground: 230 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 25% 15%;
+
+    --primary: 265 89% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 230 25% 15%;
+
+    --muted: 220 15% 92%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 45 100% 50%;
+    --accent-foreground: 230 25% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 220 15% 88%;
+    --input: 220 15% 92%;
+    --ring: 265 89% 55%;
+
+    --radius: 0.75rem;
+
+    /* Custom gaming colors */
+    --neon-blue: 200 100% 50%;
+    --neon-purple: 265 89% 55%;
+    --neon-pink: 330 85% 55%;
+    --neon-cyan: 185 100% 45%;
+    --gold: 45 100% 50%;
+    --bronze: 30 60% 45%;
+    --silver: 220 15% 60%;
+    --diamond: 200 100% 60%;
+    
+    /* Rank colors */
+    --rank-bronze: 30 60% 45%;
+    --rank-silver: 220 15% 60%;
+    --rank-gold: 45 100% 50%;
+    --rank-platinum: 185 50% 50%;
+    --rank-diamond: 200 100% 60%;
+    --rank-champion: 265 89% 55%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(265 89% 55% / 0.15) 0%, hsl(200 100% 50% / 0.1) 50%, hsl(330 85% 55% / 0.1) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 15% 98%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(45 100% 50%) 0%, hsl(35 100% 45%) 100%);
+    --gradient-purple: linear-gradient(135deg, hsl(265 89% 55%) 0%, hsl(285 85% 50%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 40%) 0%, hsl(160 70% 35%) 100%);
+
+    /* Shadows */
+    --shadow-glow-purple: 0 0 30px hsl(265 89% 55% / 0.25);
+    --shadow-glow-gold: 0 0 30px hsl(45 100% 50% / 0.25);
+    --shadow-glow-blue: 0 0 30px hsl(200 100% 50% / 0.2);
+    --shadow-card: 0 8px 32px hsl(230 25% 15% / 0.08);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 230 25% 15%;
+    --sidebar-primary: 265 89% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 95%;
+    --sidebar-accent-foreground: 230 25% 15%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 265 89% 55%;
+  }
+
+  .dark {
     --background: 230 25% 8%;
     --foreground: 210 40% 98%;
 
@@ -36,8 +112,6 @@
     --border: 230 20% 20%;
     --input: 230 20% 18%;
     --ring: 265 89% 66%;
-
-    --radius: 0.75rem;
 
     /* Custom gaming colors */
     --neon-blue: 200 100% 60%;

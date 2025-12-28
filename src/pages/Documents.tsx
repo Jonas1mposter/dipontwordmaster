@@ -372,7 +372,7 @@ const PlanDoc = () => (
     <div className="text-center mb-12">
       <h1 className="text-3xl font-bold mb-2">狄邦单词通 / Dipont Word Master</h1>
       <h2 className="text-xl text-muted-foreground font-normal">产品推广计划书 / Product Rollout Plan</h2>
-      <p className="text-sm text-muted-foreground mt-4">版本 Version 1.0 | 2025年1月 January 2025</p>
+      <p className="text-sm text-muted-foreground mt-4">版本 Version 1.0 | 2025年12月 December 2025</p>
     </div>
 
     <section className="mb-8">
@@ -473,12 +473,12 @@ const PlanDoc = () => (
           <tr>
             <td>试点班级 / Pilot Classes</td>
             <td>第1-2周 / Week 1-2</td>
-            <td>选取2-3个试点班级，收集反馈，快速迭代 / Select 2-3 pilot classes, collect feedback</td>
+            <td>选取1-2个试点班级，收集反馈，快速迭代 / Select 2-3 pilot classes, collect feedback</td>
           </tr>
           <tr>
             <td>年级推广 / Grade Expansion</td>
             <td>第3-4周 / Week 3-4</td>
-            <td>举办单词王争霸赛，班级排行榜，教师培训 / Word Champion competition, leaderboards, teacher training</td>
+            <td>加入班级/年级挑战赛，年级排行榜 / Add grade/class word challenge, leaderboards</td>
           </tr>
           <tr>
             <td>全面运营 / Full Operations</td>

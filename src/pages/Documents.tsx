@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Printer, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import deviceOptionB from "@/assets/device-option-b.jpg";
+import deviceOptionC from "@/assets/device-option-c.jpg";
 
 const Documents = () => {
   const navigate = useNavigate();
@@ -625,45 +627,62 @@ const PlanDoc = () => (
       </p>
 
       <h3 className="text-xl font-semibold mt-6">3.2 硬件选型建议 / Hardware Options</h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th>方案 / Option</th>
-            <th>设备 / Device</th>
-            <th>优势 / Pros</th>
-            <th>劣势 / Cons</th>
-            <th>预估单价 / Est. Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>方案A / Option A</td>
-            <td>安卓学习平板 / Android Tablet</td>
-            <td>生态成熟、开发简单 / Mature ecosystem</td>
-            <td>体积较大 / Larger size</td>
-            <td>¥300-500</td>
-          </tr>
-          <tr>
-            <td>方案B / Option B</td>
-            <td>定制安卓掌机 / Custom Handheld</td>
-            <td>专用形态、游戏手感 / Gaming feel</td>
-            <td>定制成本高 / Higher cost</td>
-            <td>¥400-600</td>
-          </tr>
-          <tr>
-            <td>方案C / Option C</td>
-            <td>Linux开源掌机 / Linux Handheld</td>
-            <td>成本低、可深度定制 / Low cost</td>
-            <td>开发门槛高 / Higher dev barrier</td>
-            <td>¥200-400</td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="text-sm">
-        <strong>推荐方案 / Recommended</strong>：方案A或B，基于成熟安卓生态，降低开发和维护成本。
+      <div className="grid md:grid-cols-2 gap-6 mt-4">
+        {/* 方案B */}
+        <div className="border rounded-lg overflow-hidden">
+          <img src={deviceOptionB} alt="方案B - 定制安卓掌机" className="w-full h-48 object-cover" />
+          <div className="p-4">
+            <h4 className="font-bold text-lg mb-2">方案B / Option B</h4>
+            <p className="text-sm font-medium mb-2">定制安卓掌机 / Custom Android Handheld</p>
+            <table className="w-full text-xs">
+              <tbody>
+                <tr>
+                  <td className="font-medium text-green-600">优势 / Pros</td>
+                  <td>专用形态、游戏手感 / Gaming feel</td>
+                </tr>
+                <tr>
+                  <td className="font-medium text-red-600">劣势 / Cons</td>
+                  <td>定制成本高 / Higher cost</td>
+                </tr>
+                <tr>
+                  <td className="font-medium">预估单价</td>
+                  <td>¥400-600</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 方案C */}
+        <div className="border rounded-lg overflow-hidden">
+          <img src={deviceOptionC} alt="方案C - Linux开源掌机" className="w-full h-48 object-cover" />
+          <div className="p-4">
+            <h4 className="font-bold text-lg mb-2">方案C / Option C</h4>
+            <p className="text-sm font-medium mb-2">Linux开源掌机 / Linux Handheld</p>
+            <table className="w-full text-xs">
+              <tbody>
+                <tr>
+                  <td className="font-medium text-green-600">优势 / Pros</td>
+                  <td>成本低、可深度定制 / Low cost, customizable</td>
+                </tr>
+                <tr>
+                  <td className="font-medium text-red-600">劣势 / Cons</td>
+                  <td>开发门槛高 / Higher dev barrier</td>
+                </tr>
+                <tr>
+                  <td className="font-medium">预估单价</td>
+                  <td>¥200-400</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <p className="text-sm mt-4">
+        <strong>推荐方案 / Recommended</strong>：方案B或C，根据预算和定制需求选择。
         <br />
         <span className="text-muted-foreground">
-          Option A or B, leveraging mature Android ecosystem for lower development and maintenance costs.
+          Option B or C, based on budget and customization requirements.
         </span>
       </p>
 

@@ -160,82 +160,89 @@ const BadgeDisplay = () => {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-5 gap-3">
-          {badges.map((badge) => (
-            <div
-              key={badge.id}
-              className={cn(
-                "relative group flex flex-col items-center p-3 rounded-xl transition-all duration-300 overflow-hidden",
-                badge.earned 
-                  ? "bg-gradient-to-br opacity-100 hover:scale-105 cursor-pointer" 
-                  : "bg-muted/30 opacity-50 grayscale",
-                badge.earned && rarityColors[badge.rarity],
-                badge.earned && isMythology(badge.rarity) && "mythology-glow"
-              )}
-              title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
-            >
-              {/* Red animated glow for mythology badges */}
-              {badge.earned && isMythology(badge.rarity) && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-60 blur-md mythology-pulse" />
-              )}
-              
-              {/* Rainbow shimmer for hidden badges (no pulse) */}
-              {badge.earned && isHidden(badge.rarity) && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm rainbow-shimmer" />
-              )}
-              
-              {/* Badge icon */}
-              <div className={cn(
-                "relative text-3xl mb-1 transition-transform z-10",
-                badge.earned && "group-hover:scale-110"
-              )}>
-                {badge.earned ? (
-                  <BadgeIcon icon={badge.icon} className="h-7 w-7 text-white drop-shadow-lg" />
-                ) : (
-                  <Lock className="h-6 w-6 text-muted-foreground" />
+          {badges.map((badge) => {
+            const isEarned = badge.earned;
+            const isMythologyBadge = isMythology(badge.rarity);
+            const isHiddenBadge = isHidden(badge.rarity);
+            
+            return (
+              <div
+                key={badge.id}
+                className={cn(
+                  "relative group flex flex-col items-center p-3 rounded-xl transition-all duration-300 overflow-hidden",
+                  isEarned 
+                    ? "opacity-100 hover:scale-105 cursor-pointer" 
+                    : "bg-muted/30 opacity-50 grayscale",
+                  isEarned && !isMythologyBadge && !isHiddenBadge && `bg-gradient-to-br ${rarityColors[badge.rarity]}`,
+                  isEarned && isMythologyBadge && "bg-gradient-to-br from-red-500 via-rose-600 to-red-700 mythology-glow",
+                  isEarned && isHiddenBadge && "bg-gradient-to-br from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500"
                 )}
-              </div>
-              
-              {/* Badge name */}
-              <span className={cn(
-                "relative text-[10px] font-medium text-center leading-tight z-10",
-                badge.earned ? "text-white" : "text-muted-foreground"
-              )}>
-                {badge.name}
-              </span>
-
-              {/* Rarity indicator - fixed positioning */}
-              {badge.earned && (
-                <span className="absolute top-1 right-1 text-[8px] bg-background/90 px-1.5 py-0.5 rounded-md border border-border/50 z-20">
-                  {rarityLabels[badge.rarity]}
-                </span>
-              )}
-
-              {/* Tooltip on hover */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 w-48">
-                <p className="text-xs font-semibold text-foreground">{badge.name}</p>
-                {/* Show unlock time if earned, otherwise show condition */}
-                <div className="mt-1">
-                  {badge.earned ? (
-                    <p className="text-[10px] text-primary font-medium">
-                      ✓ 解锁于 {badge.earnedAt ? formatEarnedDate(badge.earnedAt) : "未知时间"}
-                    </p>
+                title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
+              >
+                {/* Red animated glow for mythology badges */}
+                {isEarned && isMythologyBadge && (
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-60 blur-md mythology-pulse" />
+                )}
+                
+                {/* Rainbow shimmer for hidden badges (no pulse) */}
+                {isEarned && isHiddenBadge && (
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm rainbow-shimmer" />
+                )}
+                
+                {/* Badge icon */}
+                <div className={cn(
+                  "relative text-3xl mb-1 transition-transform z-10",
+                  isEarned && "group-hover:scale-110"
+                )}>
+                  {isEarned ? (
+                    <BadgeIcon icon={badge.icon} className="h-7 w-7 text-white drop-shadow-lg" />
                   ) : (
-                    <p className="text-[10px] text-muted-foreground">
-                      解锁条件：{badge.description || "完成特定任务"}
-                    </p>
+                    <Lock className="h-6 w-6 text-muted-foreground" />
                   )}
                 </div>
-                <div className="flex gap-1 mt-2">
-                  <Badge variant="outline" className="text-[8px] px-1 py-0">
-                    {categoryLabels[badge.category] || badge.category}
-                  </Badge>
-                  <Badge variant="outline" className="text-[8px] px-1 py-0">
+                
+                {/* Badge name */}
+                <span className={cn(
+                  "relative text-[10px] font-medium text-center leading-tight z-10",
+                  isEarned ? "text-white" : "text-muted-foreground"
+                )}>
+                  {badge.name}
+                </span>
+
+                {/* Rarity indicator - fixed positioning */}
+                {isEarned && (
+                  <span className="absolute top-1 right-1 text-[8px] bg-background/90 px-1.5 py-0.5 rounded-md border border-border/50 z-20">
                     {rarityLabels[badge.rarity]}
-                  </Badge>
+                  </span>
+                )}
+
+                {/* Tooltip on hover */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 w-48">
+                  <p className="text-xs font-semibold text-foreground">{badge.name}</p>
+                  {/* Show unlock time if earned, otherwise show condition */}
+                  <div className="mt-1">
+                    {isEarned ? (
+                      <p className="text-[10px] text-primary font-medium">
+                        ✓ 解锁于 {badge.earnedAt ? formatEarnedDate(badge.earnedAt) : "未知时间"}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground">
+                        解锁条件：{badge.description || "完成特定任务"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    <Badge variant="outline" className="text-[8px] px-1 py-0">
+                      {categoryLabels[badge.category] || badge.category}
+                    </Badge>
+                    <Badge variant="outline" className="text-[8px] px-1 py-0">
+                      {rarityLabels[badge.rarity]}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

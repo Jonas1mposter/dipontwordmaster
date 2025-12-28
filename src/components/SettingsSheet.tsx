@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "next-themes";
+
 interface GameSettings {
   soundEnabled: boolean;
   musicEnabled: boolean;
@@ -20,7 +22,6 @@ interface GameSettings {
   musicVolume: number;
   notificationsEnabled: boolean;
   vibrationEnabled: boolean;
-  darkMode: boolean;
   autoSubmit: boolean;
 }
 const defaultSettings: GameSettings = {
@@ -30,7 +31,6 @@ const defaultSettings: GameSettings = {
   musicVolume: 60,
   notificationsEnabled: true,
   vibrationEnabled: true,
-  darkMode: true,
   autoSubmit: false
 };
 const STORAGE_KEY = "game-settings";
@@ -44,6 +44,7 @@ export const SettingsSheet = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<GameSettings>(defaultSettings);
+  const { theme, setTheme } = useTheme();
   const {
     user,
     profile,
@@ -415,7 +416,7 @@ export const SettingsSheet = () => {
             <div className="space-y-4 pl-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {settings.darkMode ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-accent" />}
+                  {theme === 'dark' ? <Moon className="w-4 h-4 text-primary" /> : <Sun className="w-4 h-4 text-amber-500" />}
                   <div>
                     <Label htmlFor="dark-mode" className="cursor-pointer">
                       深色模式
@@ -425,14 +426,14 @@ export const SettingsSheet = () => {
                     </p>
                   </div>
                 </div>
-                <Switch id="dark-mode" checked={settings.darkMode} onCheckedChange={checked => {
-                updateSettings("darkMode", checked);
-                toast.info(checked ? "已切换到深色模式" : "浅色模式暂未开放");
-                if (!checked) {
-                  // Revert to dark mode since light mode isn't implemented
-                  setTimeout(() => updateSettings("darkMode", true), 100);
-                }
-              }} />
+                <Switch 
+                  id="dark-mode" 
+                  checked={theme === 'dark'} 
+                  onCheckedChange={checked => {
+                    setTheme(checked ? 'dark' : 'light');
+                    toast.info(checked ? "已切换到深色模式" : "已切换到浅色模式");
+                  }} 
+                />
               </div>
 
               <div className="flex items-center justify-between">

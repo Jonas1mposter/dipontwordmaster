@@ -174,9 +174,11 @@ const BadgeDisplay = () => {
                     ? "opacity-100 hover:scale-105 cursor-pointer" 
                     : "bg-muted/30 opacity-50 grayscale",
                   isEarned && !isMythologyBadge && !isHiddenBadge && `bg-gradient-to-br ${rarityColors[badge.rarity]}`,
-                  isEarned && isMythologyBadge && "bg-gradient-to-br from-red-500 via-rose-600 to-red-700 mythology-glow",
-                  isEarned && isHiddenBadge && "bg-gradient-to-br from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500"
+                  isEarned && isMythologyBadge && "bg-gradient-to-br from-red-500 via-rose-600 to-red-700 mythology-glow"
                 )}
+                style={isEarned && isHiddenBadge ? {
+                  background: "linear-gradient(135deg, #f43f5e 0%, #f59e0b 25%, #10b981 50%, #06b6d4 75%, #8b5cf6 100%)"
+                } : undefined}
                 title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
               >
                 {/* Red animated glow for mythology badges */}
@@ -184,9 +186,15 @@ const BadgeDisplay = () => {
                   <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-60 blur-md mythology-pulse" />
                 )}
                 
-                {/* Rainbow shimmer for hidden badges (no pulse) */}
+                {/* Rainbow shimmer for hidden badges */}
                 {isEarned && isHiddenBadge && (
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm rainbow-shimmer" />
+                  <div 
+                    className="absolute inset-0 rounded-xl opacity-70 blur-sm rainbow-shimmer"
+                    style={{
+                      background: "linear-gradient(90deg, #f43f5e 0%, #f59e0b 25%, #10b981 50%, #06b6d4 75%, #8b5cf6 100%)",
+                      backgroundSize: "200% 200%"
+                    }}
+                  />
                 )}
                 
                 {/* Badge icon */}

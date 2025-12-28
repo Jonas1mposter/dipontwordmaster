@@ -15,7 +15,7 @@ export default {
     extend: {
       fontFamily: {
         gaming: ['Orbitron', 'sans-serif'],
-        sans: ['Noto Sans SC', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans SC', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

@@ -34,9 +34,39 @@ interface NameCardData {
   background_gradient: string;
   icon: string;
   category: string;
+  rarity: string;
   is_equipped: boolean;
+  is_owned: boolean;
   rank_position?: number | null;
 }
+
+// 名片解锁条件映射
+const getUnlockCondition = (card: NameCardData): string => {
+  if (card.category === 'leaderboard_wins') return '排位胜利榜前10名';
+  if (card.category === 'leaderboard_xp') return '经验值榜前10名';
+  if (card.category === 'leaderboard_coins') return '狄邦豆榜前10名';
+  if (card.category === 'special') return '内测用户专属';
+  // 从description中提取解锁条件
+  if (card.description?.includes('解锁')) return card.description;
+  return card.description || '特殊方式获取';
+};
+
+// 稀有度颜色
+const rarityColors: Record<string, string> = {
+  common: 'text-gray-400',
+  rare: 'text-blue-400',
+  epic: 'text-purple-400',
+  legendary: 'text-yellow-400',
+  mythology: 'text-red-400',
+};
+
+const rarityLabels: Record<string, string> = {
+  common: '普通',
+  rare: '稀有',
+  epic: '史诗',
+  legendary: '传说',
+  mythology: '神话',
+};
 
 
 // 预设背景选项
@@ -90,6 +120,7 @@ const tierColors: Record<RankTier, { gradient: string; text: string; bg: string 
 const ProfileCard = () => {
   const { profile, user, refreshProfile } = useAuth();
   const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
+  const [allNameCards, setAllNameCards] = useState<NameCardData[]>([]);
   const [userNameCards, setUserNameCards] = useState<NameCardData[]>([]);
   const [equippedBadges, setEquippedBadges] = useState<(BadgeData | null)[]>([null, null, null]);
   const [equippedNameCard, setEquippedNameCard] = useState<NameCardData | null>(null);
@@ -148,24 +179,41 @@ const ProfileCard = () => {
   };
 
   const fetchUserNameCards = async () => {
-    const { data, error } = await supabase
+    // 获取所有名片
+    const { data: allCards } = await supabase
+      .from("name_cards")
+      .select("*")
+      .order("created_at");
+
+    // 获取用户拥有的名片
+    const { data: ownedCards } = await supabase
       .from("user_name_cards")
       .select(`
         name_card_id,
         is_equipped,
         rank_position,
-        name_cards (id, name, description, background_gradient, icon, category)
+        name_cards (id, name, description, background_gradient, icon, category, rarity)
       `)
       .eq("profile_id", profile!.id);
 
-    if (data) {
-      const cards: NameCardData[] = data.map((unc: any) => ({
-        ...unc.name_cards,
-        is_equipped: unc.is_equipped,
-        rank_position: unc.rank_position,
-      }));
-      setUserNameCards(cards);
-      const equipped = cards.find((c) => c.is_equipped);
+    const ownedCardIds = new Set(ownedCards?.map((c: any) => c.name_card_id) || []);
+    const ownedCardsMap = new Map(ownedCards?.map((c: any) => [c.name_card_id, c]) || []);
+
+    if (allCards) {
+      const cards: NameCardData[] = allCards.map((card: any) => {
+        const owned = ownedCardsMap.get(card.id);
+        return {
+          ...card,
+          is_equipped: owned?.is_equipped || false,
+          is_owned: ownedCardIds.has(card.id),
+          rank_position: owned?.rank_position || null,
+        };
+      });
+      setAllNameCards(cards);
+      
+      const userOwned = cards.filter(c => c.is_owned);
+      setUserNameCards(userOwned);
+      const equipped = userOwned.find((c) => c.is_equipped);
       setEquippedNameCard(equipped || null);
     }
   };
@@ -875,7 +923,7 @@ const ProfileCard = () => {
               <DialogHeader>
                 <DialogTitle>选择名片</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-3 max-h-[60vh] overflow-y-auto">
+              <div className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1">
                 {equippedNameCard && (
                   <Button 
                     variant="outline" 
@@ -886,38 +934,86 @@ const ProfileCard = () => {
                     卸下当前名片
                   </Button>
                 )}
-                {userNameCards.length === 0 ? (
-                  <div className="text-center text-muted-foreground py-8">
-                    暂无名片，在排行榜前10名可获得专属名片
-                  </div>
-                ) : (
-                  userNameCards.map((card) => {
-                    const isCustomGradient = card.background_gradient?.startsWith('linear-gradient');
-                    return (
-                      <Card
-                        key={card.id}
-                        className={cn(
-                          "cursor-pointer transition-all hover:scale-[1.02]",
-                          !isCustomGradient && `bg-gradient-to-r ${card.background_gradient}`,
-                          card.is_equipped && "ring-2 ring-white"
-                        )}
-                        style={isCustomGradient ? { background: card.background_gradient } : undefined}
-                        onClick={() => handleEquipNameCard(card)}
-                      >
-                        <CardContent className="p-4 flex items-center gap-3 text-white">
-                          <BadgeIcon icon={card.icon || "Award"} className="w-8 h-8" />
-                          <div className="flex-1">
-                            <div className="font-gaming text-lg">{card.name}</div>
-                            <div className="text-sm opacity-80">{card.description}</div>
-                          </div>
-                          {card.rank_position && (
-                            <Badge variant="secondary">第{card.rank_position}名</Badge>
+                
+                {/* 已拥有的名片 */}
+                {userNameCards.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground font-medium">已获得 ({userNameCards.length})</div>
+                    {userNameCards.map((card) => {
+                      const isCustomGradient = card.background_gradient?.startsWith('linear-gradient');
+                      return (
+                        <Card
+                          key={card.id}
+                          className={cn(
+                            "cursor-pointer transition-all hover:scale-[1.02]",
+                            !isCustomGradient && `bg-gradient-to-r ${card.background_gradient}`,
+                            card.is_equipped && "ring-2 ring-white"
                           )}
-                          {card.is_equipped && <Check className="w-6 h-6" />}
-                        </CardContent>
-                      </Card>
-                    );
-                  })
+                          style={isCustomGradient ? { background: card.background_gradient } : undefined}
+                          onClick={() => handleEquipNameCard(card)}
+                        >
+                          <CardContent className="p-4 flex items-center gap-3 text-white">
+                            <BadgeIcon icon={card.icon || "Award"} className="w-8 h-8" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-gaming text-lg">{card.name}</span>
+                                <Badge variant="outline" className={cn("text-xs border-white/30", rarityColors[card.rarity])}>
+                                  {rarityLabels[card.rarity] || card.rarity}
+                                </Badge>
+                              </div>
+                              <div className="text-sm opacity-80">{card.description}</div>
+                            </div>
+                            {card.rank_position && (
+                              <Badge variant="secondary">第{card.rank_position}名</Badge>
+                            )}
+                            {card.is_equipped && <Check className="w-6 h-6" />}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 未解锁的名片 */}
+                {allNameCards.filter(c => !c.is_owned).length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <div className="text-sm text-muted-foreground font-medium">未解锁</div>
+                    {allNameCards.filter(c => !c.is_owned).map((card) => {
+                      const isCustomGradient = card.background_gradient?.startsWith('linear-gradient');
+                      return (
+                        <Card
+                          key={card.id}
+                          className="transition-all opacity-60 grayscale relative overflow-hidden"
+                          style={isCustomGradient ? { background: card.background_gradient } : undefined}
+                        >
+                          {!isCustomGradient && (
+                            <div className={cn("absolute inset-0 bg-gradient-to-r", card.background_gradient)} />
+                          )}
+                          <CardContent className="p-4 flex items-center gap-3 text-white relative z-10">
+                            <BadgeIcon icon={card.icon || "Award"} className="w-8 h-8 opacity-50" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-gaming text-lg">{card.name}</span>
+                                <Badge variant="outline" className={cn("text-xs border-white/30", rarityColors[card.rarity])}>
+                                  {rarityLabels[card.rarity] || card.rarity}
+                                </Badge>
+                              </div>
+                              <div className="text-sm opacity-60 flex items-center gap-1">
+                                <Shield className="w-3 h-3" />
+                                {getUnlockCondition(card)}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {allNameCards.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8">
+                    加载名片中...
+                  </div>
                 )}
               </div>
             </DialogContent>

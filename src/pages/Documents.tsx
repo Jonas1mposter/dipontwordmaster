@@ -21,7 +21,7 @@ const Documents = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             返回
           </Button>
-          
+
           <div className="flex items-center gap-4">
             <Tabs value={activeDoc} onValueChange={(v) => setActiveDoc(v as "delivery" | "plan")}>
               <TabsList>
@@ -29,7 +29,7 @@ const Documents = () => {
                 <TabsTrigger value="plan">推广计划书</TabsTrigger>
               </TabsList>
             </Tabs>
-            
+
             <Button onClick={handlePrint} className="gap-2">
               <Printer className="w-4 h-4" />
               导出PDF
@@ -39,9 +39,7 @@ const Documents = () => {
       </div>
 
       {/* 文档内容 */}
-      <div className="max-w-4xl mx-auto p-8 print:p-0">
-        {activeDoc === "delivery" ? <DeliveryDoc /> : <PlanDoc />}
-      </div>
+      <div className="max-w-4xl mx-auto p-8 print:p-0">{activeDoc === "delivery" ? <DeliveryDoc /> : <PlanDoc />}</div>
     </div>
   );
 };
@@ -52,7 +50,7 @@ const DeliveryDoc = () => (
     <div className="text-center mb-12">
       <h1 className="text-3xl font-bold mb-2">狄邦单词通 / Dipont Word Master</h1>
       <h2 className="text-xl text-muted-foreground font-normal">一期交付说明文档 / Phase 1 Delivery Document</h2>
-      <p className="text-sm text-muted-foreground mt-4">版本 Version 1.0 | 2025年1月 January 2025</p>
+      <p className="text-sm text-muted-foreground mt-4">版本 Version 1.0 | 2025年12月 December 2025</p>
     </div>
 
     <section className="mb-8">
@@ -76,7 +74,10 @@ const DeliveryDoc = () => (
             <td>
               通过实时对战、段位竞技、社交互动等游戏化机制，激发学生学习兴趣，提升单词记忆效率
               <br />
-              <span className="text-muted-foreground text-sm">Stimulate learning interest and improve vocabulary retention through real-time battles, ranking system, and social interactions</span>
+              <span className="text-muted-foreground text-sm">
+                Stimulate learning interest and improve vocabulary retention through real-time battles, ranking system,
+                and social interactions
+              </span>
             </td>
           </tr>
         </tbody>
@@ -85,29 +86,37 @@ const DeliveryDoc = () => (
 
     <section className="mb-8">
       <h2 className="text-2xl font-bold border-b pb-2">二、设计特点 / Design Features</h2>
-      
+
       <h3 className="text-xl font-semibold mt-6">2.1 视觉设计 / Visual Design</h3>
       <ul>
         <li>
           <strong>赛博朋克风格 / Cyberpunk Aesthetic</strong>：深色渐变背景 + 紫色霓虹光效，契合学生审美偏好
-          <br /><span className="text-muted-foreground text-sm">Dark gradient backgrounds with purple neon effects, appealing to student preferences</span>
+          <br />
+          <span className="text-muted-foreground text-sm">
+            Dark gradient backgrounds with purple neon effects, appealing to student preferences
+          </span>
         </li>
         <li>
           <strong>游戏化UI / Gamified UI</strong>：电竞风段位徽章、星级评价、经验条等元素
-          <br /><span className="text-muted-foreground text-sm">E-sports style rank badges, star ratings, XP progress bars</span>
+          <br />
+          <span className="text-muted-foreground text-sm">
+            E-sports style rank badges, star ratings, XP progress bars
+          </span>
         </li>
         <li>
           <strong>流畅动效 / Smooth Animations</strong>：Framer Motion驱动的界面动画，提升交互体验
-          <br /><span className="text-muted-foreground text-sm">Framer Motion powered interface transitions</span>
+          <br />
+          <span className="text-muted-foreground text-sm">Framer Motion powered interface transitions</span>
         </li>
         <li>
           <strong>响应式布局 / Responsive Layout</strong>：完美适配手机、平板、电脑多端设备
-          <br /><span className="text-muted-foreground text-sm">Perfect adaptation for mobile, tablet, and desktop</span>
+          <br />
+          <span className="text-muted-foreground text-sm">Perfect adaptation for mobile, tablet, and desktop</span>
         </li>
       </ul>
 
       <h3 className="text-xl font-semibold mt-6">2.2 核心功能模块 / Core Functional Modules</h3>
-      
+
       <h4 className="font-semibold mt-4">智能分级学习系统 / Intelligent Graded Learning System</h4>
       <ul>
         <li>A-Z字母分组，符合词汇表编排逻辑 / A-Z alphabetical grouping following vocabulary list structure</li>
@@ -118,9 +127,18 @@ const DeliveryDoc = () => (
 
       <h4 className="font-semibold mt-4">实时对战系统 / Real-time Battle System</h4>
       <ul>
-        <li><strong>排位赛 / Ranked Mode</strong>：同年级同段位智能匹配，6大段位晋级体系 / Same grade/rank smart matching, 6-tier ranking system</li>
-        <li><strong>自由对战 / Free Match</strong>：30秒内95%+匹配成功率，支持好友邀请、AI对战、观战 / 95%+ match success within 30 seconds, friend invites, AI opponents, spectator mode</li>
-        <li><strong>对战流程 / Battle Flow</strong>：倒计时准备 → 10题极速对决 → 实时分数同步 → 结算动画 / Countdown → 10-question speed battle → Real-time score sync → Result animation</li>
+        <li>
+          <strong>排位赛 / Ranked Mode</strong>：同年级同段位智能匹配，6大段位晋级体系 / Same grade/rank smart matching,
+          6-tier ranking system
+        </li>
+        <li>
+          <strong>自由对战 / Free Match</strong>：30秒内95%+匹配成功率，支持好友邀请、AI对战、观战 / 95%+ match success
+          within 30 seconds, friend invites, AI opponents, spectator mode
+        </li>
+        <li>
+          <strong>对战流程 / Battle Flow</strong>：倒计时准备 → 10题极速对决 → 实时分数同步 → 结算动画 / Countdown →
+          10-question speed battle → Real-time score sync → Result animation
+        </li>
       </ul>
 
       <h4 className="font-semibold mt-4">社交互动系统 / Social Interaction System</h4>
@@ -140,35 +158,71 @@ const DeliveryDoc = () => (
 
       <h4 className="font-semibold mt-4">游戏化激励系统 / Gamification Incentive System</h4>
       <ul>
-        <li><strong>每日任务 / Daily Quests</strong>：学习/对战/正确率/连胜等多元任务 / Learning, battle, accuracy, win streak tasks</li>
-        <li><strong>赛季通行证 / Season Pass</strong>：免费/付费双轨道奖励 / Free and premium reward tracks</li>
-        <li><strong>成就徽章 / Achievement Badges</strong>：多维度成就收集 / Multi-dimensional achievement collection</li>
+        <li>
+          <strong>每日任务 / Daily Quests</strong>：学习/对战/正确率/连胜等多元任务 / Learning, battle, accuracy, win
+          streak tasks
+        </li>
+        <li>
+          <strong>赛季通行证 / Season Pass</strong>：免费/付费双轨道奖励 / Free and premium reward tracks
+        </li>
+        <li>
+          <strong>成就徽章 / Achievement Badges</strong>：多维度成就收集 / Multi-dimensional achievement collection
+        </li>
       </ul>
     </section>
 
     <section className="mb-8">
       <h2 className="text-2xl font-bold border-b pb-2">三、技术优势 / Technical Advantages</h2>
-      
+
       <h3 className="text-xl font-semibold mt-6">3.1 技术架构 / Technology Stack</h3>
       <table className="w-full">
         <thead>
-          <tr><th>层级 / Layer</th><th>技术选型 / Technology</th></tr>
+          <tr>
+            <th>层级 / Layer</th>
+            <th>技术选型 / Technology</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td>前端框架 / Frontend</td><td>React 18 + TypeScript</td></tr>
-          <tr><td>构建工具 / Build Tool</td><td>Vite（极速热更新 / Ultra-fast HMR）</td></tr>
-          <tr><td>UI组件库 / UI Components</td><td>shadcn/ui + Tailwind CSS</td></tr>
-          <tr><td>后端服务 / Backend</td><td>Lovable Cloud (Supabase)</td></tr>
-          <tr><td>实时通信 / Real-time</td><td>WebSocket (Supabase Realtime)</td></tr>
-          <tr><td>移动端支持 / Mobile</td><td>Capacitor（已集成 / Integrated）</td></tr>
+          <tr>
+            <td>前端框架 / Frontend</td>
+            <td>React 18 + TypeScript</td>
+          </tr>
+          <tr>
+            <td>构建工具 / Build Tool</td>
+            <td>Vite（极速热更新 / Ultra-fast HMR）</td>
+          </tr>
+          <tr>
+            <td>UI组件库 / UI Components</td>
+            <td>shadcn/ui + Tailwind CSS</td>
+          </tr>
+          <tr>
+            <td>后端服务 / Backend</td>
+            <td>Lovable Cloud (Supabase)</td>
+          </tr>
+          <tr>
+            <td>实时通信 / Real-time</td>
+            <td>WebSocket (Supabase Realtime)</td>
+          </tr>
+          <tr>
+            <td>移动端支持 / Mobile</td>
+            <td>Capacitor（已集成 / Integrated）</td>
+          </tr>
         </tbody>
       </table>
 
       <h3 className="text-xl font-semibold mt-6">3.2 性能指标 / Performance Metrics</h3>
       <ul>
-        <li><strong>并发能力 / Concurrency</strong>：优化后支持800-1000+用户同时在线 / Supports 800-1000+ simultaneous users after optimization</li>
-        <li><strong>实时同步 / Real-time Sync</strong>：对战延迟 &lt;100ms / Battle latency &lt;100ms</li>
-        <li><strong>离线友好 / Offline Friendly</strong>：本地缓存机制，弱网可用 / Local caching mechanism for weak network conditions</li>
+        <li>
+          <strong>并发能力 / Concurrency</strong>：优化后支持800-1000+用户同时在线 / Supports 800-1000+ simultaneous
+          users after optimization
+        </li>
+        <li>
+          <strong>实时同步 / Real-time Sync</strong>：对战延迟 &lt;100ms / Battle latency &lt;100ms
+        </li>
+        <li>
+          <strong>离线友好 / Offline Friendly</strong>：本地缓存机制，弱网可用 / Local caching mechanism for weak
+          network conditions
+        </li>
       </ul>
 
       <h3 className="text-xl font-semibold mt-6">3.3 数据安全 / Data Security</h3>
@@ -209,7 +263,7 @@ const DeliveryDoc = () => (
           <tr>
             <td>校园适配 / School Fit</td>
             <td>通用产品 / Generic product</td>
-            <td>专为狄邦定制 / Custom-built for Dipont</td>
+            <td>专为无锡狄邦文理学校定制 / Custom-built for Wuxi Dipont School of Arts and Science</td>
           </tr>
           <tr>
             <td>数据安全 / Data Security</td>
@@ -231,22 +285,77 @@ const DeliveryDoc = () => (
           </tr>
         </thead>
         <tbody>
-          <tr><td rowSpan={3}>用户系统 / User System</td><td>注册/登录 / Registration & Login</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>个人资料 / Profile Management</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>头像上传 / Avatar Upload</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td rowSpan={2}>学习系统 / Learning System</td><td>七年级词库 / Grade 7 Vocabulary</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>八年级词库 / Grade 8 Vocabulary</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td rowSpan={2}>对战系统 / Battle System</td><td>排位对战 / Ranked Battles</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>自由对战 / Free Match</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td rowSpan={3}>社交系统 / Social System</td><td>好友管理 / Friend Management</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>实时聊天 / Real-time Chat</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>邀请对战 / Battle Invitations</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td rowSpan={2}>激励系统 / Incentive System</td><td>每日任务 / Daily Quests</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>赛季通行证 / Season Pass</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td>辅助功能 / Auxiliary</td><td>错词本 / Wrong Word Book</td><td>✅ 已完成 / Completed</td></tr>
-          <tr><td rowSpan={3}>应用商店 / App Store</td><td>iOS 手机版 / iOS Phone</td><td>📤 已提交审核 / Submitted for Review</td></tr>
-          <tr><td>iOS 平板版 / iOS Tablet (iPad)</td><td>📤 已提交审核 / Submitted for Review</td></tr>
-          <tr><td>macOS 电脑版 / macOS Desktop</td><td>📤 已提交审核 / Submitted for Review</td></tr>
+          <tr>
+            <td rowSpan={3}>用户系统 / User System</td>
+            <td>注册/登录 / Registration & Login</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>个人资料 / Profile Management</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>头像上传 / Avatar Upload</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td rowSpan={2}>学习系统 / Learning System</td>
+            <td>七年级词库 / Grade 7 Vocabulary</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>八年级词库 / Grade 8 Vocabulary</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td rowSpan={2}>对战系统 / Battle System</td>
+            <td>排位对战 / Ranked Battles</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>自由对战 / Free Match</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td rowSpan={3}>社交系统 / Social System</td>
+            <td>好友管理 / Friend Management</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>实时聊天 / Real-time Chat</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>邀请对战 / Battle Invitations</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td rowSpan={2}>激励系统 / Incentive System</td>
+            <td>每日任务 / Daily Quests</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>赛季通行证 / Season Pass</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td>辅助功能 / Auxiliary</td>
+            <td>错词本 / Wrong Word Book</td>
+            <td>✅ 已完成 / Completed</td>
+          </tr>
+          <tr>
+            <td rowSpan={3}>应用商店 / App Store</td>
+            <td>iOS 手机版 / iOS Phone</td>
+            <td>📤 已提交审核 / Submitted for Review</td>
+          </tr>
+          <tr>
+            <td>iOS 平板版 / iOS Tablet (iPad)</td>
+            <td>📤 已提交审核 / Submitted for Review</td>
+          </tr>
+          <tr>
+            <td>macOS 电脑版 / macOS Desktop</td>
+            <td>📤 已提交审核 / Submitted for Review</td>
+          </tr>
         </tbody>
       </table>
     </section>
@@ -280,26 +389,42 @@ const PlanDoc = () => (
           </tr>
           <tr>
             <td className="font-semibold">目标愿景 / Vision</td>
-            <td>打造覆盖K12全学段的智能英语学习生态系统 / Build an intelligent English learning ecosystem covering all K12 grades</td>
+            <td>
+              打造覆盖K12全学段的智能英语学习生态系统 / Build an intelligent English learning ecosystem covering all K12
+              grades
+            </td>
           </tr>
         </tbody>
       </table>
     </section>
 
     <section className="mb-8 page-break-before">
-      <h2 className="text-2xl font-bold border-b pb-2">一期计划：初中部推广（当前阶段）/ Phase 1: Middle School Rollout (Current)</h2>
-      
+      <h2 className="text-2xl font-bold border-b pb-2">
+        一期计划：初中部推广（当前阶段）/ Phase 1: Middle School Rollout (Current)
+      </h2>
+
       <h3 className="text-xl font-semibold mt-6">1.1 目标用户 / Target Users</h3>
       <ul>
-        <li><strong>年级范围 / Grade Range</strong>：七年级、八年级 / Grade 7 & 8</li>
-        <li><strong>预计用户规模 / Expected User Base</strong>：200-500人 / 200-500 students</li>
-        <li><strong>使用场景 / Use Cases</strong>：课堂辅助、课后复习、自主学习 / Classroom support, after-class review, self-study</li>
+        <li>
+          <strong>年级范围 / Grade Range</strong>：七年级、八年级 / Grade 7 & 8
+        </li>
+        <li>
+          <strong>预计用户规模 / Expected User Base</strong>：200-500人 / 200-500 students
+        </li>
+        <li>
+          <strong>使用场景 / Use Cases</strong>：课堂辅助、课后复习、自主学习 / Classroom support, after-class review,
+          self-study
+        </li>
       </ul>
 
       <h3 className="text-xl font-semibold mt-6">1.2 已完成功能模块 / Completed Functional Modules</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>模块 / Module</th><th>功能特性 / Features</th><th>教学价值 / Educational Value</th></tr>
+          <tr>
+            <th>模块 / Module</th>
+            <th>功能特性 / Features</th>
+            <th>教学价值 / Educational Value</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -338,7 +463,11 @@ const PlanDoc = () => (
       <h3 className="text-xl font-semibold mt-6">1.3 推广策略 / Rollout Strategy</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>阶段 / Phase</th><th>时间 / Timeline</th><th>内容 / Activities</th></tr>
+          <tr>
+            <th>阶段 / Phase</th>
+            <th>时间 / Timeline</th>
+            <th>内容 / Activities</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -362,20 +491,35 @@ const PlanDoc = () => (
       <h3 className="text-xl font-semibold mt-6">1.4 成功指标 / Success Metrics</h3>
       <table className="w-full">
         <thead>
-          <tr><th>指标 / Metric</th><th>目标值 / Target</th></tr>
+          <tr>
+            <th>指标 / Metric</th>
+            <th>目标值 / Target</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td>日活跃率 / Daily Active Rate</td><td>≥60%</td></tr>
-          <tr><td>周留存率 / Weekly Retention</td><td>≥70%</td></tr>
-          <tr><td>平均学习时长 / Avg. Learning Time</td><td>≥15分钟/天 / ≥15 min/day</td></tr>
-          <tr><td>单词掌握率提升 / Vocabulary Mastery Improvement</td><td>≥20%</td></tr>
+          <tr>
+            <td>日活跃率 / Daily Active Rate</td>
+            <td>≥60%</td>
+          </tr>
+          <tr>
+            <td>周留存率 / Weekly Retention</td>
+            <td>≥70%</td>
+          </tr>
+          <tr>
+            <td>平均学习时长 / Avg. Learning Time</td>
+            <td>≥15分钟/天 / ≥15 min/day</td>
+          </tr>
+          <tr>
+            <td>单词掌握率提升 / Vocabulary Mastery Improvement</td>
+            <td>≥20%</td>
+          </tr>
         </tbody>
       </table>
     </section>
 
     <section className="mb-8 page-break-before">
       <h2 className="text-2xl font-bold border-b pb-2">二期计划：小学部推广 / Phase 2: Elementary School Rollout</h2>
-      
+
       <h3 className="text-xl font-semibold mt-6">2.1 启动条件 / Launch Conditions</h3>
       <ul>
         <li>初中部运行稳定后启动 / Launch after middle school operations are stable</li>
@@ -385,15 +529,25 @@ const PlanDoc = () => (
 
       <h3 className="text-xl font-semibold mt-6">2.2 目标用户 / Target Users</h3>
       <ul>
-        <li><strong>年级范围 / Grade Range</strong>：1-6年级全覆盖 / Full coverage of Grades 1-6</li>
-        <li><strong>预计新增用户 / Expected New Users</strong>：500-1000人 / 500-1000 students</li>
-        <li><strong>总用户规模 / Total User Base</strong>：700-1500人 / 700-1500 users</li>
+        <li>
+          <strong>年级范围 / Grade Range</strong>：1-6年级全覆盖 / Full coverage of Grades 1-6
+        </li>
+        <li>
+          <strong>预计新增用户 / Expected New Users</strong>：500-1000人 / 500-1000 students
+        </li>
+        <li>
+          <strong>总用户规模 / Total User Base</strong>：700-1500人 / 700-1500 users
+        </li>
       </ul>
 
       <h3 className="text-xl font-semibold mt-6">2.3 适配改造 / Adaptations</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>层面 / Layer</th><th>项目 / Item</th><th>调整内容 / Changes</th></tr>
+          <tr>
+            <th>层面 / Layer</th>
+            <th>项目 / Item</th>
+            <th>调整内容 / Changes</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -429,7 +583,11 @@ const PlanDoc = () => (
       <h3 className="text-xl font-semibold mt-6">2.4 推广时间线 / Rollout Timeline</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>阶段 / Phase</th><th>时间 / Timeline</th><th>内容 / Activities</th></tr>
+          <tr>
+            <th>阶段 / Phase</th>
+            <th>时间 / Timeline</th>
+            <th>内容 / Activities</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -453,12 +611,14 @@ const PlanDoc = () => (
 
     <section className="mb-8 page-break-before">
       <h2 className="text-2xl font-bold border-b pb-2">三期计划：便携掌机开发 / Phase 3: Portable Learning Device</h2>
-      
+
       <h3 className="text-xl font-semibold mt-6">3.1 产品形态 / Product Form</h3>
       <p>
         将Web应用封装为便携式学习掌机，实现"随时随地学单词"的极致体验。
         <br />
-        <span className="text-muted-foreground text-sm">Package the web application into a portable learning device for anytime, anywhere vocabulary learning.</span>
+        <span className="text-muted-foreground text-sm">
+          Package the web application into a portable learning device for anytime, anywhere vocabulary learning.
+        </span>
       </p>
 
       <h3 className="text-xl font-semibold mt-6">3.2 硬件选型建议 / Hardware Options</h3>
@@ -499,7 +659,9 @@ const PlanDoc = () => (
       <p className="text-sm">
         <strong>推荐方案 / Recommended</strong>：方案A或B，基于成熟安卓生态，降低开发和维护成本。
         <br />
-        <span className="text-muted-foreground">Option A or B, leveraging mature Android ecosystem for lower development and maintenance costs.</span>
+        <span className="text-muted-foreground">
+          Option A or B, leveraging mature Android ecosystem for lower development and maintenance costs.
+        </span>
       </p>
 
       <h3 className="text-xl font-semibold mt-6">3.3 技术实现路径 / Technical Implementation</h3>
@@ -517,34 +679,53 @@ const PlanDoc = () => (
       <h3 className="text-xl font-semibold mt-6">3.4 掌机功能规划 / Device Features</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>模式 / Mode</th><th>功能 / Function</th></tr>
+          <tr>
+            <th>模式 / Mode</th>
+            <th>功能 / Function</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
             <td rowSpan={3}>离线模式 / Offline Mode</td>
             <td>词汇学习：本地缓存全部词库 / Vocabulary learning: local cache</td>
           </tr>
-          <tr><td>错词复习：离线刷题 / Wrong word review: offline practice</td></tr>
-          <tr><td>学习进度：联网时自动同步 / Progress: auto-sync when connected</td></tr>
+          <tr>
+            <td>错词复习：离线刷题 / Wrong word review: offline practice</td>
+          </tr>
+          <tr>
+            <td>学习进度：联网时自动同步 / Progress: auto-sync when connected</td>
+          </tr>
           <tr>
             <td rowSpan={3}>在线模式 / Online Mode</td>
             <td>实时对战：WiFi环境下完整体验 / Real-time battles over WiFi</td>
           </tr>
-          <tr><td>排行榜：实时更新 / Leaderboards: real-time updates</td></tr>
-          <tr><td>社交功能：好友互动 / Social features: friend interactions</td></tr>
+          <tr>
+            <td>排行榜：实时更新 / Leaderboards: real-time updates</td>
+          </tr>
+          <tr>
+            <td>社交功能：好友互动 / Social features: friend interactions</td>
+          </tr>
           <tr>
             <td rowSpan={3}>设备管理 / Device Management</td>
             <td>统一管理平台：学校可批量管理设备 / Unified management platform</td>
           </tr>
-          <tr><td>使用时长控制：防沉迷机制 / Usage time control: anti-addiction</td></tr>
-          <tr><td>远程锁定/解锁：防止滥用 / Remote lock/unlock</td></tr>
+          <tr>
+            <td>使用时长控制：防沉迷机制 / Usage time control: anti-addiction</td>
+          </tr>
+          <tr>
+            <td>远程锁定/解锁：防止滥用 / Remote lock/unlock</td>
+          </tr>
         </tbody>
       </table>
 
       <h3 className="text-xl font-semibold mt-6">3.5 开发时间线 / Development Timeline</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>阶段 / Phase</th><th>时间 / Timeline</th><th>内容 / Activities</th></tr>
+          <tr>
+            <th>阶段 / Phase</th>
+            <th>时间 / Timeline</th>
+            <th>内容 / Activities</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -583,7 +764,11 @@ const PlanDoc = () => (
       <h3 className="text-xl font-semibold mt-6">3.6 成本预算（参考）/ Cost Estimates (Reference)</h3>
       <table className="w-full text-sm">
         <thead>
-          <tr><th>项目 / Item</th><th>单价预估 / Est. Unit Cost</th><th>备注 / Notes</th></tr>
+          <tr>
+            <th>项目 / Item</th>
+            <th>单价预估 / Est. Unit Cost</th>
+            <th>备注 / Notes</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -611,7 +796,10 @@ const PlanDoc = () => (
     </section>
 
     <footer className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
-      <p>© 2025 狄邦单词通 / Dipont Word Master | 专为狄邦学校定制开发 / Custom Developed for Dipont School</p>
+      <p>
+        © 2025 狄邦单词通 / Dipont Word Master | 专为无锡狄邦文理学校定制开发 / Custom Developed for Wuxi Dipont School
+        of Arts and Science
+      </p>
     </footer>
   </article>
 );

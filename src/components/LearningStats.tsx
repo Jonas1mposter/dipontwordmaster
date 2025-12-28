@@ -242,6 +242,8 @@ const LearningStats = () => {
                             borderRadius: '8px',
                             color: 'hsl(210, 40%, 98%)',
                           }}
+                          labelStyle={{ color: 'hsl(210, 40%, 98%)' }}
+                          itemStyle={{ color: 'hsl(210, 40%, 98%)' }}
                           formatter={(value: number) => [`${value} 个单词`, '数量']}
                         />
                       </PieChart>

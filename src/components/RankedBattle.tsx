@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
+import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,8 @@ import {
   Volume2,
   VolumeX,
   Loader2,
-  Wifi
+  Wifi,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
@@ -305,6 +307,60 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     myScoreRef.current = myScore;
     opponentFinishedRef.current = opponentFinished;
   }, [myFinished, matchFinished, myScore, opponentFinished]);
+
+  // Full state reset function for error recovery
+  const resetGameState = useCallback(() => {
+    console.log("[RankedBattle] Resetting all game state for recovery");
+    setMatchStatus("idle");
+    setMatchId(null);
+    setOpponent(null);
+    setWords([]);
+    setCurrentWordIndex(0);
+    setMyScore(0);
+    setOpponentScore(0);
+    setTimeLeft(150);
+    setSelectedOption(null);
+    setShowResult(false);
+    setAnswerAnimation(null);
+    setIsWinner(false);
+    setMyFinished(false);
+    setWaitingForOpponent(false);
+    setRankChangeResult(null);
+    setMatchFinished(false);
+    setOpponentFinished(false);
+    setOpponentFinalScore(null);
+    setOpponentProgress(0);
+    setIsRealPlayer(false);
+    setQuizTypes([]);
+    setOptions([]);
+    setWordOptions([]);
+    setCurrentQuizType("meaning");
+    setSearchTime(0);
+    setShowAIOption(false);
+    setWaitingMatchId(null);
+    setOpponentNameCard(null);
+    setBattleChannel(null);
+    setIsAnswerLocked(false);
+    friendMatchInitialized.current = false;
+  }, []);
+
+  // Game state recovery hook
+  const { manualReset } = useGameStateRecovery(
+    {
+      matchStatus,
+      currentWordIndex,
+      words,
+      timeLeft,
+      myFinished,
+      matchFinished,
+      quizTypes,
+      options,
+      isPlaying: matchStatus === "playing",
+    },
+    {
+      onReset: resetGameState,
+    }
+  );
 
   // Handle initial match from friend challenge or reconnect - only run once when idle
   const friendMatchInitialized = useRef(false);
@@ -1905,6 +1961,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.15s' }} />
               <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.3s' }} />
             </div>
+
+            {/* Emergency reset button after waiting too long */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-6 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                if (confirm("如果游戏卡住，点击确定重置游戏状态")) {
+                  manualReset();
+                }
+              }}
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              遇到问题？重置
+            </Button>
           </div>
         </div>
       );
@@ -1944,7 +2015,19 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 <span className={cn(timeLeft <= 10 && "animate-countdown-pop")} key={timeLeft}>{timeLeft}s</span>
               </div>
               
-              <div className="w-16" /> {/* Spacer for balance */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-muted-foreground hover:text-destructive"
+                onClick={() => {
+                  if (confirm("如果游戏卡住，点击确定重置游戏状态")) {
+                    manualReset();
+                  }
+                }}
+                title="重置游戏"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Button>
             </div>
             
             {/* Scores and Progress */}
@@ -2322,45 +2405,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <ChevronLeft className="w-4 h-4 mr-2" />
               返回
             </Button>
-            <Button variant="hero" className="flex-1" onClick={() => {
-              // Reset ALL state for a fresh new match
-              setMatchStatus("idle");
-              setMatchId(null);
-              setOpponent(null);
-              setWords([]);
-              setCurrentWordIndex(0);
-              setMyScore(0);
-              setOpponentScore(0);
-              setTimeLeft(150); // Full 150 seconds for ranked
-              setSelectedOption(null);
-              setShowResult(false);
-              setAnswerAnimation(null);
-              setIsAnswerLocked(false);
-              setMyFinished(false);
-              setWaitingForOpponent(false);
-              setRankChangeResult(null);
-              // Critical: Reset these states that were missing
-              setMatchFinished(false);
-              setOpponentFinished(false);
-              setOpponentFinalScore(null);
-              setOpponentProgress(0);
-              setIsRealPlayer(false);
-              setQuizTypes([]);
-              setOptions([]);
-              setWordOptions([]);
-              setCurrentQuizType("meaning");
-              setSearchTime(0);
-              setShowAIOption(false);
-              setWaitingMatchId(null);
-              setOpponentNameCard(null);
-              setBattleChannel(null);
-              // Reset the friend match ref
-              friendMatchInitialized.current = false;
-            }}>
+            <Button variant="hero" className="flex-1" onClick={resetGameState}>
               <Swords className="w-4 h-4 mr-2" />
               再来一局
             </Button>
           </div>
+
+          {/* Manual reset hint */}
+          <p className="text-xs text-muted-foreground mt-2 animate-slide-up" style={{ animationDelay: '0.5s' }}>
+            遇到问题？点击返回重新开始
+          </p>
         </div>
       </div>
     );

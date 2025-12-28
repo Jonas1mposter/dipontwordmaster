@@ -13,7 +13,7 @@ interface UserStats {
   totalWins: number;
   totalLosses: number;
   winStreak: number;
-  streak: number;
+  dailyStreak: number;
   coins: number;
   rankTier: string;
   perfectMatches: number;
@@ -68,11 +68,6 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
     check: (data) => data.winStreak >= 3,
   },
   {
-    badgeId: "7b265e93-0ffb-48f1-a74a-3b312d1ef5bd", // 连胜新星 (duplicate)
-    name: "连胜新星",
-    check: (data) => data.winStreak >= 3,
-  },
-  {
     badgeId: "a1b6a78a-c48d-48d9-84a8-6db154e1ffd0", // 不败战神
     name: "不败战神",
     check: (data) => data.winStreak >= 10,
@@ -86,12 +81,12 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
   {
     badgeId: "0d1e512e-2a69-407a-b4fa-e3f8cfc6998d", // 坚持不懈
     name: "坚持不懈",
-    check: (data) => data.streak >= 7,
+    check: (data) => data.dailyStreak >= 7,
   },
   {
     badgeId: "507474af-c4ba-4e0d-97e7-be80324c65b1", // 学霸之路
     name: "学霸之路",
-    check: (data) => data.streak >= 30,
+    check: (data) => data.dailyStreak >= 30,
   },
   // Wealth badges
   {
@@ -127,19 +122,22 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
         .eq("profile_id", profile.id),
       supabase
         .from("ranked_matches")
-        .select("winner_id, player1_id, player2_id, player1_score, player2_score")
+        .select("winner_id, player1_id, player2_id, player1_score, player2_score, created_at")
         .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
-        .eq("status", "completed"),
+        .eq("status", "completed")
+        .order("created_at", { ascending: false }),
     ]);
 
     const earnedBadgeIds = userBadges?.map((ub) => ub.badge_id) || [];
     const wordsLearned = learningProgress?.length || 0;
 
-    // Calculate battle stats
+    // Calculate battle stats including win streak
     let totalWins = 0;
     let perfectMatches = 0;
+    let currentWinStreak = 0;
     
-    rankedMatches?.forEach((match) => {
+    // Matches are already sorted by created_at desc from query
+    rankedMatches?.forEach((match, index) => {
       if (match.winner_id === profile.id) {
         totalWins++;
         // Check if it was a perfect match (opponent scored 0)
@@ -148,18 +146,19 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
         } else if (match.player2_id === profile.id && match.player1_score === 0) {
           perfectMatches++;
         }
+        // Calculate current win streak (consecutive wins from most recent)
+        if (index === currentWinStreak) {
+          currentWinStreak++;
+        }
       }
     });
-
-    // Calculate win streak from profile
-    const winStreak = profile.streak || 0;
 
     const userStats: UserStats = {
       wordsLearned,
       totalWins: profile.wins || 0,
       totalLosses: profile.losses || 0,
-      winStreak,
-      streak: profile.streak || 0,
+      winStreak: currentWinStreak,
+      dailyStreak: profile.streak || 0,
       coins: profile.coins || 0,
       rankTier: profile.rank_tier || "bronze",
       perfectMatches,

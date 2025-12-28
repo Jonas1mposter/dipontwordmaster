@@ -385,7 +385,48 @@ const ProfileCard = () => {
       case "epic": return "text-purple-400";
       case "legendary": return "text-amber-400";
       case "mythology": return "text-red-500";
+      case "hidden": return "text-violet-400";
       default: return "text-gray-400";
+    }
+  };
+
+  const getRarityBorderStyle = (rarity: string) => {
+    switch (rarity) {
+      case "mythology": 
+        return { 
+          borderColor: "#ef4444",
+          background: "linear-gradient(135deg, #ef4444 0%, #be123c 50%, #b91c1c 100%)",
+          boxShadow: "0 0 15px rgba(239, 68, 68, 0.5)"
+        };
+      case "hidden": 
+        return { 
+          borderColor: "#8b5cf6",
+          background: "linear-gradient(135deg, #f43f5e 0%, #f59e0b 25%, #10b981 50%, #06b6d4 75%, #8b5cf6 100%)",
+          boxShadow: "0 0 15px rgba(139, 92, 246, 0.5)"
+        };
+      case "legendary":
+        return {
+          borderColor: "#f59e0b",
+          background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)",
+          boxShadow: "0 0 10px rgba(245, 158, 11, 0.4)"
+        };
+      case "epic":
+        return {
+          borderColor: "#a855f7",
+          background: "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
+          boxShadow: "0 0 8px rgba(168, 85, 247, 0.3)"
+        };
+      case "rare":
+        return {
+          borderColor: "#3b82f6",
+          background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+          boxShadow: "0 0 6px rgba(59, 130, 246, 0.3)"
+        };
+      default:
+        return {
+          borderColor: "#9ca3af",
+          background: "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)"
+        };
     }
   };
 
@@ -549,14 +590,16 @@ const ProfileCard = () => {
                   <DialogTrigger asChild>
                     <button
                       className={cn(
-                        "w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all shadow-lg",
-                        badge 
-                          ? "border-primary bg-background hover:bg-primary/10" 
-                          : "border-dashed border-muted-foreground/50 bg-background/90 hover:border-primary/50"
+                        "w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all shadow-lg overflow-hidden",
+                        !badge && "border-dashed border-muted-foreground/50 bg-background/90 hover:border-primary/50"
                       )}
+                      style={badge ? {
+                        ...getRarityBorderStyle(badge.rarity),
+                        borderWidth: "2px"
+                      } : undefined}
                     >
                       {badge ? (
-                        <BadgeIcon icon={badge.icon} className={cn("w-7 h-7", getRarityColor(badge.rarity))} />
+                        <BadgeIcon icon={badge.icon} className="w-7 h-7 text-white drop-shadow-md" />
                       ) : (
                         <Award className="w-5 h-5 text-muted-foreground/50" />
                       )}

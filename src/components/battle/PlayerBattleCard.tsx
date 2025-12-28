@@ -123,12 +123,22 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
 
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
-      case 'mythology': return 'bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-500 shadow-red-500/50 shadow-lg';
+      case 'mythology': return 'bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white border-red-500 shadow-red-500/50 shadow-lg mythology-pulse';
+      case 'hidden': return 'text-white border-violet-400 shadow-violet-500/50 shadow-lg';
       case 'legendary': return 'bg-gradient-to-r from-amber-500 to-yellow-400 text-background border-amber-400';
       case 'epic': return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white border-purple-400';
       case 'rare': return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white border-blue-400';
       default: return 'bg-secondary text-foreground border-border';
     }
+  };
+
+  const getHiddenBadgeStyle = (rarity: string) => {
+    if (rarity === 'hidden') {
+      return {
+        background: "linear-gradient(135deg, #f43f5e 0%, #f59e0b 25%, #10b981 50%, #06b6d4 75%, #8b5cf6 100%)"
+      };
+    }
+    return undefined;
   };
 
   // Convert Tailwind gradient classes to CSS gradient
@@ -222,6 +232,7 @@ const PlayerBattleCard = ({ profile, variant, className }: PlayerBattleCardProps
                   ? getRarityColor(badge.rarity)
                   : "bg-secondary/80 border-border/50 text-muted-foreground"
               )}
+              style={badge ? getHiddenBadgeStyle(badge.rarity) : undefined}
               title={badge?.name || "空勋章槽"}
             >
               {badge ? <BadgeIcon icon={badge.icon} className="w-5 h-5" /> : <span className="text-muted-foreground">○</span>}

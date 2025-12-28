@@ -6,27 +6,27 @@
 
 @layer base {
   :root {
-    /* Light mode */
-    --background: 220 20% 97%;
-    --foreground: 230 25% 15%;
+    /* Light mode - clean purple/indigo theme */
+    --background: 250 20% 98%;
+    --foreground: 250 25% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 230 25% 15%;
+    --card-foreground: 250 25% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 230 25% 15%;
+    --popover-foreground: 250 25% 10%;
 
     --primary: 265 89% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 92%;
-    --secondary-foreground: 230 25% 15%;
+    --secondary: 250 20% 94%;
+    --secondary-foreground: 250 25% 20%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 250 15% 92%;
+    --muted-foreground: 250 10% 40%;
 
-    --accent: 45 100% 50%;
-    --accent-foreground: 230 25% 15%;
+    --accent: 265 70% 60%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -34,8 +34,8 @@
     --success: 142 76% 40%;
     --success-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 92%;
+    --border: 250 20% 90%;
+    --input: 250 15% 94%;
     --ring: 265 89% 55%;
 
     --radius: 0.75rem;
@@ -47,37 +47,37 @@
     --neon-cyan: 185 100% 45%;
     --gold: 45 100% 50%;
     --bronze: 30 60% 45%;
-    --silver: 220 15% 60%;
+    --silver: 250 15% 55%;
     --diamond: 200 100% 60%;
     
     /* Rank colors */
     --rank-bronze: 30 60% 45%;
-    --rank-silver: 220 15% 60%;
+    --rank-silver: 250 15% 55%;
     --rank-gold: 45 100% 50%;
     --rank-platinum: 185 50% 50%;
     --rank-diamond: 200 100% 60%;
     --rank-champion: 265 89% 55%;
 
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(265 89% 55% / 0.15) 0%, hsl(200 100% 50% / 0.1) 50%, hsl(330 85% 55% / 0.1) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(220 15% 98%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(265 89% 55% / 0.08) 0%, hsl(200 100% 50% / 0.05) 50%, hsl(265 89% 55% / 0.05) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(250 20% 98%) 100%);
     --gradient-gold: linear-gradient(135deg, hsl(45 100% 50%) 0%, hsl(35 100% 45%) 100%);
     --gradient-purple: linear-gradient(135deg, hsl(265 89% 55%) 0%, hsl(285 85% 50%) 100%);
     --gradient-success: linear-gradient(135deg, hsl(142 76% 40%) 0%, hsl(160 70% 35%) 100%);
 
     /* Shadows */
-    --shadow-glow-purple: 0 0 30px hsl(265 89% 55% / 0.25);
-    --shadow-glow-gold: 0 0 30px hsl(45 100% 50% / 0.25);
-    --shadow-glow-blue: 0 0 30px hsl(200 100% 50% / 0.2);
-    --shadow-card: 0 8px 32px hsl(230 25% 15% / 0.08);
+    --shadow-glow-purple: 0 0 30px hsl(265 89% 55% / 0.2);
+    --shadow-glow-gold: 0 0 30px hsl(45 100% 50% / 0.2);
+    --shadow-glow-blue: 0 0 30px hsl(200 100% 50% / 0.15);
+    --shadow-card: 0 8px 32px hsl(250 25% 15% / 0.06);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 230 25% 15%;
+    --sidebar-foreground: 250 25% 10%;
     --sidebar-primary: 265 89% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 95%;
-    --sidebar-accent-foreground: 230 25% 15%;
-    --sidebar-border: 220 15% 88%;
+    --sidebar-accent: 250 20% 96%;
+    --sidebar-accent-foreground: 250 25% 10%;
+    --sidebar-border: 250 20% 90%;
     --sidebar-ring: 265 89% 55%;
   }
 
@@ -337,6 +337,55 @@
   );
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
+}
+
+/* Mythology badge animation - red glow pulse */
+@keyframes mythologyPulse {
+  0%, 100% { 
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.mythology-pulse {
+  animation: mythologyPulse 2s ease-in-out infinite;
+}
+
+.mythology-glow {
+  box-shadow: 0 0 15px hsl(0 80% 50% / 0.5), 0 0 30px hsl(0 80% 50% / 0.3);
+}
+
+/* Rainbow shimmer animation for hidden badges */
+@keyframes rainbowShimmer {
+  0% { 
+    background-position: 0% 50%;
+    opacity: 0.5;
+  }
+  50% { 
+    background-position: 100% 50%;
+    opacity: 0.7;
+  }
+  100% { 
+    background-position: 0% 50%;
+    opacity: 0.5;
+  }
+}
+
+.rainbow-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(340 80% 60%) 0%,
+    hsl(45 100% 55%) 25%,
+    hsl(150 80% 50%) 50%,
+    hsl(200 100% 55%) 75%,
+    hsl(280 80% 60%) 100%
+  );
+  background-size: 200% 200%;
+  animation: rainbowShimmer 3s ease-in-out infinite;
 }
 
 /* Battle-specific keyframes */

@@ -751,34 +751,24 @@ const PlanDoc = () => (
         </thead>
         <tbody>
           <tr>
-            <td>硬件选型 / Hardware Selection</td>
-            <td>第1-2周 / Week 1-2</td>
-            <td>测试样机、确定供应商 / Test samples, select suppliers</td>
+            <td>硬件选型与采购 / Hardware Selection & Procurement</td>
+            <td>第1周 / Week 1</td>
+            <td>确定方案、下单采购现成设备 / Select solution, order ready-made devices</td>
           </tr>
           <tr>
-            <td>封装开发 / Packaging Development</td>
-            <td>第3-6周 / Week 3-6</td>
-            <td>Capacitor封装、离线功能开发 / Capacitor packaging, offline features</td>
+            <td>软件封装与部署 / Software Packaging & Deployment</td>
+            <td>第2周 / Week 2</td>
+            <td>Capacitor封装、系统配置、应用预装 / Capacitor packaging, system config, app pre-installation</td>
           </tr>
           <tr>
-            <td>系统定制 / System Customization</td>
-            <td>第7-10周 / Week 7-10</td>
-            <td>安卓系统精简、开机自启 / Android system optimization, auto-start</td>
+            <td>功能测试 / Function Testing</td>
+            <td>第3周 / Week 3</td>
+            <td>全功能测试、续航验证 / Full function testing, battery verification</td>
           </tr>
           <tr>
-            <td>样机测试 / Sample Testing</td>
-            <td>第11-12周 / Week 11-12</td>
-            <td>功能测试、续航测试 / Function testing, battery testing</td>
-          </tr>
-          <tr>
-            <td>小批量试产 / Pilot Production</td>
-            <td>第13-16周 / Week 13-16</td>
-            <td>首批50-100台 / First batch 50-100 units</td>
-          </tr>
-          <tr>
-            <td>规模化生产 / Mass Production</td>
-            <td>第17周起 / Week 17+</td>
-            <td>根据需求量产 / Scale based on demand</td>
+            <td>首批交付 / First Batch Delivery</td>
+            <td>第4周 / Week 4</td>
+            <td>首批设备交付使用 / First batch devices delivered</td>
           </tr>
         </tbody>
       </table>

@@ -39,37 +39,11 @@ const categoryLabels: Record<string, string> = {
   battle: "对战",
   streak: "坚持",
   achievement: "成就",
-};
-
-// Badge unlock conditions
-const unlockConditions: Record<string, string> = {
-  // Learning badges
-  "初出茅庐": "学习 1 个单词",
-  "词汇新秀": "学习 100 个单词",
-  "词海探险家": "学习 500 个单词",
-  "单词大师": "学习 1000 个单词",
-  "学海无涯": "学习 100 个单词",
-  // Battle badges
-  "首战告捷": "赢得第一场对战",
-  "连胜新星": "连续获胜 3 场",
-  "不败战神": "连续获胜 10 场",
-  "完美主义者": "完美获胜 1 场（对手得 0 分）",
-  // Streak badges
-  "坚持不懈": "连续学习 7 天",
-  "学霸之路": "连续学习 30 天",
-  // Wealth badges
-  "财富新贵": "累计获得 1000 金币",
-  // Rank badges
-  "王者荣耀": "达到钻石或冠军段位",
-  // Special badges
-  "Bonjour!": "欢迎加入！注册即可获得",
-  "内测先驱": "参与内测获得",
-  // Challenge badges
-  "年级之星": "年级挑战赛前 3 名",
-  "班级冠军": "班级挑战赛第 1 名",
-  "班级亚军": "班级挑战赛第 2 名",
-  "班级季军": "班级挑战赛第 3 名",
-  "年级先锋": "年级挑战赛积分前 10%",
+  challenge: "挑战赛",
+  ranked: "排位",
+  wealth: "财富",
+  special: "特殊",
+  welcome: "欢迎",
 };
 
 const BadgeDisplay = () => {
@@ -209,14 +183,13 @@ const BadgeDisplay = () => {
               {/* Tooltip on hover */}
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48">
                 <p className="text-xs font-semibold text-foreground">{badge.name}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">{badge.description}</p>
-                {/* Unlock condition */}
-                <div className="mt-2 pt-2 border-t border-border/50">
+                {/* Show unlock condition or earned status */}
+                <div className="mt-1">
                   <p className="text-[10px] text-primary font-medium">
-                    {badge.earned ? "✓ 已解锁" : `解锁条件：${unlockConditions[badge.name] || "完成特定任务"}`}
+                    {badge.earned ? "✓ 已解锁" : `解锁条件：${badge.description || "完成特定任务"}`}
                   </p>
                 </div>
-                <div className="flex gap-1 mt-1">
+                <div className="flex gap-1 mt-2">
                   <Badge variant="outline" className="text-[8px] px-1 py-0">
                     {categoryLabels[badge.category] || badge.category}
                   </Badge>

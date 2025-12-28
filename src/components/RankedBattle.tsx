@@ -2323,6 +2323,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               返回
             </Button>
             <Button variant="hero" className="flex-1" onClick={() => {
+              // Reset ALL state for a fresh new match
               setMatchStatus("idle");
               setMatchId(null);
               setOpponent(null);
@@ -2330,7 +2331,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               setCurrentWordIndex(0);
               setMyScore(0);
               setOpponentScore(0);
-              setTimeLeft(120);
+              setTimeLeft(150); // Full 150 seconds for ranked
               setSelectedOption(null);
               setShowResult(false);
               setAnswerAnimation(null);
@@ -2338,6 +2339,23 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               setMyFinished(false);
               setWaitingForOpponent(false);
               setRankChangeResult(null);
+              // Critical: Reset these states that were missing
+              setMatchFinished(false);
+              setOpponentFinished(false);
+              setOpponentFinalScore(null);
+              setOpponentProgress(0);
+              setIsRealPlayer(false);
+              setQuizTypes([]);
+              setOptions([]);
+              setWordOptions([]);
+              setCurrentQuizType("meaning");
+              setSearchTime(0);
+              setShowAIOption(false);
+              setWaitingMatchId(null);
+              setOpponentNameCard(null);
+              setBattleChannel(null);
+              // Reset the friend match ref
+              friendMatchInitialized.current = false;
             }}>
               <Swords className="w-4 h-4 mr-2" />
               再来一局

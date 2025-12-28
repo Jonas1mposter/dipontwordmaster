@@ -198,6 +198,13 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
 
   return (
     <div className="space-y-3">
+      {/* 学习提示 */}
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
+        <Play className="w-4 h-4 text-primary flex-shrink-0" />
+        <span className="text-muted-foreground">
+          <span className="text-foreground font-medium">学习流程：</span>先学习单词，再进行测试
+        </span>
+      </div>
       {letterUnits.map((unit, unitIndex) => {
         const isExpanded = expandedLetters.has(unit.letter);
         const subLevels = getSubLevels(unit.words);

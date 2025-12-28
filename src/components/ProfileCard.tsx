@@ -892,14 +892,16 @@ const ProfileCard = () => {
                   </div>
                 ) : (
                   userNameCards.map((card) => {
+                    const isCustomGradient = card.background_gradient?.startsWith('linear-gradient');
                     return (
                       <Card
                         key={card.id}
                         className={cn(
                           "cursor-pointer transition-all hover:scale-[1.02]",
-                          `bg-gradient-to-r ${card.background_gradient}`,
+                          !isCustomGradient && `bg-gradient-to-r ${card.background_gradient}`,
                           card.is_equipped && "ring-2 ring-white"
                         )}
+                        style={isCustomGradient ? { background: card.background_gradient } : undefined}
                         onClick={() => handleEquipNameCard(card)}
                       >
                         <CardContent className="p-4 flex items-center gap-3 text-white">

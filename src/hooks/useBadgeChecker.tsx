@@ -102,15 +102,20 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
   },
 ];
 
+// Special badge IDs
+const HIDDEN_BADGE_ID = "c0a9a2c2-f89d-46b6-8583-c7a785637d8e"; // 成就收割机
+const BETA_BADGE_ID = "281f5f7e-e0d3-402f-92f5-58ed15207a40"; // 内测先驱
+
 export const checkAndAwardBadges = async (profile: Profile | null) => {
   if (!profile) return;
 
   try {
-    // Fetch user stats
+    // Fetch user stats and all badges
     const [
       { data: learningProgress },
       { data: userBadges },
       { data: rankedMatches },
+      { data: allBadges },
     ] = await Promise.all([
       supabase
         .from("learning_progress")
@@ -126,6 +131,9 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
         .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
         .eq("status", "completed")
         .order("created_at", { ascending: false }),
+      supabase
+        .from("badges")
+        .select("id"),
     ]);
 
     const earnedBadgeIds = userBadges?.map((ub) => ub.badge_id) || [];
@@ -170,6 +178,20 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
     for (const condition of BADGE_CONDITIONS) {
       if (!earnedBadgeIds.includes(condition.badgeId) && condition.check(userStats)) {
         badgesToAward.push({ id: condition.badgeId, name: condition.name });
+      }
+    }
+
+    // Check for hidden "成就收割机" badge
+    // Award if user has all badges except 内测先驱 and 成就收割机 itself
+    if (!earnedBadgeIds.includes(HIDDEN_BADGE_ID)) {
+      const requiredBadges = allBadges?.filter(b => 
+        b.id !== HIDDEN_BADGE_ID && b.id !== BETA_BADGE_ID
+      ) || [];
+      
+      const hasAllRequired = requiredBadges.every(b => earnedBadgeIds.includes(b.id));
+      
+      if (hasAllRequired && requiredBadges.length > 0) {
+        badgesToAward.push({ id: HIDDEN_BADGE_ID, name: "成就收割机" });
       }
     }
 

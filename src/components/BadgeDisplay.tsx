@@ -25,8 +25,8 @@ const rarityColors: Record<string, string> = {
   rare: "from-blue-400 to-blue-600",
   epic: "from-purple-400 to-purple-600",
   legendary: "from-yellow-400 to-orange-500",
-  mythology: "from-pink-500 via-purple-500 to-cyan-500",
-  hidden: "from-rose-500 via-amber-500 via-emerald-500 via-cyan-500 to-violet-500",
+  mythology: "from-red-500 via-rose-600 to-red-700",
+  hidden: "from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500",
 };
 
 const rarityLabels: Record<string, string> = {
@@ -51,8 +51,10 @@ const categoryLabels: Record<string, string> = {
   hidden: "隐藏",
 };
 
-// Check if rarity is special (mythology or hidden)
-const isSpecialRarity = (rarity: string) => rarity === "mythology" || rarity === "hidden";
+// Check if rarity is mythology (red glow)
+const isMythology = (rarity: string) => rarity === "mythology";
+// Check if rarity is hidden (rainbow shimmer, no pulse)
+const isHidden = (rarity: string) => rarity === "hidden";
 
 const BadgeDisplay = () => {
   const { profile } = useAuth();
@@ -153,18 +155,23 @@ const BadgeDisplay = () => {
             <div
               key={badge.id}
               className={cn(
-                "relative group flex flex-col items-center p-3 rounded-xl transition-all duration-300",
+                "relative group flex flex-col items-center p-3 rounded-xl transition-all duration-300 overflow-hidden",
                 badge.earned 
                   ? "bg-gradient-to-br opacity-100 hover:scale-105 cursor-pointer" 
                   : "bg-muted/30 opacity-50 grayscale",
                 badge.earned && rarityColors[badge.rarity],
-                badge.earned && isSpecialRarity(badge.rarity) && "animate-pulse shadow-lg"
+                badge.earned && isMythology(badge.rarity) && "animate-pulse shadow-lg shadow-red-500/30"
               )}
               title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
             >
-              {/* Animated ring for mythology/hidden badges */}
-              {badge.earned && isSpecialRarity(badge.rarity) && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 opacity-50 blur-sm animate-pulse" />
+              {/* Red glow for mythology badges */}
+              {badge.earned && isMythology(badge.rarity) && (
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-50 blur-sm animate-pulse" />
+              )}
+              
+              {/* Rainbow shimmer for hidden badges (no pulse) */}
+              {badge.earned && isHidden(badge.rarity) && (
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm shimmer" />
               )}
               
               {/* Badge icon */}

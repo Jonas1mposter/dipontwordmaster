@@ -11,7 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search, Sparkles, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search, Sparkles, MessageSquareText, UserX } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ParsedWord {
   word: string;
@@ -46,6 +57,7 @@ export default function Admin() {
   // User management state
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
 
   // Word stats
   const [wordStats, setWordStats] = useState<{grade: number, count: number}[]>([]);
@@ -187,6 +199,30 @@ export default function Admin() {
     } catch (err) {
       console.error('Error toggling admin:', err);
       toast.error('操作失败');
+    }
+  };
+
+  // Delete user account
+  const deleteUser = async (userId: string, username: string) => {
+    setDeletingUser(userId);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: userId }
+      });
+
+      if (error) throw error;
+      
+      if (data.error) {
+        toast.error(data.error);
+      } else {
+        toast.success(`用户 ${username} 已成功删除`);
+        fetchUsers();
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error('删除用户失败');
+    } finally {
+      setDeletingUser(null);
     }
   };
 
@@ -486,13 +522,43 @@ export default function Admin() {
                             </SelectContent>
                           </Select>
                           {u.user_id !== user?.id && (
-                            <Button
-                              variant={u.isAdmin ? "destructive" : "outline"}
-                              size="sm"
-                              onClick={() => toggleAdmin(u.user_id, !!u.isAdmin)}
-                            >
-                              {u.isAdmin ? '移除管理员' : '设为管理员'}
-                            </Button>
+                            <>
+                              <Button
+                                variant={u.isAdmin ? "destructive" : "outline"}
+                                size="sm"
+                                onClick={() => toggleAdmin(u.user_id, !!u.isAdmin)}
+                              >
+                                {u.isAdmin ? '移除管理员' : '设为管理员'}
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={deletingUser === u.user_id}
+                                  >
+                                    <UserX className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>确认删除账号</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      确定要删除用户 <strong>{u.username}</strong> 的账号吗？此操作不可撤销，将永久删除该用户的所有数据。
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>取消</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteUser(u.user_id, u.username)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      确认删除
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
                           )}
                           {u.user_id === user?.id && (
                             <Badge variant="outline">当前用户</Badge>

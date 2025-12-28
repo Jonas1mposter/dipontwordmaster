@@ -51,10 +51,16 @@ const categoryLabels: Record<string, string> = {
   hidden: "隐藏",
 };
 
-// Check if rarity is mythology (red glow)
+// Check if rarity is mythology (red animated glow)
 const isMythology = (rarity: string) => rarity === "mythology";
 // Check if rarity is hidden (rainbow shimmer, no pulse)
 const isHidden = (rarity: string) => rarity === "hidden";
+
+// Format date to readable string
+const formatEarnedDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+};
 
 const BadgeDisplay = () => {
   const { profile } = useAuth();
@@ -77,7 +83,7 @@ const BadgeDisplay = () => {
     }
 
     // Fetch user's earned badges if logged in
-    let earnedBadgeIds: string[] = [];
+    let earnedBadgesMap: Record<string, string> = {};
     if (profile) {
       const { data: userBadges } = await supabase
         .from("user_badges")
@@ -85,14 +91,17 @@ const BadgeDisplay = () => {
         .eq("profile_id", profile.id);
 
       if (userBadges) {
-        earnedBadgeIds = userBadges.map(ub => ub.badge_id);
+        userBadges.forEach(ub => {
+          earnedBadgesMap[ub.badge_id] = ub.earned_at;
+        });
       }
     }
 
-    // Mark earned badges
+    // Mark earned badges with earned time
     const badgesWithStatus = allBadges?.map(badge => ({
       ...badge,
-      earned: earnedBadgeIds.includes(badge.id),
+      earned: badge.id in earnedBadgesMap,
+      earnedAt: earnedBadgesMap[badge.id] || undefined,
     })) || [];
 
     setBadges(badgesWithStatus);
@@ -160,18 +169,18 @@ const BadgeDisplay = () => {
                   ? "bg-gradient-to-br opacity-100 hover:scale-105 cursor-pointer" 
                   : "bg-muted/30 opacity-50 grayscale",
                 badge.earned && rarityColors[badge.rarity],
-                badge.earned && isMythology(badge.rarity) && "animate-pulse shadow-lg shadow-red-500/30"
+                badge.earned && isMythology(badge.rarity) && "mythology-glow"
               )}
               title={`${badge.name}${badge.description ? `: ${badge.description}` : ''}`}
             >
-              {/* Red glow for mythology badges */}
+              {/* Red animated glow for mythology badges */}
               {badge.earned && isMythology(badge.rarity) && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-50 blur-sm animate-pulse" />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-red-500 via-rose-600 to-red-700 opacity-60 blur-md mythology-pulse" />
               )}
               
               {/* Rainbow shimmer for hidden badges (no pulse) */}
               {badge.earned && isHidden(badge.rarity) && (
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm shimmer" />
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 via-cyan-400 to-violet-500 opacity-60 blur-sm rainbow-shimmer" />
               )}
               
               {/* Badge icon */}
@@ -194,21 +203,27 @@ const BadgeDisplay = () => {
                 {badge.name}
               </span>
 
-              {/* Rarity indicator */}
+              {/* Rarity indicator - fixed positioning */}
               {badge.earned && (
-                <span className="absolute -top-1 -right-1 text-[8px] bg-background/80 px-1 rounded-full border border-border/50">
+                <span className="absolute top-1 right-1 text-[8px] bg-background/90 px-1.5 py-0.5 rounded-md border border-border/50 z-20">
                   {rarityLabels[badge.rarity]}
                 </span>
               )}
 
               {/* Tooltip on hover */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 w-48">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30 w-48">
                 <p className="text-xs font-semibold text-foreground">{badge.name}</p>
-                {/* Show unlock condition or earned status */}
+                {/* Show unlock time if earned, otherwise show condition */}
                 <div className="mt-1">
-                  <p className="text-[10px] text-primary font-medium">
-                    {badge.earned ? "✓ 已解锁" : `解锁条件：${badge.description || "完成特定任务"}`}
-                  </p>
+                  {badge.earned ? (
+                    <p className="text-[10px] text-primary font-medium">
+                      ✓ 解锁于 {badge.earnedAt ? formatEarnedDate(badge.earnedAt) : "未知时间"}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">
+                      解锁条件：{badge.description || "完成特定任务"}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-1 mt-2">
                   <Badge variant="outline" className="text-[8px] px-1 py-0">

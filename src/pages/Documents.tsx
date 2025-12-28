@@ -632,7 +632,7 @@ const PlanDoc = () => (
         <div className="border rounded-lg overflow-hidden">
           <img src={deviceOptionB} alt="方案B - 定制安卓掌机" className="w-full h-56 object-contain bg-muted/30" />
           <div className="p-4">
-            <h4 className="font-bold text-lg mb-2">方案B / Option B</h4>
+            <h4 className="font-bold text-lg mb-2">方案A / Option A</h4>
             <p className="text-sm font-medium mb-2">定制安卓掌机 / Custom Android Handheld</p>
             <table className="w-full text-xs">
               <tbody>
@@ -657,7 +657,7 @@ const PlanDoc = () => (
         <div className="border rounded-lg overflow-hidden">
           <img src={deviceOptionC} alt="方案C - Linux开源掌机" className="w-full h-56 object-contain bg-muted/30" />
           <div className="p-4">
-            <h4 className="font-bold text-lg mb-2">方案C / Option C</h4>
+            <h4 className="font-bold text-lg mb-2">方案B / Option B</h4>
             <p className="text-sm font-medium mb-2">Linux开源掌机 / Linux Handheld</p>
             <table className="w-full text-xs">
               <tbody>
@@ -679,10 +679,10 @@ const PlanDoc = () => (
         </div>
       </div>
       <p className="text-sm mt-4">
-        <strong>推荐方案 / Recommended</strong>：方案B或C，根据预算和定制需求选择。
+        <strong>推荐方案 / Recommended</strong>：方案A或B，根据预算和定制需求选择。
         <br />
         <span className="text-muted-foreground">
-          Option B or C, based on budget and customization requirements.
+          Option A or B, based on budget and customization requirements.
         </span>
       </p>
 

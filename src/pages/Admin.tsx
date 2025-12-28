@@ -123,11 +123,11 @@ export default function Admin() {
   };
 
   // Generate examples using AI
-  const generateExamples = async () => {
+  const generateExamples = async (generateAll = false) => {
     setGeneratingExamples(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-examples', {
-        body: { batchSize: 20, grade: parseInt(exampleGrade) }
+        body: { batchSize: 20, grade: parseInt(exampleGrade), generateAll }
       });
 
       if (error) throw error;
@@ -142,7 +142,9 @@ export default function Admin() {
         }
       } else {
         toast.success(data.message || `成功生成 ${data.updated} 个例句`);
-        fetchWordStats();
+        if (!generateAll) {
+          fetchWordStats();
+        }
       }
     } catch (err) {
       console.error('Error generating examples:', err);
@@ -817,15 +819,27 @@ abstract - 抽象的`}
                   </div>
                 </div>
 
-                <Button
-                  onClick={generateExamples}
-                  disabled={generatingExamples || wordsWithoutExamples === 0}
-                  className="w-full"
-                  size="lg"
-                >
-                  <Sparkles className={`w-4 h-4 mr-2 ${generatingExamples ? 'animate-spin' : ''}`} />
-                  {generatingExamples ? '生成中...' : `为 ${exampleGrade} 年级生成例句`}
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => generateExamples(false)}
+                    disabled={generatingExamples || wordsWithoutExamples === 0}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    <Sparkles className={`w-4 h-4 mr-2 ${generatingExamples ? 'animate-spin' : ''}`} />
+                    {generatingExamples ? '生成中...' : `生成20个例句`}
+                  </Button>
+                  <Button
+                    onClick={() => generateExamples(true)}
+                    disabled={generatingExamples || wordsWithoutExamples === 0}
+                    variant="default"
+                    className="flex-1 bg-gradient-to-r from-primary to-neon-pink hover:opacity-90"
+                    size="lg"
+                  >
+                    <Sparkles className={`w-4 h-4 mr-2 ${generatingExamples ? 'animate-spin' : ''}`} />
+                    {generatingExamples ? '启动中...' : `生成全部 (${wordsWithoutExamples}个)`}
+                  </Button>
+                </div>
 
                 {wordsWithoutExamples === 0 && (
                   <p className="text-sm text-green-500 text-center">

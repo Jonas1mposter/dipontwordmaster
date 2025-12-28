@@ -475,10 +475,12 @@ export default function Admin() {
                             <SelectTrigger className="w-24">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="7">7年级</SelectItem>
-                              <SelectItem value="8">8年级</SelectItem>
-                              <SelectItem value="9">9年级</SelectItem>
+                          <SelectContent>
+                              {wordStats.map(stat => (
+                                <SelectItem key={stat.grade} value={stat.grade.toString()}>
+                                  {stat.grade}年级
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           {u.user_id !== user?.id && (
@@ -667,9 +669,11 @@ export default function Admin() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="7">7年级</SelectItem>
-                        <SelectItem value="8">8年级</SelectItem>
-                        <SelectItem value="9">9年级</SelectItem>
+                        {wordStats.map(stat => (
+                          <SelectItem key={stat.grade} value={stat.grade.toString()}>
+                            {stat.grade}年级
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -789,9 +793,11 @@ abstract - 抽象的`}
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="7">7年级</SelectItem>
-                      <SelectItem value="8">8年级</SelectItem>
-                      <SelectItem value="9">9年级</SelectItem>
+                      {wordStats.map(stat => (
+                        <SelectItem key={stat.grade} value={stat.grade.toString()}>
+                          {stat.grade}年级
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

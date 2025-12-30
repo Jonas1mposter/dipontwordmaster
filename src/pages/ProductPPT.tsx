@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Sparkles, Zap, Trophy, Users, Target, Shield, BarChart3, Cloud, Smartphone, Gamepad2, BookOpen, Swords, Award, MessageCircle, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import interstellarPagerImg from "@/assets/interstellar-pager.jpg";
 
 const ProductPPT = () => {
   const navigate = useNavigate();
@@ -1383,9 +1384,64 @@ const ProductPPT = () => {
           </div>
         </section>
 
-        {/* Slide 12: Contact */}
+        {/* Slide 12: Future Vision */}
         <section 
           data-slide="12"
+          className="min-h-[700px] flex flex-col items-center justify-center relative overflow-hidden rounded-3xl p-12 print:min-h-screen"
+          style={{
+            background: 'linear-gradient(135deg, hsl(220, 80%, 10%) 0%, hsl(240, 60%, 15%) 50%, hsl(260, 50%, 12%) 100%)',
+          }}
+        >
+          <div className="absolute inset-0 overflow-hidden pointer-events-none print:hidden">
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+            {/* Stars */}
+            {[...Array(30)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-white/60 rounded-full animate-pulse"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="relative z-10 text-center space-y-8 max-w-4xl" style={getSlideAnimation(12)}>
+            <div className="space-y-4">
+              <h2 className="text-4xl md:text-5xl font-bold text-white">🚀 未来愿景</h2>
+              <p className="text-2xl text-cyan-300/80">Future Vision</p>
+            </div>
+            
+            <div className="h-1 w-40 bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent mx-auto rounded-full" />
+            
+            <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-cyan-500/20" style={getItemAnimation(12, 0)}>
+              <h3 className="text-2xl font-bold text-cyan-300 mb-2">另一个项目：星际寻呼机</h3>
+              <p className="text-lg text-white/80 mb-6">Another Project: Interstellar Pager</p>
+              <p className="text-muted-foreground mb-6">
+                本质相同，都是单词学习平台<br />
+                <span className="text-sm">Same essence - a vocabulary learning platform</span>
+              </p>
+              
+              <div className="relative rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl shadow-cyan-500/20">
+                <img 
+                  src={interstellarPagerImg}
+                  alt="星际寻呼机效果图" 
+                  className="w-full max-w-lg mx-auto"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <p className="text-sm text-cyan-300">此项目的效果图 | Project Preview</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Slide 13: Contact */}
+        <section 
+          data-slide="13"
           className="min-h-[700px] flex flex-col items-center justify-center relative overflow-hidden rounded-3xl p-12 print:min-h-screen"
           style={{
             background: 'linear-gradient(135deg, hsl(var(--primary)/0.15) 0%, hsl(var(--background)) 50%, hsl(var(--primary)/0.1) 100%)',

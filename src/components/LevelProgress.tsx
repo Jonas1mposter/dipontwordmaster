@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Lock, Star, CheckCircle, Play, Zap, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useQuery } from "@tanstack/react-query";
 
 interface Word {
   id: string;
@@ -30,79 +31,73 @@ const WORDS_PER_LEVEL = 10;
 
 const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
   const { profile } = useAuth();
-  const [allWords, setAllWords] = useState<Word[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedLetters, setExpandedLetters] = useState<Set<string>>(new Set());
-  const [userProgress, setUserProgress] = useState<Record<string, { mastery_level: number }>>({});
 
+  // 使用 React Query 缓存单词数据（5分钟内不重新请求）
+  const { data: allWords = [], isLoading: wordsLoading } = useQuery({
+    queryKey: ["words", grade],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("words")
+        .select("id, word, meaning")
+        .eq("grade", grade)
+        .order("word", { ascending: true })
+        .limit(2000);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
+    gcTime: 30 * 60 * 1000, // 缓存保留30分钟
+  });
+
+  // 使用 React Query 缓存学习进度（30秒刷新，保持较新）
+  const { data: userProgress = {}, isLoading: progressLoading } = useQuery({
+    queryKey: ["learning-progress", profile?.id],
+    queryFn: async () => {
+      if (!profile) return {};
+      const { data, error } = await supabase
+        .from("learning_progress")
+        .select("word_id, mastery_level")
+        .eq("profile_id", profile.id);
+      if (error) throw error;
+      const progressMap: Record<string, { mastery_level: number }> = {};
+      data?.forEach((p) => {
+        progressMap[p.word_id] = { mastery_level: p.mastery_level };
+      });
+      return progressMap;
+    },
+    enabled: !!profile,
+    staleTime: 30 * 1000, // 30秒内认为数据新鲜
+    gcTime: 5 * 60 * 1000, // 缓存保留5分钟
+  });
+
+  const loading = wordsLoading || progressLoading;
+
+  // 默认展开第一个未完成的字母
   useEffect(() => {
-    const fetchData = async () => {
-      if (!profile) {
-        setLoading(false);
-        return;
-      }
+    if (allWords.length === 0 || loading) return;
 
-      try {
-        // 并行获取单词和学习进度
-        const [wordsResult, progressResult] = await Promise.all([
-          supabase
-            .from("words")
-            .select("id, word, meaning")
-            .eq("grade", grade)
-            .order("word", { ascending: true })
-            .limit(2000),
-          supabase
-            .from("learning_progress")
-            .select("word_id, mastery_level")
-            .eq("profile_id", profile.id)
-        ]);
+    const letterGroups: Record<string, Word[]> = {};
+    allWords.forEach((word) => {
+      const firstLetter = word.word.charAt(0).toUpperCase();
+      if (!letterGroups[firstLetter]) letterGroups[firstLetter] = [];
+      letterGroups[firstLetter].push(word);
+    });
 
-        if (wordsResult.error) throw wordsResult.error;
-        
-        const words = wordsResult.data || [];
-        setAllWords(words);
-
-        // 处理进度数据
-        const progressMap: Record<string, { mastery_level: number }> = {};
-        if (!progressResult.error && progressResult.data) {
-          progressResult.data.forEach((p) => {
-            progressMap[p.word_id] = { mastery_level: p.mastery_level };
-          });
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    let previousUnlocked = true;
+    for (const letter of alphabet) {
+      const letterWords = letterGroups[letter] || [];
+      if (letterWords.length > 0 && previousUnlocked) {
+        const completedCount = letterWords.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
+        if (completedCount < letterWords.length) {
+          setExpandedLetters(prev => prev.size === 0 ? new Set([letter]) : prev);
+          break;
         }
-        setUserProgress(progressMap);
-
-        // 默认展开第一个未完成的字母
-        const letterGroups: Record<string, Word[]> = {};
-        words.forEach((word) => {
-          const firstLetter = word.word.charAt(0).toUpperCase();
-          if (!letterGroups[firstLetter]) {
-            letterGroups[firstLetter] = [];
-          }
-          letterGroups[firstLetter].push(word);
-        });
-
-        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-        let previousUnlocked = true;
-        for (const letter of alphabet) {
-          const letterWords = letterGroups[letter] || [];
-          if (letterWords.length > 0 && previousUnlocked) {
-            const completedCount = letterWords.filter(w => progressMap[w.id]?.mastery_level >= 1).length;
-            if (completedCount < letterWords.length) {
-              setExpandedLetters(new Set([letter]));
-              break;
-            }
-            previousUnlocked = completedCount === letterWords.length;
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
+        previousUnlocked = completedCount === letterWords.length;
       }
-    };
-
-    fetchData();
-  }, [grade, profile]);
+    }
+  }, [allWords, userProgress, loading]);
 
   // 使用 useMemo 缓存字母单元计算
   const letterUnits = useMemo(() => {

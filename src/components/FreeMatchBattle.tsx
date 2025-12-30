@@ -1652,23 +1652,39 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             </div>
             
             <div className="flex items-center justify-between mb-2">
-              <div className="text-center">
+              <div className="text-center flex-1">
                 <div className="text-sm font-semibold text-primary">{profile?.username}</div>
                 <div className="text-2xl font-gaming text-success">{myScore}</div>
+                <div className="text-xs text-muted-foreground">{currentWordIndex + 1}/10</div>
               </div>
               
               <span className="font-gaming text-muted-foreground">VS</span>
               
-              <div className="text-center">
+              <div className="text-center flex-1">
                 <div className="text-sm font-semibold text-neon-cyan">{opponent?.username}</div>
-                <div className="text-2xl font-gaming text-destructive">{opponentScore}</div>
+                <div className="text-2xl font-gaming text-neon-blue">
+                  {isRealPlayer ? `${opponentProgress}/10` : "?/10"}
+                </div>
+                <div className="text-xs text-muted-foreground">对手进度</div>
               </div>
             </div>
             
-            <Progress 
-              value={(currentWordIndex / words.length) * 100} 
-              className="h-1"
-            />
+            {/* Progress bars */}
+            <div className="flex gap-2 items-center">
+              <div className="flex-1">
+                <Progress 
+                  value={(currentWordIndex / 10) * 100} 
+                  className="h-1.5"
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">VS</span>
+              <div className="flex-1">
+                <Progress 
+                  value={(opponentProgress / 10) * 100} 
+                  className="h-1.5 [&>div]:bg-neon-cyan"
+                />
+              </div>
+            </div>
           </div>
         </header>
 

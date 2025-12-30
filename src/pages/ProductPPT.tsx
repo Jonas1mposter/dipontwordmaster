@@ -130,9 +130,6 @@ const ProductPPT = () => {
               ))}
             </div>
 
-            <div className="pt-8 text-muted-foreground">
-              <p className="font-medium">狄邦教育 | Dipont Education</p>
-            </div>
           </div>
         </section>
 

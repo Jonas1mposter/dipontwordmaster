@@ -25,9 +25,10 @@ import { FriendsPanel } from "./friends/FriendsPanel";
 import { SettingsSheet } from "./SettingsSheet";
 import RankDisplay from "./RankDisplay";
 import SpectateView from "./SpectateView";
+import MatchHistory from "./MatchHistory";
 import { ReconnectDialog } from "./ReconnectDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book } from "lucide-react";
+import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History } from "lucide-react";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
 
@@ -51,7 +52,7 @@ const Dashboard = ({
     checkAndAwardBadges
   } = useBadgeChecker(profile);
   const checkNameCards = useNameCardChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
@@ -205,6 +206,11 @@ const Dashboard = ({
     }} initialMatchId={reconnectMatchType === "free" ? reconnectMatchId : null} />;
   }
 
+  // Show match history
+  if (activeView === "history") {
+    return <MatchHistory onBack={() => setActiveView("home")} />;
+  }
+
   // Wrong word review mode
   if (activeView === "wrongbook" && wrongWordsToReview) {
     return <WrongWordReview words={wrongWordsToReview} onBack={() => {
@@ -318,6 +324,10 @@ const Dashboard = ({
             id: "friends",
             label: "好友",
             icon: Users
+          }, {
+            id: "history",
+            label: "战绩",
+            icon: History
           }, {
             id: "leaderboard",
             label: "排行榜",

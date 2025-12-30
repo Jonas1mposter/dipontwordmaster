@@ -2064,8 +2064,20 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => {
-                  if (confirm("确定要退出比赛吗？退出将判负")) {
+                onClick={async () => {
+                  if (confirm("确定要放弃比赛吗？放弃将判负")) {
+                    // Update match in database as abandoned
+                    if (matchId) {
+                      await supabase
+                        .from("ranked_matches")
+                        .update({
+                          status: "completed",
+                          winner_id: opponent?.id || null,
+                          ended_at: new Date().toISOString(),
+                        })
+                        .eq("id", matchId);
+                    }
+                    toast.info("你已放弃比赛");
                     setMatchStatus("finished");
                     setIsWinner(false);
                     setOpponentScore(10);
@@ -2074,7 +2086,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
-                退出
+                放弃
               </Button>
               
               <div className={cn(

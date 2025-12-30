@@ -191,10 +191,10 @@ const ProductPPT = () => {
           </div>
         </section>
 
-        {/* Slide 3: Product Positioning */}
+        {/* Slide 3: Product Positioning with Interface Preview */}
         <section 
           data-slide="3"
-          className="min-h-[600px] bg-card rounded-3xl p-12 relative overflow-hidden print:break-after-page print:min-h-screen"
+          className="min-h-[700px] bg-card rounded-3xl p-12 relative overflow-hidden print:break-after-page print:min-h-screen"
         >
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 print:hidden" />
           
@@ -203,44 +203,123 @@ const ProductPPT = () => {
               <Sparkles className="h-8 w-8 text-primary" />
               <h2 className="text-3xl md:text-4xl font-bold">产品定位</h2>
             </div>
-            <p className="text-xl text-muted-foreground mb-10">Product Positioning</p>
+            <p className="text-xl text-muted-foreground mb-8">Product Positioning</p>
           </div>
           
-          <div className="flex flex-col items-center justify-center space-y-10 mt-8">
-            <div className="text-center max-w-3xl space-y-4" style={getItemAnimation(3, 0)}>
-              <p className="text-2xl md:text-3xl font-medium leading-relaxed">
-                面向初中学生（7-8年级）的
-                <span className="text-primary font-bold mx-2 relative">
-                  游戏化
-                  <span className="absolute -bottom-1 left-0 w-full h-1 bg-primary/30 rounded-full" />
-                </span>
-                英语词汇学习平台
-              </p>
-              <p className="text-xl text-muted-foreground">
-                A Gamified English Vocabulary Platform for Middle School Students (Grades 7-8)
-              </p>
-            </div>
-            
-            <div className="grid md:grid-cols-3 gap-6 w-full mt-8">
-              {[
-                { icon: Gamepad2, title: '游戏化机制', subtitle: 'Gamification Mechanics', desc: '等级、段位、排行榜、成就系统', descEn: 'Levels, ranks, leaderboards, achievements' },
-                { icon: BookOpen, title: '教材同步', subtitle: 'Curriculum Aligned', desc: '紧贴课本单元，按字母分级学习', descEn: 'Textbook-aligned, A-Z organized learning' },
-                { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战，好友互动，班级竞赛', descEn: 'Real-time battles, friend interactions, class competitions' },
-              ].map((item, i) => (
-                <div 
-                  key={i}
-                  className="group bg-primary/5 hover:bg-primary/10 rounded-2xl p-6 text-center border border-primary/10 hover:border-primary/30 transition-all duration-500 hover:-translate-y-2 hover:shadow-xl hover:shadow-primary/10"
-                  style={getItemAnimation(3, i + 1)}
-                >
-                  <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
-                    <item.icon className="h-8 w-8 text-primary" />
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left: Features */}
+            <div className="space-y-6">
+              <div className="text-left space-y-3" style={getItemAnimation(3, 0)}>
+                <p className="text-xl md:text-2xl font-medium leading-relaxed">
+                  面向初中学生（7-8年级）的
+                  <span className="text-primary font-bold mx-1">游戏化</span>
+                  英语词汇学习平台
+                </p>
+                <p className="text-base text-muted-foreground">
+                  A Gamified English Vocabulary Platform for Middle School Students
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4 mt-6">
+                {[
+                  { icon: Gamepad2, title: '游戏化机制', subtitle: 'Gamification', desc: '等级、段位、排行榜' },
+                  { icon: BookOpen, title: '教材同步', subtitle: 'Curriculum Aligned', desc: '紧贴课本单元' },
+                  { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战、班级竞赛' },
+                ].map((item, i) => (
+                  <div 
+                    key={i}
+                    className="group flex items-center gap-4 bg-primary/5 hover:bg-primary/10 rounded-xl p-4 border border-primary/10 hover:border-primary/30 transition-all duration-300 hover:-translate-x-1"
+                    style={getItemAnimation(3, i + 1)}
+                  >
+                    <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-all duration-300">
+                      <item.icon className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold">{item.title} <span className="text-sm text-muted-foreground font-normal">| {item.subtitle}</span></h3>
+                      <p className="text-sm text-muted-foreground">{item.desc}</p>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-bold">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{item.subtitle}</p>
-                  <p className="text-sm mt-3">{item.desc}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{item.descEn}</p>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Login & Dashboard Preview */}
+            <div className="space-y-4" style={getItemAnimation(3, 4)}>
+              {/* Login Page Preview */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl blur-xl" />
+                <div className="relative bg-background/90 backdrop-blur rounded-2xl p-4 border border-primary/20 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-muted-foreground">登录界面 | Login</span>
+                  </div>
+                  <div className="flex flex-col items-center py-4 space-y-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center">
+                      <span className="text-white text-lg font-bold">狄</span>
+                    </div>
+                    <p className="text-lg font-bold">登录</p>
+                    <p className="text-xs text-muted-foreground">狄邦单词通 · 词汇学习平台</p>
+                    <div className="w-full max-w-[200px] space-y-2">
+                      <div className="h-8 bg-muted/50 rounded-lg border border-border/50 flex items-center px-3">
+                        <span className="text-xs text-muted-foreground">📧 邮箱</span>
+                      </div>
+                      <div className="h-8 bg-muted/50 rounded-lg border border-border/50 flex items-center px-3">
+                        <span className="text-xs text-muted-foreground">🔒 密码</span>
+                      </div>
+                      <div className="h-8 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center">
+                        <span className="text-xs text-primary-foreground font-medium">登录</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Dashboard Preview */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-2xl blur-xl" />
+                <div className="relative bg-background/90 backdrop-blur rounded-2xl p-4 border border-primary/20 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-muted-foreground">主界面 | Dashboard</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { icon: '📚', label: '闯关', active: true },
+                      { icon: '⚔️', label: '排位', active: false },
+                      { icon: '🏆', label: '排行', active: false },
+                      { icon: '👤', label: '我的', active: false },
+                    ].map((item, i) => (
+                      <div 
+                        key={i} 
+                        className={`flex flex-col items-center p-2 rounded-lg transition-all ${
+                          item.active ? 'bg-primary/20 text-primary' : 'bg-muted/30'
+                        }`}
+                      >
+                        <span className="text-lg">{item.icon}</span>
+                        <span className="text-xs mt-1">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center text-sm">👤</div>
+                      <div className="flex-1">
+                        <p className="text-xs font-medium">Lv.15 学霸小明</p>
+                        <div className="h-1.5 bg-muted rounded-full mt-1">
+                          <div className="h-full w-2/3 bg-primary rounded-full" />
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-primary">🪙 2,580</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -418,56 +497,95 @@ const ProductPPT = () => {
               </div>
             </div>
             
-            {/* Battle Interface Preview */}
-            <div className="relative" style={getItemAnimation(5, 2)}>
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-blue-500/10 rounded-3xl blur-xl" />
-              <div className="relative bg-background/80 backdrop-blur rounded-3xl p-6 border border-primary/20 shadow-2xl">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/60" />
-                  <span className="ml-2 text-xs text-muted-foreground">对战匹配界面 | Battle Matching</span>
-                </div>
-                
-                <div className="flex items-center justify-between gap-4">
-                  {/* Player 1 */}
-                  <div className="flex-1 text-center">
-                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-primary/30 to-primary/10 rounded-full flex items-center justify-center mb-2 ring-2 ring-primary/30">
-                      <span className="text-2xl">👤</span>
-                    </div>
-                    <p className="font-bold text-sm">Player A</p>
-                    <p className="text-xs text-muted-foreground">Gold III</p>
-                    <div className="flex justify-center gap-1 mt-1">
-                      <span className="w-4 h-4 bg-yellow-500/20 rounded-full text-xs flex items-center justify-center">🎖️</span>
-                      <span className="w-4 h-4 bg-blue-500/20 rounded-full text-xs flex items-center justify-center">⭐</span>
-                    </div>
+            {/* Battle Interface Preview - During Battle */}
+            <div className="space-y-4" style={getItemAnimation(5, 2)}>
+              {/* VS Screen */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-blue-500/10 rounded-2xl blur-xl" />
+                <div className="relative bg-background/80 backdrop-blur rounded-2xl p-4 border border-primary/20 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-muted-foreground">对战匹配 | VS Screen</span>
                   </div>
                   
-                  {/* VS */}
-                  <div className="flex-shrink-0">
-                    <div className="w-16 h-16 bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-full flex items-center justify-center animate-pulse">
-                      <span className="text-xl font-black text-orange-500">VS</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 text-center">
+                      <div className="w-12 h-12 mx-auto bg-gradient-to-br from-primary/30 to-primary/10 rounded-full flex items-center justify-center ring-2 ring-primary/30">
+                        <span className="text-xl">👤</span>
+                      </div>
+                      <p className="font-bold text-xs mt-1">单词王者</p>
+                      <p className="text-xs text-muted-foreground">🥇 Gold III</p>
+                      <div className="flex justify-center gap-0.5 mt-1">
+                        {['🔥', '⭐', '🎯'].map((b, i) => (
+                          <span key={i} className="w-4 h-4 bg-primary/20 rounded-full text-xs flex items-center justify-center">{b}</span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Player 2 */}
-                  <div className="flex-1 text-center">
-                    <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500/30 to-blue-500/10 rounded-full flex items-center justify-center mb-2 ring-2 ring-blue-500/30">
-                      <span className="text-2xl">👤</span>
+                    
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500/30 to-red-500/30 rounded-full flex items-center justify-center animate-pulse border-2 border-orange-500/50">
+                        <span className="text-base font-black text-orange-500">VS</span>
+                      </div>
                     </div>
-                    <p className="font-bold text-sm">Player B</p>
-                    <p className="text-xs text-muted-foreground">Gold II</p>
-                    <div className="flex justify-center gap-1 mt-1">
-                      <span className="w-4 h-4 bg-green-500/20 rounded-full text-xs flex items-center justify-center">🏆</span>
-                      <span className="w-4 h-4 bg-purple-500/20 rounded-full text-xs flex items-center justify-center">💎</span>
+                    
+                    <div className="flex-1 text-center">
+                      <div className="w-12 h-12 mx-auto bg-gradient-to-br from-blue-500/30 to-blue-500/10 rounded-full flex items-center justify-center ring-2 ring-blue-500/30">
+                        <span className="text-xl">👤</span>
+                      </div>
+                      <p className="font-bold text-xs mt-1">英语达人</p>
+                      <p className="text-xs text-muted-foreground">🥇 Gold II</p>
+                      <div className="flex justify-center gap-0.5 mt-1">
+                        {['🏆', '💎', '📚'].map((b, i) => (
+                          <span key={i} className="w-4 h-4 bg-blue-500/20 rounded-full text-xs flex items-center justify-center">{b}</span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-                
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-muted-foreground">对战即将开始... | Battle starting...</p>
-                  <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full animate-pulse" style={{ width: '70%' }} />
+              </div>
+
+              {/* Battle In Progress */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-blue-500/10 rounded-2xl blur-xl" />
+                <div className="relative bg-background/80 backdrop-blur rounded-2xl p-4 border border-green-500/20 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs text-green-500 font-medium">对战进行中 | Battle in Progress</span>
+                    <span className="ml-auto text-xs bg-orange-500/20 text-orange-500 px-2 py-0.5 rounded-full">⏱️ 45s</span>
+                  </div>
+                  
+                  {/* Score Display */}
+                  <div className="flex items-center justify-center gap-4 mb-3">
+                    <div className="text-center">
+                      <span className="text-2xl font-bold text-green-500">7</span>
+                      <p className="text-xs text-muted-foreground">我 / Me</p>
+                    </div>
+                    <div className="text-lg text-muted-foreground">:</div>
+                    <div className="text-center">
+                      <span className="text-2xl font-bold text-blue-500">5</span>
+                      <p className="text-xs text-muted-foreground">对手 / Opponent</p>
+                    </div>
+                  </div>
+
+                  {/* Question Card */}
+                  <div className="bg-muted/30 rounded-xl p-3">
+                    <p className="text-center text-sm mb-2">
+                      <span className="text-muted-foreground">Q8/10:</span> "adventure" 的意思是?
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['冒险', '建议', '广告', '进步'].map((opt, i) => (
+                        <div 
+                          key={i} 
+                          className={`p-2 rounded-lg text-center text-xs font-medium transition-all ${
+                            i === 0 ? 'bg-green-500/20 border border-green-500/50 text-green-600' : 'bg-muted/50 border border-border/50 hover:bg-muted'
+                          }`}
+                        >
+                          {opt}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -499,10 +617,10 @@ const ProductPPT = () => {
           </div>
         </section>
 
-        {/* Slide 6: Gamification System */}
+        {/* Slide 6: Gamification System with Badge Screenshot */}
         <section 
           data-slide="6"
-          className="min-h-[600px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
+          className="min-h-[700px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
         >
           <div style={getSlideAnimation(6)}>
             <div className="flex items-center gap-3 mb-2">
@@ -512,44 +630,102 @@ const ProductPPT = () => {
             <p className="text-xl text-muted-foreground mb-10">Gamification & Incentive System</p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              { icon: '⚡', title: '经验值 & 等级', subtitle: 'XP & Level System', desc: '完成学习和对战获得经验，提升等级解锁更多内容', descEn: 'Earn XP from learning and battles, level up to unlock content' },
-              { icon: '🪙', title: '狄邦豆货币', subtitle: 'Dipont Coins', desc: '游戏内货币，用于购买道具和装饰', descEn: 'In-game currency for items and cosmetics' },
-              { icon: '🔥', title: '连续登录', subtitle: 'Login Streak', desc: '每日签到奖励，培养学习习惯', descEn: 'Daily check-in rewards to build learning habits' },
-              { icon: '🏆', title: '三大排行榜', subtitle: 'Triple Leaderboards', desc: '财富榜、胜场榜、经验榜，多维度竞争', descEn: 'Coins, wins, and XP rankings for multi-dimensional competition' },
-              { icon: '🎖️', title: '徽章收集', subtitle: 'Badge Collection', desc: '完成成就解锁专属徽章，最多装备3个展示', descEn: 'Unlock exclusive badges, equip up to 3 for display' },
-              { icon: '🎴', title: '称号卡系统', subtitle: 'Name Card System', desc: '排行榜前10名专属称号卡，彰显荣耀', descEn: 'Exclusive name cards for top 10 leaderboard players' },
-            ].map((item, i) => (
-              <div 
-                key={i}
-                className="group bg-background rounded-2xl p-5 space-y-3 border border-border/50 hover:border-primary/30 transition-all duration-300 hover:-translate-y-2 hover:shadow-xl"
-                style={getItemAnimation(6, i)}
-              >
-                <div className="text-4xl group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
-                <h3 className="text-lg font-bold">{item.title}</h3>
-                <p className="text-xs text-muted-foreground">{item.subtitle}</p>
-                <p className="text-sm leading-relaxed">{item.desc}</p>
-                <p className="text-xs text-muted-foreground">{item.descEn}</p>
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left: Features */}
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { icon: '⚡', title: '经验值 & 等级', subtitle: 'XP & Level', desc: '完成学习和对战获得经验', descEn: 'Earn XP from activities' },
+                { icon: '🪙', title: '狄邦豆货币', subtitle: 'Dipont Coins', desc: '游戏内货币购买装饰', descEn: 'In-game currency' },
+                { icon: '🏆', title: '三大排行榜', subtitle: 'Leaderboards', desc: '财富/胜场/经验榜', descEn: 'Coins, wins, XP' },
+                { icon: '🎖️', title: '徽章收集', subtitle: 'Badges', desc: '解锁并装备徽章', descEn: 'Collect & equip' },
+              ].map((item, i) => (
+                <div 
+                  key={i}
+                  className="group bg-background rounded-2xl p-4 space-y-2 border border-border/50 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+                  style={getItemAnimation(6, i)}
+                >
+                  <div className="text-3xl group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
+                  <h3 className="text-base font-bold">{item.title}</h3>
+                  <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                  <p className="text-xs leading-relaxed">{item.desc}</p>
+                  <p className="text-xs text-muted-foreground">{item.descEn}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Right: Badge Collection Screenshot */}
+            <div className="relative" style={getItemAnimation(6, 4)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-purple-500/10 rounded-3xl blur-xl" />
+              <div className="relative bg-background/80 backdrop-blur rounded-3xl p-5 border border-primary/20 shadow-2xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-muted-foreground">徽章收藏 | Badge Collection</span>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { icon: '🔥', name: '内测先驱', rarity: 'mythology', earned: true },
+                    { icon: '⭐', name: '初来乍到', rarity: 'common', earned: true },
+                    { icon: '📚', name: '学海无涯', rarity: 'rare', earned: true },
+                    { icon: '🎯', name: '百发百中', rarity: 'epic', earned: true },
+                    { icon: '👑', name: '王者之路', rarity: 'legendary', earned: true },
+                    { icon: '🏆', name: '连胜达人', rarity: 'rare', earned: true },
+                    { icon: '💎', name: '收割机', rarity: 'hidden', earned: false },
+                    { icon: '🌟', name: '传奇玩家', rarity: 'legendary', earned: false },
+                  ].map((badge, i) => (
+                    <div 
+                      key={i}
+                      className={`aspect-square rounded-xl p-2 flex flex-col items-center justify-center text-center transition-all duration-300 hover:scale-105 ${
+                        badge.earned 
+                          ? badge.rarity === 'mythology' ? 'bg-gradient-to-br from-red-500/30 to-rose-600/30 border border-red-500/50 ring-1 ring-red-500/30' :
+                            badge.rarity === 'hidden' ? 'bg-gradient-to-r from-rose-500/20 via-cyan-500/20 to-violet-500/20 border border-purple-500/50' :
+                            badge.rarity === 'legendary' ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30' :
+                            badge.rarity === 'epic' ? 'bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30' :
+                            badge.rarity === 'rare' ? 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30' :
+                            'bg-muted/50 border border-border/50'
+                          : 'bg-muted/30 border border-border/30 opacity-50 grayscale'
+                      }`}
+                    >
+                      <span className="text-xl">{badge.icon}</span>
+                      <span className="text-xs font-medium mt-1 leading-tight">{badge.name}</span>
+                      {!badge.earned && <span className="text-xs text-muted-foreground">🔒</span>}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 p-3 bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl">
+                  <p className="text-xs text-center">
+                    <span className="font-medium">已装备徽章 | Equipped Badges</span>
+                  </p>
+                  <div className="flex justify-center gap-3 mt-2">
+                    {['🔥', '👑', '🎯'].map((icon, i) => (
+                      <div key={i} className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+                        <span className="text-sm">{icon}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
           
-          <div className="mt-8 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 rounded-2xl p-6 border border-primary/20" style={getItemAnimation(6, 6)}>
-            <h3 className="text-xl font-bold mb-3 flex items-center gap-2">
+          <div className="mt-6 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 rounded-2xl p-5 border border-primary/20" style={getItemAnimation(6, 5)}>
+            <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
               <Calendar className="h-5 w-5 text-primary" />
               每日任务系统 | Daily Quest System
             </h3>
-            <p className="text-muted-foreground">
-              每日更新的任务目标，完成获得奖励，保持学习动力 | Daily refreshing quests with rewards to maintain learning motivation
+            <p className="text-sm text-muted-foreground">
+              每日更新的任务目标，完成获得奖励 | Daily refreshing quests with rewards
             </p>
           </div>
         </section>
 
-        {/* Slide 7: Social Features */}
+        {/* Slide 7: Social Features with Leaderboard Screenshot */}
         <section 
           data-slide="7"
-          className="min-h-[600px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
+          className="min-h-[700px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
         >
           <div style={getSlideAnimation(7)}>
             <div className="flex items-center gap-3 mb-2">
@@ -559,58 +735,109 @@ const ProductPPT = () => {
             <p className="text-xl text-muted-foreground mb-10">Social Interaction System</p>
           </div>
           
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="bg-background rounded-2xl p-6 border border-border/50 hover:border-primary/30 transition-all duration-300" style={getItemAnimation(7, 0)}>
-                <h3 className="text-xl font-bold mb-4">👥 好友系统 | Friend System</h3>
-                <ul className="space-y-3">
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left: Features */}
+            <div className="space-y-4">
+              <div className="bg-background rounded-2xl p-5 border border-border/50 hover:border-primary/30 transition-all duration-300" style={getItemAnimation(7, 0)}>
+                <h3 className="text-lg font-bold mb-3">👥 好友系统 | Friend System</h3>
+                <ul className="space-y-2">
                   {[
                     '搜索添加好友 / Search & add friends',
                     '好友请求管理 / Friend request management',
-                    '查看好友状态 / View friend status',
-                    '屏蔽/举报功能 / Block & report',
+                    '观战好友对战 / Spectate friend battles',
                   ].map((item, i) => (
                     <li key={i} className="flex items-center gap-3 group">
-                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs group-hover:scale-110 transition-transform">✓</span>
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs group-hover:scale-110 transition-transform">✓</span>
                       <span className="text-sm">{item}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               
-              <div className="bg-background rounded-2xl p-6 border border-border/50" style={getItemAnimation(7, 1)}>
-                <h3 className="text-xl font-bold mb-3">💬 即时聊天 | Real-time Chat</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  好友之间可以发送消息，讨论学习内容，约战PK<br />
-                  Friends can send messages, discuss learning, and challenge each other
+              <div className="bg-background rounded-2xl p-5 border border-border/50" style={getItemAnimation(7, 1)}>
+                <h3 className="text-lg font-bold mb-2">💬 即时聊天 & ⚔️ 对战邀请</h3>
+                <p className="text-sm text-muted-foreground">
+                  Real-time Chat & Battle Invites
                 </p>
+                <p className="text-sm mt-2">
+                  好友之间发送消息，一键邀请对战
+                </p>
+              </div>
+
+              <div className="bg-background rounded-2xl p-5 border border-border/50" style={getItemAnimation(7, 2)}>
+                <h3 className="text-lg font-bold mb-3">🏫 班级/年级挑战 | Class/Grade Challenges</h3>
+                <ul className="space-y-2">
+                  {[
+                    '班级/年级排名 / Class & grade rankings',
+                    '赛季奖励 / Season rewards',
+                    '专属称号卡 / Exclusive cards',
+                  ].map((item, i) => (
+                    <li key={i} className="flex items-center gap-3 group">
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs group-hover:scale-110 transition-transform">✓</span>
+                      <span className="text-sm">{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
             
-            <div className="space-y-6">
-              <div className="bg-background rounded-2xl p-6 border border-border/50" style={getItemAnimation(7, 2)}>
-                <h3 className="text-xl font-bold mb-3">⚔️ 对战邀请 | Battle Invites</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  一键邀请好友进行自由对战，实时通知<br />
-                  One-click invite friends to free matches with real-time notifications
-                </p>
-              </div>
-              
-              <div className="bg-background rounded-2xl p-6 border border-border/50 hover:border-primary/30 transition-all duration-300" style={getItemAnimation(7, 3)}>
-                <h3 className="text-xl font-bold mb-4">🏫 班级/年级挑战 | Class/Grade Challenges</h3>
-                <ul className="space-y-3">
-                  {[
-                    '班级整体排名 / Class rankings',
-                    '年级整体排名 / Grade rankings',
-                    '赛季奖励 / Season rewards',
-                    '专属称号卡和徽章 / Exclusive cards & badges',
-                  ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-3 group">
-                      <span className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs group-hover:scale-110 transition-transform">✓</span>
-                      <span className="text-sm">{item}</span>
-                    </li>
+            {/* Right: Leaderboard Screenshot */}
+            <div className="relative" style={getItemAnimation(7, 3)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-blue-500/10 rounded-3xl blur-xl" />
+              <div className="relative bg-background/80 backdrop-blur rounded-3xl p-5 border border-primary/20 shadow-2xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-muted-foreground">排行榜 | Leaderboard</span>
+                </div>
+
+                {/* Tab Pills */}
+                <div className="flex gap-2 mb-4">
+                  {['🪙 财富榜', '🏆 胜场榜', '⚡ 经验榜'].map((tab, i) => (
+                    <div 
+                      key={i} 
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        i === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground'
+                      }`}
+                    >
+                      {tab}
+                    </div>
                   ))}
-                </ul>
+                </div>
+
+                {/* Leaderboard List */}
+                <div className="space-y-2">
+                  {[
+                    { rank: 1, name: '单词王者', value: '12,580', icon: '👑', color: 'from-yellow-500/30 to-yellow-600/30' },
+                    { rank: 2, name: '学霸小明', value: '10,240', icon: '🥈', color: 'from-slate-400/30 to-slate-500/30' },
+                    { rank: 3, name: '英语达人', value: '9,850', icon: '🥉', color: 'from-amber-600/30 to-amber-700/30' },
+                    { rank: 4, name: 'WordMaster', value: '8,920', icon: '', color: '' },
+                    { rank: 5, name: '勤奋学子', value: '8,100', icon: '', color: '' },
+                  ].map((player, i) => (
+                    <div 
+                      key={i}
+                      className={`flex items-center gap-3 p-2 rounded-xl transition-all hover:scale-[1.02] ${
+                        player.color ? `bg-gradient-to-r ${player.color}` : 'bg-muted/30'
+                      }`}
+                    >
+                      <span className={`w-6 h-6 flex items-center justify-center text-sm font-bold ${
+                        player.rank <= 3 ? '' : 'text-muted-foreground'
+                      }`}>
+                        {player.icon || player.rank}
+                      </span>
+                      <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs">👤</div>
+                      <span className="flex-1 text-sm font-medium">{player.name}</span>
+                      <span className="text-sm font-bold text-primary">🪙 {player.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 p-3 bg-muted/30 rounded-xl text-center">
+                  <p className="text-xs text-muted-foreground">
+                    前10名获得专属称号卡 | Top 10 get exclusive name cards
+                  </p>
+                </div>
               </div>
             </div>
           </div>

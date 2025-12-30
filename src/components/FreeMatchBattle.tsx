@@ -1546,24 +1546,56 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         {/* Header with scores */}
         <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-xl border-b border-border/50 p-4">
           <div className="container mx-auto">
-            <div className="flex items-center justify-between mb-3">
+            {/* Top row with abandon button */}
+            <div className="flex items-center justify-between mb-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={async () => {
+                  if (confirm("确定要放弃比赛吗？放弃将判负")) {
+                    // Update match in database as abandoned
+                    if (matchId) {
+                      await supabase
+                        .from("ranked_matches")
+                        .update({
+                          status: "completed",
+                          winner_id: opponent?.id || null,
+                          ended_at: new Date().toISOString(),
+                        })
+                        .eq("id", matchId);
+                    }
+                    toast.info("你已放弃比赛");
+                    setMatchStatus("finished");
+                    setIsWinner(false);
+                    setOpponentScore(10);
+                  }
+                }}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                放弃
+              </Button>
+              
+              <Badge 
+                variant={timeLeft <= 10 ? "destructive" : "outline"}
+                className={cn("font-mono text-lg px-4", timeLeft <= 10 && "animate-pulse")}
+              >
+                <Clock className="w-4 h-4 mr-1" />
+                {timeLeft}s
+              </Badge>
+              
+              <span className="text-xs text-muted-foreground">
+                {currentWordIndex + 1}/{words.length}
+              </span>
+            </div>
+            
+            <div className="flex items-center justify-between mb-2">
               <div className="text-center">
                 <div className="text-sm font-semibold text-primary">{profile?.username}</div>
                 <div className="text-2xl font-gaming text-success">{myScore}</div>
               </div>
               
-              <div className="flex flex-col items-center">
-                <Badge 
-                  variant={timeLeft <= 10 ? "destructive" : "outline"}
-                  className={cn("font-mono text-lg px-4", timeLeft <= 10 && "animate-pulse")}
-                >
-                  <Clock className="w-4 h-4 mr-1" />
-                  {timeLeft}s
-                </Badge>
-                <span className="text-xs text-muted-foreground mt-1">
-                  {currentWordIndex + 1}/{words.length}
-                </span>
-              </div>
+              <span className="font-gaming text-muted-foreground">VS</span>
               
               <div className="text-center">
                 <div className="text-sm font-semibold text-neon-cyan">{opponent?.username}</div>

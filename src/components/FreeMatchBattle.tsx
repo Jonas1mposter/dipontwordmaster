@@ -277,7 +277,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     setMatchStatus("found");
     sounds.playMatchFound();
     
-    setTimeout(() => setMatchStatus("playing"), 8000);
+    setTimeout(() => setMatchStatus("playing"), 5000);
   };
 
   // Try to join an existing free match (cross-grade)
@@ -331,7 +331,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
         sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 8000);
+        setTimeout(() => setMatchStatus("playing"), 5000);
         return true;
       } else {
         console.log("Failed to join free match:", matchToJoin.id, joinError?.message);
@@ -397,7 +397,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
             setMatchStatus("found");
             sounds.playMatchFound();
-            setTimeout(() => setMatchStatus("playing"), 8000);
+            setTimeout(() => setMatchStatus("playing"), 5000);
             isJoiningRef.current = false;
             return;
           }
@@ -518,7 +518,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       setWaitingMatchId(null);
       setMatchStatus("found");
       sounds.playMatchFound();
-      setTimeout(() => setMatchStatus("playing"), 8000);
+        setTimeout(() => setMatchStatus("playing"), 5000);
     };
 
     // OPTIMIZED: Single combined channel for both DB changes and broadcast
@@ -628,8 +628,57 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
         }
       })
-      .subscribe((status) => {
+      .subscribe(async (status) => {
         console.log("Free combined matchmaking channel status:", status);
+        // Immediately check for waiting matches when subscription is ready
+        if (status === 'SUBSCRIBED' && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+          console.log("Free channel subscribed - immediate poll check");
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const { data: waitingMatches } = await supabase
+            .from("ranked_matches")
+            .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
+            .eq("status", "waiting")
+            .eq("grade", 0)
+            .neq("player1_id", profile.id)
+            .gte("created_at", fiveMinutesAgo)
+            .order("created_at", { ascending: true })
+            .limit(5);
+
+          if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+            console.log("Immediate poll: Found", waitingMatches.length, "waiting free matches");
+            const matchWords = await fetchMatchWords();
+            if (matchWords.length === 0 || !isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
+            
+            for (const matchToJoin of waitingMatches) {
+              if (globalMatchLockRef.current || matchJoinedRef.current) return;
+              
+              const { data: updatedMatch, error } = await supabase
+                .from("ranked_matches")
+                .update({
+                  player2_id: profile.id,
+                  status: "in_progress",
+                  words: matchWords,
+                  started_at: new Date().toISOString(),
+                })
+                .eq("id", matchToJoin.id)
+                .eq("status", "waiting")
+                .is("player2_id", null)
+                .select()
+                .maybeSingle();
+
+              if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+                if (waitingMatchId && waitingMatchId !== matchToJoin.id) {
+                  await supabase
+                    .from("ranked_matches")
+                    .update({ status: "cancelled" })
+                    .eq("id", waitingMatchId);
+                }
+                await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
+                return;
+              }
+            }
+          }
+        }
       });
 
     // Polling - check both our match and other waiting matches
@@ -710,7 +759,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           }
         }
       }
-    }, 4000); // Poll every 4 seconds (optimized for server capacity)
+    }, 2000); // Poll every 2 seconds for faster cross-platform matching
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);

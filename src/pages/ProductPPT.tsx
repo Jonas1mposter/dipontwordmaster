@@ -387,40 +387,108 @@ const ProductPPT = () => {
               </div>
             </div>
             
-            {/* Interface Preview */}
-            <div className="relative" style={getItemAnimation(4, 2)}>
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl blur-xl" />
-              <div className="relative bg-background/80 backdrop-blur rounded-3xl p-6 border border-primary/20 shadow-2xl">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-3 h-3 rounded-full bg-destructive/60" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/60" />
-                  <span className="ml-2 text-xs text-muted-foreground">关卡选择界面 | Level Selection</span>
+            {/* Three-Stage Learning Interface Previews */}
+            <div className="space-y-4" style={getItemAnimation(4, 2)}>
+              {/* Stage 1: Recognition - Word Card */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-blue-500/5 rounded-2xl blur-xl" />
+                <div className="relative bg-background/90 backdrop-blur rounded-2xl p-4 border border-blue-500/30 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-blue-500 font-medium">阶段1: 识记 | Stage 1: Recognition</span>
+                  </div>
+                  <div className="text-center py-3 space-y-2">
+                    <div className="inline-block bg-blue-500/10 rounded-xl px-6 py-4 border border-blue-500/20">
+                      <p className="text-2xl font-bold text-blue-600">accomplish</p>
+                      <p className="text-sm text-muted-foreground">/əˈkɒmplɪʃ/</p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                      <span className="text-lg">🔊</span>
+                      <span className="text-sm">点击发音</span>
+                    </div>
+                    <div className="pt-2 border-t border-border/50 mt-2">
+                      <p className="text-base font-medium">v. 完成，实现</p>
+                      <p className="text-xs text-muted-foreground mt-1">例句: She accomplished her goal.</p>
+                    </div>
+                    <div className="flex justify-center gap-2 mt-3">
+                      <span className="px-3 py-1 bg-green-500/20 text-green-600 rounded-full text-xs">✓ 认识</span>
+                      <span className="px-3 py-1 bg-orange-500/20 text-orange-600 rounded-full text-xs">? 模糊</span>
+                      <span className="px-3 py-1 bg-red-500/20 text-red-600 rounded-full text-xs">✗ 不认识</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  <div className="text-center mb-4">
-                    <p className="text-lg font-bold">Unit A - 单元关卡</p>
-                    <p className="text-sm text-muted-foreground">按字母 A-Z 分组学习 | Organized A-Z</p>
+              </div>
+
+              {/* Stage 2: Spelling - Dictation */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-green-500/5 rounded-2xl blur-xl" />
+                <div className="relative bg-background/90 backdrop-blur rounded-2xl p-4 border border-green-500/30 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-green-500 font-medium">阶段2: 拼写 | Stage 2: Spelling</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[1, 2, 3, 4, 5, 6].map((level, i) => (
-                      <div 
-                        key={i} 
-                        className={`aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-medium transition-all duration-300 hover:scale-105 ${
-                          i < 3 ? 'bg-green-500/20 text-green-600 border border-green-500/30' : 
-                          i === 3 ? 'bg-primary/20 text-primary border border-primary/30 animate-pulse' :
-                          'bg-muted/50 text-muted-foreground'
-                        }`}
-                      >
-                        <span className="text-lg">Level {level}</span>
-                        {i < 3 && <span className="text-xs">★★★</span>}
-                        {i === 3 && <span className="text-xs">In Progress</span>}
-                        {i > 3 && <span className="text-xs">🔒</span>}
+                  <div className="py-3 space-y-3">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-1">根据释义拼写单词</p>
+                      <p className="text-base font-medium">v. 完成，实现</p>
+                    </div>
+                    <div className="flex justify-center items-center gap-2">
+                      <div className="flex gap-1">
+                        {['a', 'c', 'c', 'o', 'm', 'p', 'l', 'i', 's', 'h'].map((letter, i) => (
+                          <span 
+                            key={i} 
+                            className={`w-6 h-8 flex items-center justify-center rounded border text-sm font-mono ${
+                              i < 6 ? 'bg-green-500/20 border-green-500/50 text-green-600' : 'bg-muted/50 border-border'
+                            }`}
+                          >
+                            {i < 6 ? letter : '_'}
+                          </span>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                    <div className="flex justify-center gap-2">
+                      <span className="px-2 py-1 bg-muted/50 rounded text-xs">💡 提示</span>
+                      <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs">提交</span>
+                    </div>
                   </div>
-                  <div className="mt-4 p-3 bg-muted/30 rounded-xl text-center">
-                    <p className="text-sm text-muted-foreground">每个关卡包含 10-15 个单词 | 10-15 words per level</p>
+                </div>
+              </div>
+
+              {/* Stage 3: Application - Fill in Blank */}
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-purple-500/5 rounded-2xl blur-xl" />
+                <div className="relative bg-background/90 backdrop-blur rounded-2xl p-4 border border-purple-500/30 shadow-xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-xs text-purple-500 font-medium">阶段3: 应用 | Stage 3: Application</span>
+                  </div>
+                  <div className="py-3 space-y-3">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground mb-2">填入正确的单词完成句子</p>
+                    </div>
+                    <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20">
+                      <p className="text-sm leading-relaxed">
+                        She worked hard to <span className="inline-block w-24 h-6 bg-purple-500/30 rounded border-b-2 border-purple-500 mx-1 align-middle"></span> her dream of becoming a doctor.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['accomplish', 'achieve', 'complete', 'finish'].map((word, i) => (
+                        <div 
+                          key={i} 
+                          className={`px-3 py-2 rounded-lg text-center text-sm cursor-pointer transition-all ${
+                            i === 0 ? 'bg-purple-500/30 border border-purple-500 text-purple-600 font-medium' : 'bg-muted/50 hover:bg-muted'
+                          }`}
+                        >
+                          {word}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

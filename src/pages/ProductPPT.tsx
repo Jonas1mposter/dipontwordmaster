@@ -112,17 +112,20 @@ const ProductPPT = () => {
             {/* Feature highlights */}
             <div className="flex flex-wrap justify-center gap-4 pt-6">
               {[
-                { icon: Gamepad2, label: '游戏化学习' },
-                { icon: Swords, label: '实时对战' },
-                { icon: Trophy, label: '排行竞技' },
+                { icon: Gamepad2, label: '游戏化学习', labelEn: 'Gamified Learning' },
+                { icon: Swords, label: '实时对战', labelEn: 'Real-time Battles' },
+                { icon: Trophy, label: '排行竞技', labelEn: 'Competitive Rankings' },
               ].map((item, i) => (
                 <div 
                   key={i}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full border border-primary/20 hover:bg-primary/20 transition-all duration-300 hover:scale-105"
+                  className="flex flex-col items-center gap-1 px-4 py-2 bg-primary/10 rounded-full border border-primary/20 hover:bg-primary/20 transition-all duration-300 hover:scale-105"
                   style={getItemAnimation(1, i)}
                 >
-                  <item.icon className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <div className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{item.labelEn}</span>
                 </div>
               ))}
             </div>
@@ -220,9 +223,9 @@ const ProductPPT = () => {
             
             <div className="grid md:grid-cols-3 gap-6 w-full mt-8">
               {[
-                { icon: Gamepad2, title: '游戏化机制', subtitle: 'Gamification Mechanics', desc: '等级、段位、排行榜、成就系统' },
-                { icon: BookOpen, title: '教材同步', subtitle: 'Curriculum Aligned', desc: '紧贴课本单元，按字母分级学习' },
-                { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战，好友互动，班级竞赛' },
+                { icon: Gamepad2, title: '游戏化机制', subtitle: 'Gamification Mechanics', desc: '等级、段位、排行榜、成就系统', descEn: 'Levels, ranks, leaderboards, achievements' },
+                { icon: BookOpen, title: '教材同步', subtitle: 'Curriculum Aligned', desc: '紧贴课本单元，按字母分级学习', descEn: 'Textbook-aligned, A-Z organized learning' },
+                { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战，好友互动，班级竞赛', descEn: 'Real-time battles, friend interactions, class competitions' },
               ].map((item, i) => (
                 <div 
                   key={i}
@@ -235,6 +238,7 @@ const ProductPPT = () => {
                   <h3 className="text-lg font-bold">{item.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">{item.subtitle}</p>
                   <p className="text-sm mt-3">{item.desc}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{item.descEn}</p>
                 </div>
               ))}
             </div>
@@ -259,13 +263,13 @@ const ProductPPT = () => {
               <div className="bg-background rounded-2xl p-6 border border-border/50 hover:border-primary/30 transition-all duration-300" style={getItemAnimation(4, 0)}>
                 <h3 className="text-xl font-bold mb-5 flex items-center gap-2">
                   <Zap className="h-5 w-5 text-primary" />
-                  三阶段学习模式
+                  三阶段学习模式 | Three-Stage Learning
                 </h3>
                 <div className="space-y-4">
                   {[
-                    { num: 1, color: 'blue', label: '识记 Recognition', desc: '单词卡片学习，建立初步印象' },
-                    { num: 2, color: 'green', label: '拼写 Spelling', desc: '听写、填空，强化拼写记忆' },
-                    { num: 3, color: 'purple', label: '应用 Application', desc: '语境应用，深度掌握' },
+                    { num: 1, color: 'blue', label: '识记 Recognition', desc: '单词卡片学习，建立初步印象', descEn: 'Flashcard learning for initial impression' },
+                    { num: 2, color: 'green', label: '拼写 Spelling', desc: '听写、填空，强化拼写记忆', descEn: 'Dictation and fill-in to reinforce spelling' },
+                    { num: 3, color: 'purple', label: '应用 Application', desc: '语境应用，深度掌握', descEn: 'Contextual usage for deep mastery' },
                   ].map((stage, i) => (
                     <div key={i} className="flex items-center gap-4 group">
                       <span className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 group-hover:scale-110 ${
@@ -278,6 +282,7 @@ const ProductPPT = () => {
                       <div>
                         <p className="font-semibold">{stage.label}</p>
                         <p className="text-sm text-muted-foreground">{stage.desc}</p>
+                        <p className="text-xs text-muted-foreground">{stage.descEn}</p>
                       </div>
                     </div>
                   ))}
@@ -287,9 +292,16 @@ const ProductPPT = () => {
               <div className="bg-background rounded-2xl p-6 border border-border/50" style={getItemAnimation(4, 1)}>
                 <h3 className="text-xl font-bold mb-4">5种题型 | 5 Quiz Types</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {['词义选择', '单词选择', '拼写测试', '听力识别', '填空应用'].map((type, i) => (
+                  {[
+                    { zh: '词义选择', en: 'Meaning Selection' },
+                    { zh: '单词选择', en: 'Word Selection' },
+                    { zh: '拼写测试', en: 'Spelling Test' },
+                    { zh: '听力识别', en: 'Listening' },
+                    { zh: '填空应用', en: 'Fill in the Blank' },
+                  ].map((type, i) => (
                     <div key={i} className={`bg-muted/50 hover:bg-muted rounded-xl p-3 text-center transition-all duration-300 hover:scale-105 ${i === 4 ? 'col-span-2' : ''}`}>
-                      <p className="font-medium text-sm">{type}</p>
+                      <p className="font-medium text-sm">{type.zh}</p>
+                      <p className="text-xs text-muted-foreground">{type.en}</p>
                     </div>
                   ))}
                 </div>
@@ -304,12 +316,12 @@ const ProductPPT = () => {
                   <div className="w-3 h-3 rounded-full bg-destructive/60" />
                   <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                   <div className="w-3 h-3 rounded-full bg-green-500/60" />
-                  <span className="ml-2 text-xs text-muted-foreground">关卡选择界面</span>
+                  <span className="ml-2 text-xs text-muted-foreground">关卡选择界面 | Level Selection</span>
                 </div>
                 <div className="space-y-3">
                   <div className="text-center mb-4">
                     <p className="text-lg font-bold">Unit A - 单元关卡</p>
-                    <p className="text-sm text-muted-foreground">按字母 A-Z 分组学习</p>
+                    <p className="text-sm text-muted-foreground">按字母 A-Z 分组学习 | Organized A-Z</p>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {[1, 2, 3, 4, 5, 6].map((level, i) => (
@@ -321,15 +333,15 @@ const ProductPPT = () => {
                           'bg-muted/50 text-muted-foreground'
                         }`}
                       >
-                        <span className="text-lg">关卡 {level}</span>
+                        <span className="text-lg">Level {level}</span>
                         {i < 3 && <span className="text-xs">★★★</span>}
-                        {i === 3 && <span className="text-xs">进行中</span>}
+                        {i === 3 && <span className="text-xs">In Progress</span>}
                         {i > 3 && <span className="text-xs">🔒</span>}
                       </div>
                     ))}
                   </div>
                   <div className="mt-4 p-3 bg-muted/30 rounded-xl text-center">
-                    <p className="text-sm text-muted-foreground">每个关卡包含 10-15 个单词</p>
+                    <p className="text-sm text-muted-foreground">每个关卡包含 10-15 个单词 | 10-15 words per level</p>
                   </div>
                 </div>
               </div>
@@ -365,17 +377,17 @@ const ProductPPT = () => {
                 </h3>
                 <p className="text-muted-foreground mb-4">Ranked Battles</p>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    实时匹配同年级、相近段位对手
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0" />
+                    <span>实时匹配同年级、相近段位对手<br /><span className="text-muted-foreground text-xs">Match with same-grade, similar-rank opponents</span></span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    90秒限时单词挑战，考验反应速度
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0" />
+                    <span>90秒限时单词挑战，考验反应速度<br /><span className="text-muted-foreground text-xs">90-second timed word challenges</span></span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    胜负影响段位积分，挑战更高段位
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 flex-shrink-0" />
+                    <span>胜负影响段位积分，挑战更高段位<br /><span className="text-muted-foreground text-xs">Win/loss affects rank points</span></span>
                   </li>
                 </ul>
               </div>
@@ -390,17 +402,17 @@ const ProductPPT = () => {
                 </h3>
                 <p className="text-muted-foreground mb-4">Free Matches</p>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    好友之间自由切磋，不影响段位
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                    <span>好友之间自由切磋，不影响段位<br /><span className="text-muted-foreground text-xs">Practice with friends, no rank impact</span></span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    支持观战功能，学习高手策略
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                    <span>支持观战功能，学习高手策略<br /><span className="text-muted-foreground text-xs">Spectate mode to learn from experts</span></span>
                   </li>
-                  <li className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    独立胜率/胜场排行榜
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                    <span>独立胜率/胜场排行榜<br /><span className="text-muted-foreground text-xs">Separate win rate / wins leaderboard</span></span>
                   </li>
                 </ul>
               </div>
@@ -414,7 +426,7 @@ const ProductPPT = () => {
                   <div className="w-3 h-3 rounded-full bg-destructive/60" />
                   <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
                   <div className="w-3 h-3 rounded-full bg-green-500/60" />
-                  <span className="ml-2 text-xs text-muted-foreground">对战匹配界面</span>
+                  <span className="ml-2 text-xs text-muted-foreground">对战匹配界面 | Battle Matching</span>
                 </div>
                 
                 <div className="flex items-center justify-between gap-4">
@@ -423,8 +435,8 @@ const ProductPPT = () => {
                     <div className="w-16 h-16 mx-auto bg-gradient-to-br from-primary/30 to-primary/10 rounded-full flex items-center justify-center mb-2 ring-2 ring-primary/30">
                       <span className="text-2xl">👤</span>
                     </div>
-                    <p className="font-bold text-sm">玩家A</p>
-                    <p className="text-xs text-muted-foreground">黄金 III</p>
+                    <p className="font-bold text-sm">Player A</p>
+                    <p className="text-xs text-muted-foreground">Gold III</p>
                     <div className="flex justify-center gap-1 mt-1">
                       <span className="w-4 h-4 bg-yellow-500/20 rounded-full text-xs flex items-center justify-center">🎖️</span>
                       <span className="w-4 h-4 bg-blue-500/20 rounded-full text-xs flex items-center justify-center">⭐</span>
@@ -443,8 +455,8 @@ const ProductPPT = () => {
                     <div className="w-16 h-16 mx-auto bg-gradient-to-br from-blue-500/30 to-blue-500/10 rounded-full flex items-center justify-center mb-2 ring-2 ring-blue-500/30">
                       <span className="text-2xl">👤</span>
                     </div>
-                    <p className="font-bold text-sm">玩家B</p>
-                    <p className="text-xs text-muted-foreground">黄金 II</p>
+                    <p className="font-bold text-sm">Player B</p>
+                    <p className="text-xs text-muted-foreground">Gold II</p>
                     <div className="flex justify-center gap-1 mt-1">
                       <span className="w-4 h-4 bg-green-500/20 rounded-full text-xs flex items-center justify-center">🏆</span>
                       <span className="w-4 h-4 bg-purple-500/20 rounded-full text-xs flex items-center justify-center">💎</span>
@@ -453,7 +465,7 @@ const ProductPPT = () => {
                 </div>
                 
                 <div className="mt-6 text-center">
-                  <p className="text-sm text-muted-foreground">对战即将开始...</p>
+                  <p className="text-sm text-muted-foreground">对战即将开始... | Battle starting...</p>
                   <div className="w-full h-2 bg-muted rounded-full mt-2 overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full animate-pulse" style={{ width: '70%' }} />
                   </div>
@@ -502,12 +514,12 @@ const ProductPPT = () => {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
-              { icon: '⚡', title: '经验值 & 等级', subtitle: 'XP & Level System', desc: '完成学习和对战获得经验，提升等级解锁更多内容' },
-              { icon: '🪙', title: '狄邦豆货币', subtitle: 'Dipont Coins', desc: '游戏内货币，用于购买道具和装饰' },
-              { icon: '🔥', title: '连续登录', subtitle: 'Login Streak', desc: '每日签到奖励，培养学习习惯' },
-              { icon: '🏆', title: '三大排行榜', subtitle: 'Triple Leaderboards', desc: '财富榜、胜场榜、经验榜，多维度竞争' },
-              { icon: '🎖️', title: '徽章收集', subtitle: 'Badge Collection', desc: '完成成就解锁专属徽章，最多装备3个展示' },
-              { icon: '🎴', title: '称号卡系统', subtitle: 'Name Card System', desc: '排行榜前10名专属称号卡，彰显荣耀' },
+              { icon: '⚡', title: '经验值 & 等级', subtitle: 'XP & Level System', desc: '完成学习和对战获得经验，提升等级解锁更多内容', descEn: 'Earn XP from learning and battles, level up to unlock content' },
+              { icon: '🪙', title: '狄邦豆货币', subtitle: 'Dipont Coins', desc: '游戏内货币，用于购买道具和装饰', descEn: 'In-game currency for items and cosmetics' },
+              { icon: '🔥', title: '连续登录', subtitle: 'Login Streak', desc: '每日签到奖励，培养学习习惯', descEn: 'Daily check-in rewards to build learning habits' },
+              { icon: '🏆', title: '三大排行榜', subtitle: 'Triple Leaderboards', desc: '财富榜、胜场榜、经验榜，多维度竞争', descEn: 'Coins, wins, and XP rankings for multi-dimensional competition' },
+              { icon: '🎖️', title: '徽章收集', subtitle: 'Badge Collection', desc: '完成成就解锁专属徽章，最多装备3个展示', descEn: 'Unlock exclusive badges, equip up to 3 for display' },
+              { icon: '🎴', title: '称号卡系统', subtitle: 'Name Card System', desc: '排行榜前10名专属称号卡，彰显荣耀', descEn: 'Exclusive name cards for top 10 leaderboard players' },
             ].map((item, i) => (
               <div 
                 key={i}
@@ -518,6 +530,7 @@ const ProductPPT = () => {
                 <h3 className="text-lg font-bold">{item.title}</h3>
                 <p className="text-xs text-muted-foreground">{item.subtitle}</p>
                 <p className="text-sm leading-relaxed">{item.desc}</p>
+                <p className="text-xs text-muted-foreground">{item.descEn}</p>
               </div>
             ))}
           </div>
@@ -645,14 +658,15 @@ const ProductPPT = () => {
                 <p className="text-muted-foreground">Pass Rewards</p>
                 <div className="grid grid-cols-2 gap-3 mt-4">
                   {[
-                    { icon: '🪙', label: '狄邦豆' },
-                    { icon: '⚡', label: '经验加成' },
-                    { icon: '🎖️', label: '专属徽章' },
-                    { icon: '🎴', label: '限定称号卡' },
+                    { icon: '🪙', label: '狄邦豆', labelEn: 'Coins' },
+                    { icon: '⚡', label: '经验加成', labelEn: 'XP Boost' },
+                    { icon: '🎖️', label: '专属徽章', labelEn: 'Badges' },
+                    { icon: '🎴', label: '限定称号卡', labelEn: 'Name Cards' },
                   ].map((item, i) => (
                     <div key={i} className="bg-background/50 rounded-xl p-4 text-center hover:bg-background/80 transition-all duration-300 hover:scale-105">
                       <div className="text-3xl mb-2">{item.icon}</div>
                       <p className="text-sm font-medium">{item.label}</p>
+                      <p className="text-xs text-muted-foreground">{item.labelEn}</p>
                     </div>
                   ))}
                 </div>
@@ -686,7 +700,8 @@ const ProductPPT = () => {
                 title: '跨平台支持',
                 subtitle: 'Cross-Platform Support',
                 desc: '一次开发，多端运行',
-                tags: ['Web 网页版', 'iOS', 'Android', 'Windows', 'macOS'],
+                descEn: 'Build once, run everywhere',
+                tags: ['Web', 'iOS', 'Android', 'Windows', 'macOS'],
               },
               {
                 icon: Zap,
@@ -757,19 +772,34 @@ const ProductPPT = () => {
                 icon: '👤',
                 title: '个人学习数据',
                 subtitle: 'Personal Learning Data',
-                items: ['单词掌握情况', '正确率统计', '学习时长', '错题本记录'],
+                items: [
+                  { zh: '单词掌握情况', en: 'Word mastery status' },
+                  { zh: '正确率统计', en: 'Accuracy statistics' },
+                  { zh: '学习时长', en: 'Study duration' },
+                  { zh: '错题本记录', en: 'Wrong word book' },
+                ],
               },
               {
                 icon: '📊',
                 title: '班级统计',
                 subtitle: 'Class Statistics',
-                items: ['班级整体进度', '活跃度排名', '薄弱词汇分析', '对比报告'],
+                items: [
+                  { zh: '班级整体进度', en: 'Class progress' },
+                  { zh: '活跃度排名', en: 'Activity rankings' },
+                  { zh: '薄弱词汇分析', en: 'Weak vocabulary analysis' },
+                  { zh: '对比报告', en: 'Comparison reports' },
+                ],
               },
               {
                 icon: '🏫',
                 title: '学校报告',
                 subtitle: 'School Reports',
-                items: ['年级横向对比', '使用率统计', '效果评估', '趋势分析'],
+                items: [
+                  { zh: '年级横向对比', en: 'Cross-grade comparison' },
+                  { zh: '使用率统计', en: 'Usage statistics' },
+                  { zh: '效果评估', en: 'Effectiveness evaluation' },
+                  { zh: '趋势分析', en: 'Trend analysis' },
+                ],
               },
             ].map((item, i) => (
               <div 
@@ -782,9 +812,9 @@ const ProductPPT = () => {
                 <p className="text-sm text-muted-foreground">{item.subtitle}</p>
                 <ul className="text-sm space-y-2">
                   {item.items.map((listItem, j) => (
-                    <li key={j} className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      {listItem}
+                    <li key={j} className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                      <span>{listItem.zh}<br /><span className="text-xs text-muted-foreground">{listItem.en}</span></span>
                     </li>
                   ))}
                 </ul>
@@ -822,10 +852,15 @@ const ProductPPT = () => {
               </h3>
               <p className="text-muted-foreground">Cloud Deployment</p>
               <ul className="space-y-3 mt-4">
-                {['即开即用，快速上线', '自动更新维护', '弹性扩容', '适合中小规模部署'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 text-xs">✓</span>
-                    <span>{item}</span>
+                {[
+                  { zh: '即开即用，快速上线', en: 'Ready to use, quick deployment' },
+                  { zh: '自动更新维护', en: 'Auto updates & maintenance' },
+                  { zh: '弹性扩容', en: 'Elastic scaling' },
+                  { zh: '适合中小规模部署', en: 'Ideal for small-medium scale' },
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 text-xs flex-shrink-0">✓</span>
+                    <span>{item.zh}<br /><span className="text-xs text-muted-foreground">{item.en}</span></span>
                   </li>
                 ))}
               </ul>
@@ -841,10 +876,15 @@ const ProductPPT = () => {
               </h3>
               <p className="text-muted-foreground">On-Premise Deployment</p>
               <ul className="space-y-3 mt-4">
-                {['数据完全自主可控', '可定制化开发', '独立运维', '适合大规模机构'].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 text-xs">✓</span>
-                    <span>{item}</span>
+                {[
+                  { zh: '数据完全自主可控', en: 'Full data ownership & control' },
+                  { zh: '可定制化开发', en: 'Customizable development' },
+                  { zh: '独立运维', en: 'Independent operations' },
+                  { zh: '适合大规模机构', en: 'Ideal for large institutions' },
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 text-xs flex-shrink-0">✓</span>
+                    <span>{item.zh}<br /><span className="text-xs text-muted-foreground">{item.en}</span></span>
                   </li>
                 ))}
               </ul>

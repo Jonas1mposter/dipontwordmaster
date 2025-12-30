@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,60 +26,54 @@ interface LevelProgressProps {
   onSelectLevel: (levelId: string, levelName: string) => void;
 }
 
-const WORDS_PER_LEVEL = 10; // 每个小关卡包含的单词数
+const WORDS_PER_LEVEL = 10;
 
 const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
   const { profile } = useAuth();
-  const [letterUnits, setLetterUnits] = useState<LetterUnit[]>([]);
+  const [allWords, setAllWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedLetters, setExpandedLetters] = useState<Set<string>>(new Set());
   const [userProgress, setUserProgress] = useState<Record<string, { mastery_level: number }>>({});
 
   useEffect(() => {
-    const fetchWords = async () => {
+    const fetchData = async () => {
+      if (!profile) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        // 获取该年级的所有单词（分批获取以突破1000条限制）
-        let allWords: Word[] = [];
-        let from = 0;
-        const batchSize = 1000;
-        
-        while (true) {
-          const { data: wordsData, error: wordsError } = await supabase
+        // 并行获取单词和学习进度
+        const [wordsResult, progressResult] = await Promise.all([
+          supabase
             .from("words")
             .select("id, word, meaning")
             .eq("grade", grade)
             .order("word", { ascending: true })
-            .range(from, from + batchSize - 1);
-
-          if (wordsError) throw wordsError;
-          
-          if (!wordsData || wordsData.length === 0) break;
-          
-          allWords = [...allWords, ...wordsData];
-          
-          if (wordsData.length < batchSize) break;
-          from += batchSize;
-        }
-
-        // 获取用户的学习进度
-        let progressMap: Record<string, { mastery_level: number }> = {};
-        if (profile) {
-          const { data: progressData, error: progressError } = await supabase
+            .limit(2000),
+          supabase
             .from("learning_progress")
             .select("word_id, mastery_level")
-            .eq("profile_id", profile.id);
+            .eq("profile_id", profile.id)
+        ]);
 
-          if (!progressError && progressData) {
-            progressData.forEach((p) => {
-              progressMap[p.word_id] = { mastery_level: p.mastery_level };
-            });
-          }
+        if (wordsResult.error) throw wordsResult.error;
+        
+        const words = wordsResult.data || [];
+        setAllWords(words);
+
+        // 处理进度数据
+        const progressMap: Record<string, { mastery_level: number }> = {};
+        if (!progressResult.error && progressResult.data) {
+          progressResult.data.forEach((p) => {
+            progressMap[p.word_id] = { mastery_level: p.mastery_level };
+          });
         }
         setUserProgress(progressMap);
 
-        // 按首字母分组
+        // 默认展开第一个未完成的字母
         const letterGroups: Record<string, Word[]> = {};
-        allWords.forEach((word) => {
+        words.forEach((word) => {
           const firstLetter = word.word.charAt(0).toUpperCase();
           if (!letterGroups[firstLetter]) {
             letterGroups[firstLetter] = [];
@@ -87,50 +81,63 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
           letterGroups[firstLetter].push(word);
         });
 
-        // 转换为数组并排序
         const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-        const units: LetterUnit[] = [];
         let previousUnlocked = true;
-
-        alphabet.forEach((letter) => {
-          const words = letterGroups[letter] || [];
-          if (words.length > 0) {
-            // 计算已完成的单词数
-            const completedCount = words.filter(
-              (w) => progressMap[w.id]?.mastery_level >= 1
-            ).length;
-
-            // 判断是否解锁：第一个字母解锁，或前一个字母全部完成
-            const isUnlocked = previousUnlocked;
-
-            units.push({
-              letter,
-              words,
-              isUnlocked,
-              completedCount,
-            });
-
-            // 只有当前字母全部完成才解锁下一个
-            previousUnlocked = completedCount === words.length;
+        for (const letter of alphabet) {
+          const letterWords = letterGroups[letter] || [];
+          if (letterWords.length > 0 && previousUnlocked) {
+            const completedCount = letterWords.filter(w => progressMap[w.id]?.mastery_level >= 1).length;
+            if (completedCount < letterWords.length) {
+              setExpandedLetters(new Set([letter]));
+              break;
+            }
+            previousUnlocked = completedCount === letterWords.length;
           }
-        });
-
-        setLetterUnits(units);
-        
-        // 默认展开第一个未完成的字母
-        const firstIncomplete = units.find(u => u.isUnlocked && u.completedCount < u.words.length);
-        if (firstIncomplete) {
-          setExpandedLetters(new Set([firstIncomplete.letter]));
         }
       } catch (error) {
-        console.error("Error fetching words:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchWords();
+    fetchData();
   }, [grade, profile]);
+
+  // 使用 useMemo 缓存字母单元计算
+  const letterUnits = useMemo(() => {
+    const letterGroups: Record<string, Word[]> = {};
+    allWords.forEach((word) => {
+      const firstLetter = word.word.charAt(0).toUpperCase();
+      if (!letterGroups[firstLetter]) {
+        letterGroups[firstLetter] = [];
+      }
+      letterGroups[firstLetter].push(word);
+    });
+
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const units: LetterUnit[] = [];
+    let previousUnlocked = true;
+
+    alphabet.forEach((letter) => {
+      const words = letterGroups[letter] || [];
+      if (words.length > 0) {
+        const completedCount = words.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
+        const isUnlocked = previousUnlocked;
+
+        units.push({
+          letter,
+          words,
+          isUnlocked,
+          completedCount,
+        });
+
+        previousUnlocked = completedCount === words.length;
+      }
+    });
+
+    return units;
+  }, [allWords, userProgress]);
 
   const toggleLetter = (letter: string) => {
     setExpandedLetters((prev) => {

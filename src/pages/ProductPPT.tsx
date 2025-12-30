@@ -1311,6 +1311,154 @@ const ProductPPT = () => {
           </div>
         </section>
 
+        {/* Slide 10.5: Learning Statistics Screenshot */}
+        <section 
+          data-slide="105"
+          className="min-h-[700px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
+        >
+          <div style={getSlideAnimation(105)}>
+            <div className="flex items-center gap-3 mb-2">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              <h2 className="text-3xl md:text-4xl font-bold">学习数据统计截图</h2>
+            </div>
+            <p className="text-xl text-muted-foreground mb-10">Learning Statistics Screenshot</p>
+          </div>
+          
+          {/* Stats Dashboard Mockup */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl blur-xl" />
+            <div className="relative bg-background/95 backdrop-blur rounded-2xl p-6 border border-primary/20 shadow-xl" style={getItemAnimation(105, 0)}>
+              {/* Window controls */}
+              <div className="flex items-center gap-2 mb-6 pb-4 border-b border-border/50">
+                <div className="w-3 h-3 rounded-full bg-destructive/60" />
+                <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
+                <div className="w-3 h-3 rounded-full bg-green-500/60" />
+                <span className="ml-4 text-sm text-muted-foreground font-medium">学习数据统计 | Learning Statistics</span>
+              </div>
+              
+              {/* Summary Cards */}
+              <div className="grid grid-cols-4 gap-4 mb-8">
+                {[
+                  { label: '总学习单词', labelEn: 'Total Words', value: '1,286', icon: '📚', color: 'from-blue-500/20 to-blue-500/10' },
+                  { label: '已掌握', labelEn: 'Mastered', value: '847', icon: '✅', color: 'from-green-500/20 to-green-500/10' },
+                  { label: '学习中', labelEn: 'Learning', value: '439', icon: '📖', color: 'from-amber-500/20 to-amber-500/10' },
+                  { label: '正确率', labelEn: 'Accuracy', value: '92.5%', icon: '🎯', color: 'from-purple-500/20 to-purple-500/10' },
+                ].map((item, i) => (
+                  <div 
+                    key={i} 
+                    className={`bg-gradient-to-br ${item.color} rounded-xl p-4 border border-border/30`}
+                    style={getItemAnimation(105, i + 1)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">{item.icon}</span>
+                    </div>
+                    <p className="text-2xl font-bold">{item.value}</p>
+                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground/70">{item.labelEn}</p>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Charts Row */}
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Weekly Trend Bar Chart */}
+                <div className="bg-muted/30 rounded-xl p-5 border border-border/30" style={getItemAnimation(105, 5)}>
+                  <h4 className="font-semibold mb-1">本周学习趋势</h4>
+                  <p className="text-xs text-muted-foreground mb-4">Weekly Learning Trend</p>
+                  <div className="flex items-end justify-between h-32 gap-2 px-2">
+                    {[
+                      { day: '周一', dayEn: 'Mon', value: 45 },
+                      { day: '周二', dayEn: 'Tue', value: 62 },
+                      { day: '周三', dayEn: 'Wed', value: 38 },
+                      { day: '周四', dayEn: 'Thu', value: 85 },
+                      { day: '周五', dayEn: 'Fri', value: 72 },
+                      { day: '周六', dayEn: 'Sat', value: 95 },
+                      { day: '周日', dayEn: 'Sun', value: 56 },
+                    ].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center flex-1">
+                        <div 
+                          className="w-full bg-gradient-to-t from-primary to-primary/60 rounded-t-md transition-all"
+                          style={{ height: `${item.value}%` }}
+                        />
+                        <span className="text-xs mt-2 text-muted-foreground">{item.day}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-border/30 flex justify-between text-xs text-muted-foreground">
+                    <span>本周共学习 453 个单词</span>
+                    <span>453 words this week</span>
+                  </div>
+                </div>
+                
+                {/* Mastery Distribution Pie Chart */}
+                <div className="bg-muted/30 rounded-xl p-5 border border-border/30" style={getItemAnimation(105, 6)}>
+                  <h4 className="font-semibold mb-1">掌握程度分布</h4>
+                  <p className="text-xs text-muted-foreground mb-4">Mastery Distribution</p>
+                  <div className="flex items-center justify-center gap-6">
+                    {/* Pie Chart Visual */}
+                    <div className="relative w-28 h-28">
+                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                        {/* Background circle */}
+                        <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--muted))" strokeWidth="20" />
+                        {/* Mastered - 65% */}
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="hsl(142 76% 36%)" strokeWidth="20"
+                          strokeDasharray="163.36 251.33"
+                          strokeDashoffset="0"
+                        />
+                        {/* Proficient - 20% */}
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="hsl(217 91% 60%)" strokeWidth="20"
+                          strokeDasharray="50.27 251.33"
+                          strokeDashoffset="-163.36"
+                        />
+                        {/* Familiar - 10% */}
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="hsl(43 96% 56%)" strokeWidth="20"
+                          strokeDasharray="25.13 251.33"
+                          strokeDashoffset="-213.63"
+                        />
+                        {/* New - 5% */}
+                        <circle 
+                          cx="50" cy="50" r="40" fill="none" 
+                          stroke="hsl(0 84% 60%)" strokeWidth="20"
+                          strokeDasharray="12.57 251.33"
+                          strokeDashoffset="-238.76"
+                        />
+                      </svg>
+                    </div>
+                    
+                    {/* Legend */}
+                    <div className="space-y-2">
+                      {[
+                        { color: 'bg-green-500', label: '已掌握', labelEn: 'Mastered', percent: '65%' },
+                        { color: 'bg-blue-500', label: '掌握中', labelEn: 'Proficient', percent: '20%' },
+                        { color: 'bg-yellow-500', label: '熟悉', labelEn: 'Familiar', percent: '10%' },
+                        { color: 'bg-red-500', label: '生词', labelEn: 'New', percent: '5%' },
+                      ].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                          <span>{item.label}</span>
+                          <span className="text-muted-foreground text-xs">({item.labelEn})</span>
+                          <span className="ml-auto font-medium">{item.percent}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-6 text-center" style={getItemAnimation(105, 7)}>
+            <p className="text-muted-foreground">可视化学习数据，帮助学生了解自己的学习进度和薄弱环节</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">Visualized learning data helps students understand their progress and weak areas</p>
+          </div>
+        </section>
+
         {/* Slide 11: Deployment Options */}
         <section 
           data-slide="11"

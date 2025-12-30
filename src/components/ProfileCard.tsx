@@ -117,6 +117,12 @@ const tierColors: Record<RankTier, { gradient: string; text: string; bg: string 
   champion: { gradient: "from-purple-500 to-pink-500", text: "text-purple-400", bg: "bg-purple-400/20" },
 };
 
+interface BestRecords {
+  bestWinStreak: number;
+  bestRankTier: RankTier;
+  bestRankStars: number;
+}
+
 const ProfileCard = () => {
   const { profile, user, refreshProfile } = useAuth();
   const [userBadges, setUserBadges] = useState<BadgeData[]>([]);
@@ -133,6 +139,11 @@ const ProfileCard = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [editUsername, setEditUsername] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [bestRecords, setBestRecords] = useState<BestRecords>({
+    bestWinStreak: 0,
+    bestRankTier: "bronze",
+    bestRankStars: 0,
+  });
 
   // 背景状态
   const [backgroundType, setBackgroundType] = useState<string>("gradient");
@@ -142,6 +153,7 @@ const ProfileCard = () => {
     if (profile?.id) {
       fetchUserBadges();
       fetchUserNameCards();
+      fetchBestRecords();
       setEditUsername(profile.username);
       // 加载用户保存的背景设置
       if ((profile as any).background_type) {
@@ -150,6 +162,58 @@ const ProfileCard = () => {
       }
     }
   }, [profile?.id]);
+
+  const fetchBestRecords = async () => {
+    if (!profile?.id) return;
+
+    try {
+      // Fetch all completed matches to calculate best win streak
+      const { data: matches, error } = await supabase
+        .from("ranked_matches")
+        .select("winner_id, created_at")
+        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching matches for best records:", error);
+        return;
+      }
+
+      // Calculate best win streak
+      let bestWinStreak = 0;
+      let currentStreak = 0;
+
+      if (matches) {
+        // Sort by date ascending to count streaks properly
+        const sortedMatches = [...matches].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        for (const match of sortedMatches) {
+          if (match.winner_id === profile.id) {
+            currentStreak++;
+            bestWinStreak = Math.max(bestWinStreak, currentStreak);
+          } else {
+            currentStreak = 0;
+          }
+        }
+      }
+
+      // Current rank is the "best" if we don't track historical best
+      // For now, use current rank as best (could be extended with historical tracking)
+      const currentTier = (profile.rank_tier || "bronze") as RankTier;
+      const currentStars = profile.rank_stars || 0;
+
+      setBestRecords({
+        bestWinStreak,
+        bestRankTier: currentTier,
+        bestRankStars: currentStars,
+      });
+    } catch (err) {
+      console.error("Error in fetchBestRecords:", err);
+    }
+  };
 
   const fetchUserBadges = async () => {
     const { data, error } = await supabase
@@ -834,6 +898,44 @@ const ProfileCard = () => {
           })()}
         </div>
       )}
+
+      {/* 最佳记录区域 */}
+      <div className="px-4 py-3 border-t border-border/50">
+        <div className="flex items-center gap-2 mb-3">
+          <Star className="w-4 h-4 text-accent" />
+          <span className="text-sm font-medium text-muted-foreground">历史最佳</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {/* 最高连胜 */}
+          <div className="p-3 rounded-lg bg-success/10 border border-success/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className="w-4 h-4 text-success" />
+              <span className="text-xs text-muted-foreground">最高连胜</span>
+            </div>
+            <div className="text-xl font-gaming text-success">{bestRecords.bestWinStreak}</div>
+          </div>
+
+          {/* 最高段位 */}
+          <div className={cn(
+            "p-3 rounded-lg border",
+            tierColors[bestRecords.bestRankTier].bg,
+            `border-${bestRecords.bestRankTier === 'bronze' ? 'amber' : bestRecords.bestRankTier === 'silver' ? 'gray' : bestRecords.bestRankTier === 'gold' ? 'yellow' : bestRecords.bestRankTier === 'platinum' ? 'cyan' : bestRecords.bestRankTier === 'diamond' ? 'blue' : 'purple'}-500/20`
+          )}>
+            <div className="flex items-center gap-2 mb-1">
+              <Crown className="w-4 h-4" style={{ color: tierColors[bestRecords.bestRankTier].text.replace('text-', '').replace('-400', '').replace('-500', '') }} />
+              <span className="text-xs text-muted-foreground">最高段位</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={cn("text-lg font-gaming", tierColors[bestRecords.bestRankTier].text)}>
+                {tierNames[bestRecords.bestRankTier]}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {bestRecords.bestRankStars}星
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 底部区域：用户名 + 名片区 */}
       <div className="border-t border-border/50">

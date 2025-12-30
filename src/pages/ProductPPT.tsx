@@ -1420,10 +1420,10 @@ const ProductPPT = () => {
             
             <div className="space-y-3 text-muted-foreground" style={getItemAnimation(12, 0)}>
               <p className="flex items-center justify-center gap-2">
-                <span>📧</span> contact@dipont.com
+                <span>📧</span> 000570@nkcswx.cn / zhangshaoqingjonas@qq.com
               </p>
               <p className="flex items-center justify-center gap-2">
-                <span>🌐</span> www.dipont.com
+                <span>🌐</span> dipontwordmaster.lovable.app
               </p>
             </div>
             

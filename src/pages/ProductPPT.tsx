@@ -219,10 +219,10 @@ const ProductPPT = () => {
               </div>
               
               <div className="grid grid-cols-1 gap-4 mt-6">
-                {[
+{[
                   { icon: Gamepad2, title: '游戏化机制', subtitle: 'Gamification', desc: '等级、段位、排行榜' },
-                  { icon: BookOpen, title: '教材同步', subtitle: 'Curriculum Aligned', desc: '紧贴课本单元' },
-                  { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战、班级竞赛' },
+                  { icon: BookOpen, title: '学校同步', subtitle: 'School Aligned', desc: '紧贴学习内容' },
+                  { icon: Swords, title: '社交竞技', subtitle: 'Social Competition', desc: '实时对战，年级竞赛' },
                 ].map((item, i) => (
                   <div 
                     key={i}
@@ -1494,9 +1494,69 @@ const ProductPPT = () => {
       {/* Print Styles */}
       <style>{`
         @media print {
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          section { page-break-inside: avoid; }
-          [data-slide] { opacity: 1 !important; transform: none !important; }
+          body { 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            background: white !important;
+          }
+          
+          /* Hide non-print elements */
+          .print\\:hidden { display: none !important; }
+          
+          /* Each slide on its own page */
+          section[data-slide] { 
+            page-break-after: always;
+            page-break-inside: avoid;
+            break-after: page;
+            break-inside: avoid;
+            opacity: 1 !important; 
+            transform: none !important;
+            min-height: 100vh !important;
+            margin: 0 !important;
+            padding: 40px !important;
+            border-radius: 0 !important;
+          }
+          
+          /* Last slide no page break */
+          section[data-slide]:last-of-type {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          
+          /* Ensure backgrounds print */
+          section[data-slide] {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Container adjustments */
+          .max-w-5xl {
+            max-width: 100% !important;
+            padding: 0 !important;
+            gap: 0 !important;
+          }
+          
+          /* Hide animations */
+          .animate-pulse, .animate-shimmer {
+            animation: none !important;
+          }
+          
+          /* Ensure visibility */
+          [data-slide] * {
+            opacity: 1 !important;
+            transform: none !important;
+          }
+          
+          /* Image sizing */
+          img {
+            max-width: 100% !important;
+            height: auto !important;
+          }
+        }
+        
+        @page {
+          size: A4 landscape;
+          margin: 0;
         }
         
         @keyframes shimmer {

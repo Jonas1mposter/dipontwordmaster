@@ -437,7 +437,17 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         .select()
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        // Check if error is due to already being in an active match
+        const errorMessage = createError.message || String(createError);
+        if (errorMessage.includes('already in an active match')) {
+          toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+          setMatchStatus("idle");
+          isJoiningRef.current = false;
+          return;
+        }
+        throw createError;
+      }
 
       console.log("Created new free match, waiting for opponent:", newMatch.id);
       setMatchId(newMatch.id);
@@ -446,9 +456,14 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       // Broadcast is now handled via the combined matchmaking channel
       isJoiningRef.current = false;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Match error:", error);
-      toast.error("匹配失败，请重试");
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes('already in an active match')) {
+        toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+      } else {
+        toast.error("匹配失败，请重试");
+      }
       setMatchStatus("idle");
       isJoiningRef.current = false;
     }

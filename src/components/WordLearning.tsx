@@ -49,13 +49,15 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [phase, setPhase] = useState<"learn" | "quiz">("learn"); // 先学后测
+  const [phase, setPhase] = useState<"learn" | "quiz">("learn");
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [learnedWords, setLearnedWords] = useState<Set<string>>(new Set()); // 已看过的单词
+  const [learnedWords, setLearnedWords] = useState<Set<string>>(new Set());
+  // 预加载的学习进度缓存
+  const [existingProgress, setExistingProgress] = useState<Map<string, any>>(new Map());
 
   useEffect(() => {
     const fetchWords = async () => {
@@ -65,16 +67,14 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       }
 
       try {
-        // 检查是否是字母关卡格式 (如 "A-1")
         const letterMatch = levelId.match(/^([A-Z])-(\d+)$/);
+        let fetchedWords: Word[] = [];
         
         if (letterMatch) {
-          // 字母关卡格式
           const letter = letterMatch[1];
           const subLevelIndex = parseInt(letterMatch[2]) - 1;
           const WORDS_PER_LEVEL = 10;
 
-          // 获取该年级所有以该字母开头的单词
           const { data: wordsData, error: wordsError } = await supabase
             .from("words")
             .select("id, word, meaning, phonetic, example")
@@ -84,14 +84,10 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
 
           if (wordsError) throw wordsError;
 
-          // 分割成小关卡并获取当前关卡的单词
           const startIndex = subLevelIndex * WORDS_PER_LEVEL;
           const endIndex = startIndex + WORDS_PER_LEVEL;
-          const subLevelWords = wordsData?.slice(startIndex, endIndex) || [];
-
-          setWords(subLevelWords);
+          fetchedWords = wordsData?.slice(startIndex, endIndex) || [];
         } else {
-          // 旧的关卡格式 (兼容)
           const { data: levelData, error: levelError } = await supabase
             .from("levels")
             .select("unit, grade")
@@ -108,8 +104,23 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             .limit(10);
 
           if (wordsError) throw wordsError;
+          fetchedWords = wordsData || [];
+        }
 
-          setWords(wordsData || []);
+        setWords(fetchedWords);
+
+        // 预加载这些单词的学习进度（一次性查询）
+        if (fetchedWords.length > 0) {
+          const wordIds = fetchedWords.map(w => w.id);
+          const { data: progressData } = await supabase
+            .from("learning_progress")
+            .select("*")
+            .eq("profile_id", profile.id)
+            .in("word_id", wordIds);
+
+          const progressMap = new Map<string, any>();
+          progressData?.forEach(p => progressMap.set(p.word_id, p));
+          setExistingProgress(progressMap);
         }
       } catch (error) {
         console.error("Error fetching words:", error);
@@ -157,70 +168,60 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
 
   const getQuizOptions = () => getMeaningOptions;
 
-  // Mark word as learned in learning phase
+  // Mark word as learned - 使用缓存，无需查询
   const markWordAsLearned = async (word: Word) => {
     if (!profile) return;
     
-    try {
-      const { data: existing } = await supabase
+    // 使用预加载的缓存判断
+    if (!existingProgress.has(word.id)) {
+      // 后台静默插入，不阻塞UI
+      supabase
         .from("learning_progress")
-        .select("*")
-        .eq("profile_id", profile.id)
-        .eq("word_id", word.id)
-        .maybeSingle();
-
-      if (!existing) {
-        // Only create if doesn't exist - learning phase just marks as seen
-        await supabase
-          .from("learning_progress")
-          .insert({
-            profile_id: profile.id,
-            word_id: word.id,
-            correct_count: 0,
-            last_reviewed_at: new Date().toISOString(),
-            mastery_level: 0, // Will be updated to 1 after quiz
-          });
-      }
-    } catch (error) {
-      console.error("Error marking word as learned:", error);
+        .insert({
+          profile_id: profile.id,
+          word_id: word.id,
+          correct_count: 0,
+          last_reviewed_at: new Date().toISOString(),
+          mastery_level: 0,
+        })
+        .then(() => {
+          // 更新缓存
+          setExistingProgress(prev => new Map(prev).set(word.id, { word_id: word.id, correct_count: 0, incorrect_count: 0, mastery_level: 0 }));
+        });
     }
   };
 
   const handleCorrect = async () => {
     setCorrectCount(prev => prev + 1);
 
-    // Update learning progress
+    // 使用缓存更新学习进度
     if (profile && currentWord) {
-      try {
-        const { data: existing } = await supabase
+      const existing = existingProgress.get(currentWord.id);
+      
+      if (existing) {
+        // 后台更新，不阻塞
+        supabase
           .from("learning_progress")
-          .select("*")
-          .eq("profile_id", profile.id)
-          .eq("word_id", currentWord.id)
-          .maybeSingle();
-
-        if (existing) {
-          await supabase
-            .from("learning_progress")
-            .update({
-              correct_count: existing.correct_count + 1,
-              last_reviewed_at: new Date().toISOString(),
-              mastery_level: Math.min(5, existing.mastery_level + 1),
-            })
-            .eq("id", existing.id);
-        } else {
-          await supabase
-            .from("learning_progress")
-            .insert({
-              profile_id: profile.id,
-              word_id: currentWord.id,
-              correct_count: 1,
-              last_reviewed_at: new Date().toISOString(),
-              mastery_level: 1,
-            });
-        }
-      } catch (error) {
-        console.error("Error updating learning progress:", error);
+          .update({
+            correct_count: (existing.correct_count || 0) + 1,
+            last_reviewed_at: new Date().toISOString(),
+            mastery_level: Math.min(5, (existing.mastery_level || 0) + 1),
+          })
+          .eq("id", existing.id);
+        
+        // 更新本地缓存
+        existing.correct_count = (existing.correct_count || 0) + 1;
+        existing.mastery_level = Math.min(5, (existing.mastery_level || 0) + 1);
+      } else {
+        supabase
+          .from("learning_progress")
+          .insert({
+            profile_id: profile.id,
+            word_id: currentWord.id,
+            correct_count: 1,
+            last_reviewed_at: new Date().toISOString(),
+            mastery_level: 1,
+          });
       }
     }
 
@@ -230,39 +231,30 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const handleIncorrect = async () => {
     setIncorrectCount(prev => prev + 1);
 
-    // Update learning progress - still set mastery_level to 1 to mark as "attempted"
     if (profile && currentWord) {
-      try {
-        const { data: existing } = await supabase
-          .from("learning_progress")
-          .select("*")
-          .eq("profile_id", profile.id)
-          .eq("word_id", currentWord.id)
-          .maybeSingle();
+      const existing = existingProgress.get(currentWord.id);
 
-        if (existing) {
-          await supabase
-            .from("learning_progress")
-            .update({
-              incorrect_count: existing.incorrect_count + 1,
-              last_reviewed_at: new Date().toISOString(),
-              // Ensure mastery_level is at least 1 after attempting quiz
-              mastery_level: Math.max(1, existing.mastery_level),
-            })
-            .eq("id", existing.id);
-        } else {
-          await supabase
-            .from("learning_progress")
-            .insert({
-              profile_id: profile.id,
-              word_id: currentWord.id,
-              incorrect_count: 1,
-              last_reviewed_at: new Date().toISOString(),
-              mastery_level: 1, // Mark as attempted even if wrong
-            });
-        }
-      } catch (error) {
-        console.error("Error updating learning progress:", error);
+      if (existing) {
+        supabase
+          .from("learning_progress")
+          .update({
+            incorrect_count: (existing.incorrect_count || 0) + 1,
+            last_reviewed_at: new Date().toISOString(),
+            mastery_level: Math.max(1, existing.mastery_level || 0),
+          })
+          .eq("id", existing.id);
+        
+        existing.incorrect_count = (existing.incorrect_count || 0) + 1;
+      } else {
+        supabase
+          .from("learning_progress")
+          .insert({
+            profile_id: profile.id,
+            word_id: currentWord.id,
+            incorrect_count: 1,
+            last_reviewed_at: new Date().toISOString(),
+            mastery_level: 1,
+          });
       }
     }
 

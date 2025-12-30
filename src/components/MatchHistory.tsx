@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
 
+import MatchDetail from "./MatchDetail";
+
 interface MatchHistoryProps {
   onBack: () => void;
 }
@@ -47,6 +49,17 @@ const MatchHistory = ({ onBack }: MatchHistoryProps) => {
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "ranked" | "free">("all");
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+
+  // If viewing match detail, render that instead
+  if (selectedMatchId) {
+    return (
+      <MatchDetail 
+        matchId={selectedMatchId} 
+        onBack={() => setSelectedMatchId(null)} 
+      />
+    );
+  }
 
   // Calculate streaks
   const calculateStreaks = () => {
@@ -421,11 +434,12 @@ const MatchHistory = ({ onBack }: MatchHistoryProps) => {
               <Card 
                 key={match.id} 
                 className={cn(
-                  "transition-all duration-200 hover:shadow-md",
+                  "transition-all duration-200 hover:shadow-md cursor-pointer hover:scale-[1.01]",
                   match.result === "win" && "border-l-4 border-l-success",
                   match.result === "loss" && "border-l-4 border-l-destructive",
                   match.result === "tie" && "border-l-4 border-l-muted"
                 )}
+                onClick={() => setSelectedMatchId(match.id)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">

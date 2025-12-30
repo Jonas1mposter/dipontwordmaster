@@ -686,6 +686,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       .eq("status", "waiting")
       .eq("grade", profile.grade)
       .neq("player1_id", profile.id)
+      .is("player2_id", null) // CRITICAL: Only get matches without player2
       .gte("created_at", fiveMinutesAgo)
       .order("created_at", { ascending: true })
       .limit(10);
@@ -698,6 +699,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     for (const matchToJoin of waitingMatches) {
       console.log("Attempting to join match:", matchToJoin.id);
       
+      // CRITICAL: Use atomic update with .is("player2_id", null) to prevent race conditions
       const { data: updatedMatch, error: joinError } = await supabase
         .from("ranked_matches")
         .update({
@@ -708,6 +710,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         })
         .eq("id", matchToJoin.id)
         .eq("status", "waiting")
+        .is("player2_id", null) // CRITICAL: Atomic check - only join if no one else has joined
         .select()
         .maybeSingle();
 
@@ -731,7 +734,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         setTimeout(() => setMatchStatus("playing"), 8000);
         return true;
       } else {
-        console.log("Failed to join match:", matchToJoin.id, joinError?.message);
+        console.log("Failed to join match (likely already taken):", matchToJoin.id, joinError?.message);
       }
     }
     

@@ -4,8 +4,9 @@ import { useCallback, useRef, useEffect } from 'react';
 export const useMatchSounds = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const isEnabledRef = useRef(true);
+  const isUnlockedRef = useRef(false);
 
-  // Initialize AudioContext on first interaction
+  // Initialize AudioContext
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -13,14 +14,84 @@ export const useMatchSounds = () => {
     return audioContextRef.current;
   }, []);
 
-  // Resume audio context if suspended
+  // Resume audio context if suspended - critical for Android/Chrome
   const ensureAudioReady = useCallback(async () => {
     const ctx = getAudioContext();
+    
+    // Try to resume if suspended
     if (ctx.state === 'suspended') {
-      await ctx.resume();
+      try {
+        await ctx.resume();
+        console.log('AudioContext resumed successfully');
+      } catch (e) {
+        console.log('Failed to resume AudioContext:', e);
+      }
     }
+    
+    // Play a silent buffer to unlock audio on Android
+    if (!isUnlockedRef.current && ctx.state === 'running') {
+      try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        isUnlockedRef.current = true;
+        console.log('Audio unlocked successfully');
+      } catch (e) {
+        console.log('Failed to unlock audio:', e);
+      }
+    }
+    
     return ctx;
   }, [getAudioContext]);
+
+  // Unlock audio on user interaction - call this on first user click/touch
+  const unlockAudio = useCallback(async () => {
+    if (isUnlockedRef.current) return;
+    
+    try {
+      const ctx = getAudioContext();
+      
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      
+      // Play silent buffer to unlock
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      
+      isUnlockedRef.current = true;
+      console.log('Audio context unlocked via user interaction');
+    } catch (e) {
+      console.log('Failed to unlock audio context:', e);
+    }
+  }, [getAudioContext]);
+
+  // Set up global unlock listeners
+  useEffect(() => {
+    const handleInteraction = () => {
+      if (!isUnlockedRef.current) {
+        unlockAudio();
+      }
+    };
+
+    // Listen for first user interaction to unlock audio
+    document.addEventListener('touchstart', handleInteraction, { once: true, passive: true });
+    document.addEventListener('touchend', handleInteraction, { once: true, passive: true });
+    document.addEventListener('click', handleInteraction, { once: true });
+    document.addEventListener('keydown', handleInteraction, { once: true });
+
+    return () => {
+      document.removeEventListener('touchstart', handleInteraction);
+      document.removeEventListener('touchend', handleInteraction);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+  }, [unlockAudio]);
 
   // Play a beep sound with frequency sweep (for searching)
   const playSearchingBeep = useCallback(async () => {
@@ -274,5 +345,6 @@ export const useMatchSounds = () => {
     playTick,
     playUrgent,
     toggleSounds,
+    unlockAudio,
   };
 };

@@ -1177,6 +1177,8 @@ const ProductPPT = () => {
                 desc: '一次开发，多端运行',
                 descEn: 'Build once, run everywhere',
                 tags: ['Web', 'iOS', 'Android', 'Windows', 'macOS'],
+                note: '* 目前 iOS 性能最佳',
+                noteEn: '* Currently iOS has the best performance',
               },
               {
                 icon: Zap,
@@ -1220,6 +1222,12 @@ const ProductPPT = () => {
                           <span key={j} className="bg-muted px-3 py-1 rounded-full text-xs font-medium">{tag}</span>
                         ))}
                       </div>
+                    )}
+                    {item.note && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                        {item.note}
+                        <span className="text-muted-foreground font-normal ml-1">{item.noteEn}</span>
+                      </p>
                     )}
                   </div>
                 </div>

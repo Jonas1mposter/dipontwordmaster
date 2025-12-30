@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
+import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,8 @@ import {
   VolumeX,
   Loader2,
   Wifi,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
@@ -253,6 +255,18 @@ interface EquippedNameCard {
 const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
+  
+  // Active match detection for reconnection
+  const { 
+    activeMatch, 
+    isChecking: isCheckingActiveMatch, 
+    dismissMatch: dismissActiveMatch,
+    clearActiveMatch 
+  } = useMatchReconnect({ 
+    profileId: profile?.id, 
+    enabled: !initialMatchId // Only check if not already reconnecting
+  });
+  
   const [myNameCard, setMyNameCard] = useState<EquippedNameCard | null>(null);
   const [opponentNameCard, setOpponentNameCard] = useState<EquippedNameCard | null>(null);
   const [matchStatus, setMatchStatus] = useState<MatchStatus>("idle");
@@ -1776,14 +1790,66 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               </Card>
             )}
 
+            {/* Active match warning */}
+            {activeMatch && activeMatch.type === "ranked" && (
+              <Card className="mb-6 border-amber-500/50 bg-amber-500/10">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    <span className="font-semibold text-amber-500">检测到未完成的比赛</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-3">
+                    <p>对手: {activeMatch.opponentName}</p>
+                    <p>当前得分: {activeMatch.myScore} : {activeMatch.opponentScore}</p>
+                    <p>进度: 第{activeMatch.currentQuestion + 1}题</p>
+                    <p>剩余时间: {activeMatch.timeRemaining}秒</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => {
+                        clearActiveMatch();
+                        // Navigate to reconnect by setting initialMatchId
+                        window.location.hash = `/?reconnect=${activeMatch.id}`;
+                        window.location.reload();
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      恢复比赛
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 text-destructive hover:bg-destructive/10"
+                      onClick={async () => {
+                        await dismissActiveMatch();
+                        toast.info("已放弃比赛");
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      放弃比赛
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Badge variant="xp" className="mb-6">
               <Zap className="w-3 h-3 mr-1" />
               全天开放
             </Badge>
 
-            <Button variant="hero" size="xl" onClick={startSearch} className="w-full">
+            <Button 
+              variant="hero" 
+              size="xl" 
+              onClick={startSearch} 
+              className="w-full"
+              disabled={!!activeMatch}
+            >
               <Swords className="w-5 h-5 mr-2" />
-              开始匹配
+              {isCheckingActiveMatch ? "检测中..." : "开始匹配"}
             </Button>
           </div>
         </main>

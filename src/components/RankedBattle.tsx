@@ -764,6 +764,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     });
   }, [profile]);
 
+  // Helper function to check if error is due to active match constraint
+  const isActiveMatchError = (error: any): boolean => {
+    const errorMessage = error?.message || error?.details || String(error);
+    return errorMessage.includes('already in an active match');
+  };
+
   // Start searching for a match
   const startSearch = async () => {
     if (!profile) {
@@ -782,6 +788,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .update({ status: "cancelled" })
         .eq("player1_id", profile.id)
         .eq("status", "waiting");
+
+      // Also cancel any in_progress matches where this user is a participant but match is stale
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      await supabase
+        .from("ranked_matches")
+        .update({ status: "abandoned" })
+        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .in("status", ["waiting", "in_progress"])
+        .lt("created_at", twoMinutesAgo);
 
       // Clean up stale matches from others (older than 5 minutes)
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -806,7 +821,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .select()
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        if (isActiveMatchError(createError)) {
+          toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+          setMatchStatus("idle");
+          return;
+        }
+        throw createError;
+      }
 
       console.log("Created new match, waiting for opponent:", newMatch.id);
       setMatchId(newMatch.id);
@@ -815,9 +837,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       // Broadcast to other players
       broadcastMatchRequest(newMatch.id);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Match error:", error);
-      toast.error("匹配失败，请重试");
+      if (isActiveMatchError(error)) {
+        toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+      } else {
+        toast.error("匹配失败，请重试");
+      }
       setMatchStatus("idle");
     }
   };

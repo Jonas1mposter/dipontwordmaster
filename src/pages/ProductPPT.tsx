@@ -496,6 +496,188 @@ const ProductPPT = () => {
           </div>
         </section>
 
+        {/* Slide 4.5: Quiz Types Showcase */}
+        <section 
+          data-slide="45"
+          className="min-h-[700px] bg-card rounded-3xl p-12 print:break-after-page print:min-h-screen"
+        >
+          <div style={getSlideAnimation(45)}>
+            <div className="flex items-center gap-3 mb-2">
+              <Target className="h-8 w-8 text-primary" />
+              <h2 className="text-3xl md:text-4xl font-bold">多样化题型展示</h2>
+            </div>
+            <p className="text-xl text-muted-foreground mb-10">Diverse Quiz Types Showcase</p>
+          </div>
+          
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Quiz Type 1: Meaning Selection */}
+            <div className="relative" style={getItemAnimation(45, 0)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 rounded-2xl blur-xl" />
+              <div className="relative bg-background/90 backdrop-blur rounded-2xl p-5 border border-cyan-500/30 shadow-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                  <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                  <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-cyan-500 font-medium">词义选择 | Meaning Selection</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-2">选择单词的正确含义</p>
+                    <div className="inline-block bg-cyan-500/10 rounded-xl px-6 py-3 border border-cyan-500/20">
+                      <p className="text-2xl font-bold text-cyan-600">determine</p>
+                      <p className="text-sm text-muted-foreground">/dɪˈtɜːmɪn/</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { text: 'v. 决定，确定', correct: true },
+                      { text: 'v. 描述，形容', correct: false },
+                      { text: 'v. 发现，探索', correct: false },
+                      { text: 'v. 依赖，依靠', correct: false },
+                    ].map((option, i) => (
+                      <div 
+                        key={i} 
+                        className={`px-3 py-2 rounded-lg text-center text-sm transition-all ${
+                          option.correct 
+                            ? 'bg-green-500/30 border border-green-500 text-green-600 font-medium' 
+                            : 'bg-muted/50 hover:bg-muted'
+                        }`}
+                      >
+                        {option.text}
+                        {option.correct && <span className="ml-1">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quiz Type 2: Word Selection (Reverse) */}
+            <div className="relative" style={getItemAnimation(45, 1)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-amber-500/5 rounded-2xl blur-xl" />
+              <div className="relative bg-background/90 backdrop-blur rounded-2xl p-5 border border-amber-500/30 shadow-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                  <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                  <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-amber-500 font-medium">单词选择 | Word Selection</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-2">根据释义选择正确单词</p>
+                    <div className="inline-block bg-amber-500/10 rounded-xl px-6 py-3 border border-amber-500/20">
+                      <p className="text-xl font-bold text-amber-600">v. 影响，对...起作用</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { text: 'effect', correct: false },
+                      { text: 'affect', correct: true },
+                      { text: 'effort', correct: false },
+                      { text: 'afford', correct: false },
+                    ].map((option, i) => (
+                      <div 
+                        key={i} 
+                        className={`px-3 py-2 rounded-lg text-center text-sm font-mono transition-all ${
+                          option.correct 
+                            ? 'bg-green-500/30 border border-green-500 text-green-600 font-medium' 
+                            : 'bg-muted/50 hover:bg-muted'
+                        }`}
+                      >
+                        {option.text}
+                        {option.correct && <span className="ml-1">✓</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quiz Type 3: Listening */}
+            <div className="relative" style={getItemAnimation(45, 2)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-pink-500/5 rounded-2xl blur-xl" />
+              <div className="relative bg-background/90 backdrop-blur rounded-2xl p-5 border border-pink-500/30 shadow-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                  <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                  <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-pink-500 font-medium">听力识别 | Listening</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-3">听发音，输入你听到的单词</p>
+                    <div className="inline-flex items-center gap-3 bg-pink-500/10 rounded-xl px-6 py-4 border border-pink-500/20">
+                      <div className="w-12 h-12 bg-pink-500/20 rounded-full flex items-center justify-center animate-pulse">
+                        <span className="text-2xl">🔊</span>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-pink-600">点击播放</p>
+                        <p className="text-xs text-muted-foreground">Click to play</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3 border border-border">
+                      <span className="text-muted-foreground">⌨️</span>
+                      <span className="text-sm text-muted-foreground">输入你听到的单词...</span>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <span className="px-3 py-1.5 bg-muted/50 rounded text-xs">🔄 重播</span>
+                      <span className="px-3 py-1.5 bg-primary/20 text-primary rounded text-xs font-medium">提交</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quiz Type 4: Spelling with Hint */}
+            <div className="relative" style={getItemAnimation(45, 3)}>
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-indigo-500/5 rounded-2xl blur-xl" />
+              <div className="relative bg-background/90 backdrop-blur rounded-2xl p-5 border border-indigo-500/30 shadow-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-destructive/60" />
+                  <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                  <div className="w-2 h-2 rounded-full bg-green-500/60" />
+                  <span className="ml-2 text-xs text-indigo-500 font-medium">拼写测试 | Spelling Test</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-2">根据释义拼写单词</p>
+                    <div className="inline-block bg-indigo-500/10 rounded-xl px-6 py-3 border border-indigo-500/20">
+                      <p className="text-base font-bold text-indigo-600">n. 环境；周围的事物</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-center">
+                      <div className="flex gap-1">
+                        {['e', 'n', 'v', 'i', 'r', 'o', 'n', 'm', 'e', 'n', 't'].map((letter, i) => (
+                          <span 
+                            key={i} 
+                            className={`w-5 h-7 flex items-center justify-center rounded border text-xs font-mono ${
+                              i < 7 ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-600' : 'bg-muted/50 border-border text-muted-foreground'
+                            }`}
+                          >
+                            {i < 7 ? letter : '_'}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-center items-center gap-3">
+                      <div className="px-3 py-1 bg-amber-500/20 text-amber-600 rounded-full text-xs flex items-center gap-1">
+                        <span>💡</span>
+                        <span>提示: e _ _ _ r _ _ m _ _ t</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-center gap-2">
+                      <span className="px-3 py-1.5 bg-primary/20 text-primary rounded text-xs font-medium">提交答案</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Slide 5: Core Features - Battle with Screenshot */}
         <section 
           data-slide="5"

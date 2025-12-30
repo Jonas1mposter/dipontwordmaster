@@ -56,8 +56,17 @@ const Support = () => {
               <Mail className="w-5 h-5 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">技术支持邮箱</p>
-                <a href="mailto:support@dipont.com" className="text-primary hover:underline">
-                  support@dipont.com
+                <a href="mailto:000570@nkcswx.cn" className="text-primary hover:underline">
+                  000570@nkcswx.cn
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <Mail className="w-5 h-5 text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground">反馈邮箱</p>
+                <a href="mailto:zhangshaoqingjonas@qq.com" className="text-primary hover:underline">
+                  zhangshaoqingjonas@qq.com
                 </a>
               </div>
             </div>
@@ -118,8 +127,8 @@ const Support = () => {
           <CardContent>
             <p className="text-sm text-muted-foreground">
               我们非常欢迎您的宝贵建议！如果您有任何关于新功能或改进的想法，请发送邮件至{" "}
-              <a href="mailto:feedback@dipont.com" className="text-primary hover:underline">
-                feedback@dipont.com
+              <a href="mailto:zhangshaoqingjonas@qq.com" className="text-primary hover:underline">
+                zhangshaoqingjonas@qq.com
               </a>
               ，我们会认真考虑每一条建议。
             </p>

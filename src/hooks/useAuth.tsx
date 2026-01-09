@@ -87,10 +87,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // 先从本地缓存读取会话，立即显示 UI
+    const cachedSession = localStorage.getItem('sb-session');
+    if (cachedSession) {
+      try {
+        const parsed = JSON.parse(cachedSession);
+        setSession(parsed);
+        setUser(parsed?.user ?? null);
+        // 不等待 profile，先让 UI 渲染
+        setLoading(false);
+        if (parsed?.user) {
+          fetchProfile(parsed.user.id, parsed.user.email).then(setProfile);
+        }
+      } catch {
+        // 缓存无效，继续正常流程
+      }
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        
+        // 缓存会话到本地
+        if (session) {
+          localStorage.setItem('sb-session', JSON.stringify(session));
+        } else {
+          localStorage.removeItem('sb-session');
+        }
         
         if (session?.user) {
           setTimeout(() => {
@@ -103,12 +127,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
+    // 后台验证会话有效性
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user) {
+      if (session) {
+        localStorage.setItem('sb-session', JSON.stringify(session));
         fetchProfile(session.user.id, session.user.email).then(setProfile);
+      } else {
+        localStorage.removeItem('sb-session');
       }
       setLoading(false);
     });

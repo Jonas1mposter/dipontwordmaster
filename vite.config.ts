@@ -18,12 +18,27 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // 确保资源路径正确
+    assetsDir: 'assets',
+    // 生成 sourcemap 便于调试
+    sourcemap: mode === 'development',
     rollupOptions: {
-      // Capacitor 插件在原生环境中由 Capacitor 运行时提供，web 构建时跳过
+      // Capacitor 插件在原生环境中由 Capacitor 运行时提供，web/Electron 构建时跳过
       external: [
         '@capacitor/splash-screen',
         '@capacitor/status-bar',
+        '@capacitor/core',
       ],
+      output: {
+        // 确保动态导入的模块正确分割
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
     },
+  },
+  // 优化依赖预构建
+  optimizeDeps: {
+    exclude: ['@capacitor/splash-screen', '@capacitor/status-bar', '@capacitor/core'],
   },
 }));

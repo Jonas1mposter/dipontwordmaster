@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
+import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
 const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
+  const { updateEloAfterMatch, findMatchesWithinEloRange } = useEloSystem();
   
   // Active match detection for reconnection
   const { 
@@ -295,12 +297,18 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     setTimeout(() => setMatchStatus("playing"), 5000);
   };
 
-  // Try to join an existing free match (cross-grade)
+  // Try to join an existing free match (cross-grade) - with ELO-based matching
   const tryJoinExistingMatch = async (): Promise<boolean> => {
     if (!profile) return false;
     
     const matchWords = await fetchMatchWords();
     if (matchWords.length === 0) return false;
+
+    // Get player's free match ELO
+    const playerElo = profile.elo_free || 1000;
+    const eloRange = calculateEloRange(searchTime);
+    const minElo = playerElo - eloRange;
+    const maxElo = playerElo + eloRange;
 
     // Get all waiting free matches (grade = 0 indicates free match)
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -312,20 +320,35 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       .neq("player1_id", profile.id)
       .gte("created_at", fiveMinutesAgo)
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(20);
 
-    console.log("Found waiting free matches:", waitingMatches?.length || 0);
+    console.log("Found waiting free matches:", waitingMatches?.length || 0, "ELO range:", minElo, "-", maxElo);
 
     if (!waitingMatches || waitingMatches.length === 0) return false;
 
+    // Filter by ELO range and sort by ELO proximity
+    const matchesInRange = waitingMatches
+      .filter((m) => {
+        const opponentElo = m.player1?.elo_free || 1000;
+        return opponentElo >= minElo && opponentElo <= maxElo;
+      })
+      .sort((a, b) => {
+        const aEloDiff = Math.abs((a.player1?.elo_free || 1000) - playerElo);
+        const bEloDiff = Math.abs((b.player1?.elo_free || 1000) - playerElo);
+        return aEloDiff - bEloDiff; // Sort by closest ELO first
+      });
+
+    console.log("Free matches in ELO range:", matchesInRange.length);
+
     // Try to join each match until one succeeds
-    for (const matchToJoin of waitingMatches) {
-      console.log("Attempting to join free match:", matchToJoin.id);
+    for (const matchToJoin of matchesInRange) {
+      console.log("Attempting to join free match:", matchToJoin.id, "Opponent ELO:", matchToJoin.player1?.elo_free);
       
       const { data: updatedMatch, error: joinError } = await supabase
         .from("ranked_matches")
         .update({
           player2_id: profile.id,
+          player2_elo: playerElo,
           status: "in_progress",
           words: matchWords,
           started_at: new Date().toISOString(),
@@ -338,6 +361,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
       if (!joinError && updatedMatch) {
         console.log("Successfully joined free match:", updatedMatch.id);
+        
+        // Also update player1_elo for tracking
+        await supabase
+          .from("ranked_matches")
+          .update({ player1_elo: matchToJoin.player1?.elo_free || 1000 })
+          .eq("id", matchToJoin.id);
+        
         setMatchId(matchToJoin.id);
         setOpponent(matchToJoin.player1);
         setIsRealPlayer(true);
@@ -441,11 +471,12 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         return;
       }
 
-      // No match to join, create our own with grade = 0 (free match)
+      // No match to join, create our own with grade = 0 (free match) - include player1 ELO
       const { data: newMatch, error: createError } = await supabase
         .from("ranked_matches")
         .insert({
           player1_id: profile.id,
+          player1_elo: profile.elo_free || 1000,
           grade: 0, // 0 indicates free match (cross-grade)
           status: "waiting",
         })
@@ -1023,6 +1054,24 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           })
           .eq("id", matchId);
 
+        // Update ELO for free match
+        if (opponent?.elo_free !== undefined) {
+          const playerElo = profile.elo_free || 1000;
+          const opponentElo = opponent.elo_free || 1000;
+          const totalMatches = profile.free_match_wins + profile.free_match_losses;
+          const isNewPlayer = totalMatches < 30;
+          
+          await updateEloAfterMatch(
+            profile.id,
+            playerElo,
+            opponentElo,
+            won,
+            tie,
+            isNewPlayer,
+            true // free match
+          );
+        }
+
         // Award XP based on result
         const xpGained = won ? 6 : 2;
         const coinsGained = won ? 3 : 1;
@@ -1035,8 +1084,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           xpGained,
           {
             coins: profile.coins + coinsGained,
-            wins: won ? profile.wins + 1 : profile.wins,
-            losses: won ? profile.losses : profile.losses + 1,
+            free_match_wins: won ? (profile.free_match_wins || 0) + 1 : (profile.free_match_wins || 0),
+            free_match_losses: won ? (profile.free_match_losses || 0) : (profile.free_match_losses || 0) + 1,
           }
         );
       } else {
@@ -1086,6 +1135,24 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             sounds.playDefeat();
           }
 
+          // Update ELO for free match (player2)
+          if (opponent?.elo_free !== undefined) {
+            const playerElo = profile.elo_free || 1000;
+            const opponentElo = opponent.elo_free || 1000;
+            const totalMatches = profile.free_match_wins + profile.free_match_losses;
+            const isNewPlayer = totalMatches < 30;
+            
+            await updateEloAfterMatch(
+              profile.id,
+              playerElo,
+              opponentElo,
+              won,
+              tie,
+              isNewPlayer,
+              true // free match
+            );
+          }
+
           // Award XP based on result
           const xpGained = won ? 6 : 2;
           const coinsGained = won ? 3 : 1;
@@ -1098,8 +1165,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             xpGained,
             {
               coins: profile.coins + coinsGained,
-              wins: won ? profile.wins + 1 : profile.wins,
-              losses: won ? profile.losses : profile.losses + 1,
+              free_match_wins: won ? profile.free_match_wins + 1 : profile.free_match_wins,
+              free_match_losses: won ? profile.free_match_losses : profile.free_match_losses + 1,
             }
           );
         } else {

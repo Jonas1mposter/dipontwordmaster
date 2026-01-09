@@ -621,6 +621,8 @@ export type Database = {
           class: string | null
           coins: number
           created_at: string
+          elo_free: number
+          elo_rating: number
           energy: number
           free_match_losses: number
           free_match_wins: number
@@ -648,6 +650,8 @@ export type Database = {
           class?: string | null
           coins?: number
           created_at?: string
+          elo_free?: number
+          elo_rating?: number
           energy?: number
           free_match_losses?: number
           free_match_wins?: number
@@ -675,6 +679,8 @@ export type Database = {
           class?: string | null
           coins?: number
           created_at?: string
+          elo_free?: number
+          elo_rating?: number
           energy?: number
           free_match_losses?: number
           free_match_wins?: number
@@ -703,8 +709,10 @@ export type Database = {
           ended_at: string | null
           grade: number
           id: string
+          player1_elo: number | null
           player1_id: string
           player1_score: number
+          player2_elo: number | null
           player2_id: string | null
           player2_score: number
           started_at: string | null
@@ -717,8 +725,10 @@ export type Database = {
           ended_at?: string | null
           grade: number
           id?: string
+          player1_elo?: number | null
           player1_id: string
           player1_score?: number
+          player2_elo?: number | null
           player2_id?: string | null
           player2_score?: number
           started_at?: string | null
@@ -731,8 +741,10 @@ export type Database = {
           ended_at?: string | null
           grade?: number
           id?: string
+          player1_elo?: number | null
           player1_id?: string
           player1_score?: number
+          player2_elo?: number | null
           player2_id?: string | null
           player2_score?: number
           started_at?: string | null

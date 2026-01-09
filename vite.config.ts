@@ -17,4 +17,13 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      // Capacitor 插件在原生环境中由 Capacitor 运行时提供，web 构建时跳过
+      external: [
+        '@capacitor/splash-screen',
+        '@capacitor/status-bar',
+      ],
+    },
+  },
 }));

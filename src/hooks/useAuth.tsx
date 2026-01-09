@@ -21,6 +21,10 @@ interface Profile {
   losses: number;
   avatar_url: string | null;
   class: string | null;
+  elo_rating: number;
+  elo_free: number;
+  free_match_wins: number;
+  free_match_losses: number;
 }
 
 interface AuthContextType {

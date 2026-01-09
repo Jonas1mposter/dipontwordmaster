@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
+import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -255,6 +256,7 @@ interface EquippedNameCard {
 const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
+  const { updateEloAfterMatch, findMatchesWithinEloRange } = useEloSystem();
   
   // Active match detection for reconnection
   const { 
@@ -685,14 +687,20 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setTimeout(() => setMatchStatus("playing"), 5000);
   };
 
-  // Try to join an existing match (called once at start)
+  // Try to join an existing match (called once at start) - with ELO-based matching
   const tryJoinExistingMatch = async (): Promise<boolean> => {
     if (!profile) return false;
     
     const matchWords = await fetchMatchWords();
     if (matchWords.length === 0) return false;
 
-    // Get all waiting matches from other players in same grade (include recent ones)
+    // Get player's current ELO
+    const playerElo = profile.elo_rating || 1000;
+    const eloRange = calculateEloRange(searchTime);
+    const minElo = playerElo - eloRange;
+    const maxElo = playerElo + eloRange;
+
+    // Get all waiting matches from other players in same grade within ELO range
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: waitingMatches } = await supabase
       .from("ranked_matches")
@@ -703,21 +711,36 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       .is("player2_id", null) // CRITICAL: Only get matches without player2
       .gte("created_at", fiveMinutesAgo)
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(20);
 
-    console.log("Found waiting matches:", waitingMatches?.length || 0);
+    console.log("Found waiting matches:", waitingMatches?.length || 0, "ELO range:", minElo, "-", maxElo);
 
     if (!waitingMatches || waitingMatches.length === 0) return false;
 
+    // Filter by ELO range and sort by ELO proximity
+    const matchesInRange = waitingMatches
+      .filter((m) => {
+        const opponentElo = m.player1?.elo_rating || 1000;
+        return opponentElo >= minElo && opponentElo <= maxElo;
+      })
+      .sort((a, b) => {
+        const aEloDiff = Math.abs((a.player1?.elo_rating || 1000) - playerElo);
+        const bEloDiff = Math.abs((b.player1?.elo_rating || 1000) - playerElo);
+        return aEloDiff - bEloDiff; // Sort by closest ELO first
+      });
+
+    console.log("Matches in ELO range:", matchesInRange.length);
+
     // Try to join each match until one succeeds
-    for (const matchToJoin of waitingMatches) {
-      console.log("Attempting to join match:", matchToJoin.id);
+    for (const matchToJoin of matchesInRange) {
+      console.log("Attempting to join match:", matchToJoin.id, "Opponent ELO:", matchToJoin.player1?.elo_rating);
       
       // CRITICAL: Use atomic update with .is("player2_id", null) to prevent race conditions
       const { data: updatedMatch, error: joinError } = await supabase
         .from("ranked_matches")
         .update({
           player2_id: profile.id,
+          player2_elo: playerElo,
           status: "in_progress",
           words: matchWords,
           started_at: new Date().toISOString(),
@@ -730,6 +753,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       if (!joinError && updatedMatch) {
         console.log("Successfully joined match:", updatedMatch.id);
+        
+        // Also update player1_elo for tracking
+        await supabase
+          .from("ranked_matches")
+          .update({ player1_elo: matchToJoin.player1?.elo_rating || 1000 })
+          .eq("id", matchToJoin.id);
         
         // Generate quiz types for all 10 questions
         const types = generateQuizTypes();
@@ -824,11 +853,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       const joined = await tryJoinExistingMatch();
       if (joined) return;
 
-      // No match to join, create our own and wait
+      // No match to join, create our own and wait - include player1 ELO
       const { data: newMatch, error: createError } = await supabase
         .from("ranked_matches")
         .insert({
           player1_id: profile.id,
+          player1_elo: profile.elo_rating || 1000,
           grade: profile.grade,
           status: "waiting",
         })
@@ -1486,6 +1516,24 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               claimed: currentProgress?.claimed || false,
             });
         }
+      }
+
+      // Update ELO rating for real player matches
+      if (isRealPlayer && opponent?.elo_rating) {
+        const playerElo = profile.elo_rating || 1000;
+        const opponentElo = opponent.elo_rating || 1000;
+        const totalMatches = profile.wins + profile.losses;
+        const isNewPlayer = totalMatches < 30;
+        
+        await updateEloAfterMatch(
+          profile.id,
+          playerElo,
+          opponentElo,
+          won,
+          tie,
+          isNewPlayer,
+          false // ranked match, not free match
+        );
       }
 
       // Update profile stats with level up logic

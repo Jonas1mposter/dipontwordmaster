@@ -9,13 +9,26 @@
   "files": [
     "dist/**/*",
     "electron/main.cjs",
-    "electron/preload.cjs"
+    "electron/preload.cjs",
+    "!node_modules/**/*",
+    "!src/**/*",
+    "!supabase/**/*",
+    "!public/**/*",
+    "!*.md",
+    "!*.log"
   ],
+  "extraMetadata": {
+    "main": "electron/main.cjs"
+  },
   "asar": true,
   "mac": {
     "target": [
       {
         "target": "dmg",
+        "arch": ["arm64"]
+      },
+      {
+        "target": "zip",
         "arch": ["arm64"]
       }
     ],
@@ -24,7 +37,8 @@
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
     "entitlements": "electron/entitlements.mac.plist",
-    "entitlementsInherit": "electron/entitlements.mac.plist"
+    "entitlementsInherit": "electron/entitlements.mac.plist",
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
   },
   "dmg": {
     "title": "${productName} ${version}",
@@ -41,5 +55,26 @@
         "path": "/Applications"
       }
     ]
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "assets/icon.png",
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "icon": "assets/icon.png",
+    "category": "Education"
   }
 }

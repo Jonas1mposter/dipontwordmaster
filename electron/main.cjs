@@ -16,14 +16,20 @@ function createWindow() {
     minHeight: 600,
     title: '狄邦单词通',
     titleBarStyle: 'hiddenInset',
+    backgroundColor: '#0f0a1e', // 深色背景，避免白屏闪烁
+    show: false, // 先隐藏窗口，加载完成后再显示
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
-      // 允许 SVG 和内联样式正确渲染
       webSecurity: true,
       allowRunningInsecureContent: false
     }
+  });
+
+  // 页面加载完成后显示窗口
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
   });
 
   // 设置 CSP 允许 inline SVG 和样式

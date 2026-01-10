@@ -1,7 +1,35 @@
 import { useCallback, useEffect, useState } from "react";
 
+export type SpeechSpeed = "slow" | "normal" | "fast";
+
+const SPEED_RATES: Record<SpeechSpeed, number> = {
+  slow: 0.6,
+  normal: 0.85,
+  fast: 1.1,
+};
+
+const SPEECH_SPEED_KEY = "speech_speed_preference";
+
+// Get saved speed preference from localStorage
+export const getSavedSpeed = (): SpeechSpeed => {
+  if (typeof window === "undefined") return "normal";
+  const saved = localStorage.getItem(SPEECH_SPEED_KEY);
+  if (saved === "slow" || saved === "normal" || saved === "fast") {
+    return saved;
+  }
+  return "normal";
+};
+
+// Save speed preference to localStorage
+export const saveSpeed = (speed: SpeechSpeed) => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SPEECH_SPEED_KEY, speed);
+  }
+};
+
 export const useSpeech = () => {
   const [preferredVoice, setPreferredVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [speed, setSpeed] = useState<SpeechSpeed>(getSavedSpeed);
 
   useEffect(() => {
     const selectBestVoice = () => {
@@ -61,13 +89,18 @@ export const useSpeech = () => {
     };
   }, []);
 
-  const speak = useCallback((text: string, rate: number = 0.85) => {
+  const changeSpeed = useCallback((newSpeed: SpeechSpeed) => {
+    setSpeed(newSpeed);
+    saveSpeed(newSpeed);
+  }, []);
+
+  const speak = useCallback((text: string, overrideRate?: number) => {
     // Cancel any ongoing speech
     speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
-    utterance.rate = rate;
+    utterance.rate = overrideRate ?? SPEED_RATES[speed];
     utterance.pitch = 1;
     
     if (preferredVoice) {
@@ -75,9 +108,9 @@ export const useSpeech = () => {
     }
     
     speechSynthesis.speak(utterance);
-  }, [preferredVoice]);
+  }, [preferredVoice, speed]);
 
-  return { speak, preferredVoice };
+  return { speak, preferredVoice, speed, changeSpeed };
 };
 
 // Global speech function for components that don't use the hook
@@ -126,8 +159,11 @@ if (typeof window !== "undefined") {
   speechSynthesis.addEventListener("voiceschanged", initVoice);
 }
 
-export const speakWord = (word: string, rate: number = 0.85) => {
+export const speakWord = (word: string, overrideRate?: number) => {
   speechSynthesis.cancel();
+  
+  const savedSpeed = getSavedSpeed();
+  const rate = overrideRate ?? SPEED_RATES[savedSpeed];
   
   const utterance = new SpeechSynthesisUtterance(word);
   utterance.lang = "en-US";

@@ -159,10 +159,7 @@ const MatchDetail = ({ matchId, onBack }: MatchDetailProps) => {
   };
 
   const speakWord = (word: string) => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
+    import("@/hooks/useSpeech").then(({ speakWord: speak }) => speak(word));
   };
 
   if (isLoading) {

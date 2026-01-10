@@ -121,9 +121,7 @@ const WrongWordBook = ({ onStartReview }: WrongWordBookProps) => {
   }, [wrongWords, searchQuery]);
 
   const speakWord = (word: string) => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = "en-US";
-    speechSynthesis.speak(utterance);
+    import("@/hooks/useSpeech").then(({ speakWord: speak }) => speak(word));
   };
 
   const toggleWordSelection = (wordId: string) => {

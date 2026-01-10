@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Volume2, Check, X, Eye, EyeOff, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { speakWord as speak } from "@/hooks/useSpeech";
 
 export type QuizType = "meaning" | "spelling" | "listening" | "fillBlank" | "reverse";
 
@@ -44,10 +45,7 @@ const QuizCard = ({
   }, [word.id, quizType]);
 
   const speakWord = () => {
-    const utterance = new SpeechSynthesisUtterance(word.word);
-    utterance.lang = "en-US";
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
+    speak(word.word);
   };
 
   const handleOptionSelect = (option: string) => {

@@ -898,20 +898,26 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     console.log("Setting up matchmaking subscription");
     let isActive = true;
+    let matchJoinedLock = false; // Prevent multiple join attempts
     
     // Function to handle successful match join
     const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
-      if (!isActive) return;
+      // Double-check with lock to prevent race conditions
+      if (!isActive || matchJoinedLock) return;
+      matchJoinedLock = true;
       isActive = false;
       
       console.log("Match joined successfully:", matchData.id);
       
-      // Cancel our waiting match if different
+      // CRITICAL: Immediately cancel our waiting match if different
+      // This prevents another player from joining our abandoned match
       if (waitingMatchId && waitingMatchId !== matchData.id) {
+        console.log("Cancelling our waiting match:", waitingMatchId);
         await supabase
           .from("ranked_matches")
           .update({ status: "cancelled" })
-          .eq("id", waitingMatchId);
+          .eq("id", waitingMatchId)
+          .eq("status", "waiting"); // Only cancel if still waiting
       }
 
       // Generate quiz types for all 10 questions
@@ -931,6 +937,35 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setTimeout(() => setMatchStatus("playing"), 5000);
     };
 
+    // Helper to try joining a match with lock protection
+    const tryJoinMatch = async (matchId: string, opponentData: any): Promise<boolean> => {
+      if (!isActive || matchJoinedLock) return false;
+      
+      const matchWords = await fetchMatchWords();
+      if (matchWords.length === 0 || !isActive || matchJoinedLock) return false;
+      
+      const { data: updatedMatch, error } = await supabase
+        .from("ranked_matches")
+        .update({
+          player2_id: profile.id,
+          player2_elo: profile.elo_rating || 1000,
+          status: "in_progress",
+          words: matchWords,
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", matchId)
+        .eq("status", "waiting")
+        .is("player2_id", null)
+        .select()
+        .maybeSingle();
+
+      if (!error && updatedMatch && isActive && !matchJoinedLock) {
+        await onMatchJoined(updatedMatch, opponentData, matchWords);
+        return true;
+      }
+      return false;
+    };
+
     // OPTIMIZED: Single combined channel for both DB changes and broadcast
     // This reduces connection count from 2 to 1 per user
     const matchmakingChannel = supabase
@@ -943,7 +978,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           table: "ranked_matches",
         },
         async (payload) => {
-          if (!isActive) return;
+          if (!isActive || matchJoinedLock) return;
           const record = payload.new as any;
           if (!record || record.grade !== profile.grade) return;
           
@@ -955,26 +990,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               record.player1_id !== profile.id) {
             console.log("Realtime: New waiting match detected:", record.id);
             
-            const matchWords = await fetchMatchWords();
-            if (matchWords.length === 0 || !isActive) return;
+            // Fetch player1 info first
+            const { data: player1Data } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", record.player1_id)
+              .single();
             
-            const { data: updatedMatch, error } = await supabase
-              .from("ranked_matches")
-              .update({
-                player2_id: profile.id,
-                status: "in_progress",
-                words: matchWords,
-                started_at: new Date().toISOString(),
-              })
-              .eq("id", record.id)
-              .eq("status", "waiting")
-              .is("player2_id", null)
-              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-              .maybeSingle();
-
-            if (!error && updatedMatch && isActive) {
-              await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
-            }
+            await tryJoinMatch(record.id, player1Data);
           }
           
           // Case 2: Our waiting match was joined by someone
@@ -984,6 +1007,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               record.status === "in_progress" && 
               record.player2_id) {
             console.log("Realtime: Opponent joined our match!");
+            
+            if (matchJoinedLock) return; // Already joining another match
+            matchJoinedLock = true;
+            isActive = false;
             
             const { data: opponentData } = await supabase
               .from("profiles")
@@ -998,45 +1025,31 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               phonetic: w.phonetic,
             })) || [];
             
-            if (isActive) {
-              await onMatchJoined(record, opponentData, matchWords);
-            }
+            await onMatchJoined(record, opponentData, matchWords);
           }
         }
       )
       .on('broadcast', { event: 'match_request' }, async (payload) => {
-        if (!isActive || !waitingMatchId) return;
+        if (!isActive || matchJoinedLock || !waitingMatchId) return;
         
         const data = payload.payload as any;
         if (data.playerId === profile.id) return;
         
         console.log("Broadcast: Received match request from", data.username);
         
-        const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive) return;
-        
-        const { data: updatedMatch, error } = await supabase
-          .from("ranked_matches")
-          .update({
-            player2_id: profile.id,
-            status: "in_progress",
-            words: matchWords,
-            started_at: new Date().toISOString(),
-          })
-          .eq("id", data.matchId)
-          .eq("status", "waiting")
-          .is("player2_id", null)
-          .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-          .maybeSingle();
-
-        if (!error && updatedMatch && isActive) {
-          await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
+        // Don't try to join their match if we have our own waiting match
+        // This prevents the race condition where both players try to join each other's match
+        if (waitingMatchId) {
+          console.log("Ignoring broadcast - we have our own waiting match");
+          return;
         }
+        
+        await tryJoinMatch(data.matchId, null);
       })
       .subscribe(async (status) => {
         console.log("Combined matchmaking channel status:", status);
         // Immediately check for waiting matches when subscription is ready
-        if (status === 'SUBSCRIBED' && isActive) {
+        if (status === 'SUBSCRIBED' && isActive && !matchJoinedLock) {
           console.log("Ranked channel subscribed - immediate poll check");
           const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
           const { data: waitingMatches } = await supabase
@@ -1045,42 +1058,26 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             .eq("status", "waiting")
             .eq("grade", profile.grade)
             .neq("player1_id", profile.id)
+            .is("player2_id", null) // Extra safety check
             .gte("created_at", fiveMinutesAgo)
             .order("created_at", { ascending: true })
             .limit(5);
 
-          if (waitingMatches && waitingMatches.length > 0 && isActive) {
+          if (waitingMatches && waitingMatches.length > 0 && isActive && !matchJoinedLock) {
             console.log("Immediate poll: Found", waitingMatches.length, "waiting ranked matches");
-            const matchWords = await fetchMatchWords();
-            if (matchWords.length === 0 || !isActive) return;
             
             for (const matchToJoin of waitingMatches) {
-              const { data: updatedMatch, error } = await supabase
-                .from("ranked_matches")
-                .update({
-                  player2_id: profile.id,
-                  status: "in_progress",
-                  words: matchWords,
-                  started_at: new Date().toISOString(),
-                })
-                .eq("id", matchToJoin.id)
-                .eq("status", "waiting")
-                .is("player2_id", null)
-                .select()
-                .maybeSingle();
-
-              if (!error && updatedMatch && isActive) {
-                await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
-                return;
-              }
+              if (!isActive || matchJoinedLock) break;
+              const joined = await tryJoinMatch(matchToJoin.id, matchToJoin.player1);
+              if (joined) return;
             }
           }
         }
       });
 
-    // Polling every 4 seconds (optimized for server capacity)
+    // Polling every 2 seconds for faster cross-platform matching
     const pollInterval = setInterval(async () => {
-      if (!isActive) return;
+      if (!isActive || matchJoinedLock) return;
       
       // Check if our match was joined
       if (waitingMatchId) {
@@ -1090,8 +1087,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           .eq("id", waitingMatchId)
           .single();
         
-        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive) {
+        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedLock) {
           console.log("Polling: Opponent joined our match!");
+          matchJoinedLock = true;
+          isActive = false;
+          
           const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
             id: w.id,
             word: w.word,
@@ -1103,7 +1103,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         }
       }
       
-      // Also try to join any available matches
+      // Also try to join any available matches (only if we don't have our own waiting match being joined)
+      if (!waitingMatchId || matchJoinedLock) return;
+      
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
         .from("ranked_matches")
@@ -1111,37 +1113,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("status", "waiting")
         .eq("grade", profile.grade)
         .neq("player1_id", profile.id)
+        .is("player2_id", null)
         .gte("created_at", fiveMinutesAgo)
         .order("created_at", { ascending: true })
         .limit(5);
 
-      if (waitingMatches && waitingMatches.length > 0 && isActive) {
+      if (waitingMatches && waitingMatches.length > 0 && isActive && !matchJoinedLock) {
         console.log("Polling: Found", waitingMatches.length, "waiting matches");
-        const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive) return;
         
         for (const matchToJoin of waitingMatches) {
-          const { data: updatedMatch, error } = await supabase
-            .from("ranked_matches")
-            .update({
-              player2_id: profile.id,
-              status: "in_progress",
-              words: matchWords,
-              started_at: new Date().toISOString(),
-            })
-            .eq("id", matchToJoin.id)
-            .eq("status", "waiting")
-            .is("player2_id", null) // Ensure no one else joined
-            .select()
-            .maybeSingle();
-
-          if (!error && updatedMatch && isActive) {
-            await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
-            return;
-          }
+          if (!isActive || matchJoinedLock) break;
+          const joined = await tryJoinMatch(matchToJoin.id, matchToJoin.player1);
+          if (joined) return;
         }
       }
-    }, 2000); // Poll every 2 seconds for faster cross-platform matching
+    }, 2000);
 
     // Show AI option after 15 seconds (reduced from 30)
     const aiTimeout = setTimeout(() => {

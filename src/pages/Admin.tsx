@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search, Sparkles, MessageSquareText, UserX } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Trash2, Shield, Users, Crown, User, BookOpen, Award, RefreshCw, Coins, Search, Sparkles, MessageSquareText, UserX, Swords } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,6 +73,10 @@ export default function Admin() {
   const [generatingExamples, setGeneratingExamples] = useState(false);
   const [exampleGrade, setExampleGrade] = useState('8');
   const [wordsWithoutExamples, setWordsWithoutExamples] = useState(0);
+  
+  // Match management state
+  const [matchCount, setMatchCount] = useState(0);
+  const [clearingMatches, setClearingMatches] = useState(false);
 
   const loading = authLoading || roleLoading;
 
@@ -166,10 +170,40 @@ export default function Admin() {
     }
   };
 
+  // Fetch match count
+  const fetchMatchCount = async () => {
+    const { count } = await supabase
+      .from('ranked_matches')
+      .select('id', { count: 'exact', head: true });
+    setMatchCount(count || 0);
+  };
+
+  // Clear all matches
+  const clearAllMatches = async () => {
+    setClearingMatches(true);
+    try {
+      const { error } = await supabase
+        .from('ranked_matches')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all (neq with impossible value)
+      
+      if (error) throw error;
+      
+      toast.success('已清除所有对局记录');
+      setMatchCount(0);
+    } catch (err) {
+      console.error('Error clearing matches:', err);
+      toast.error('清除失败');
+    } finally {
+      setClearingMatches(false);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
       fetchWordStats();
+      fetchMatchCount();
     }
   }, [isAdmin]);
 
@@ -439,7 +473,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-6 max-w-3xl">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               用户管理
@@ -459,6 +493,10 @@ export default function Admin() {
             <TabsTrigger value="rewards" className="flex items-center gap-2">
               <Award className="w-4 h-4" />
               奖励发放
+            </TabsTrigger>
+            <TabsTrigger value="matches" className="flex items-center gap-2">
+              <Swords className="w-4 h-4" />
+              对局管理
             </TabsTrigger>
           </TabsList>
 
@@ -975,6 +1013,86 @@ abstract - 抽象的`}
                 <p className="text-sm text-muted-foreground text-center">
                   点击后将自动给7年级和8年级各排行榜前10名发放对应名片
                 </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Matches Tab */}
+          <TabsContent value="matches">
+            <Card className="card-glow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Swords className="w-5 h-5 text-destructive" />
+                  对局管理
+                </CardTitle>
+                <CardDescription>
+                  管理和清理对局记录
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-secondary/50 rounded-lg">
+                  <div>
+                    <div className="text-lg font-medium">当前对局数</div>
+                    <div className="text-sm text-muted-foreground">数据库中的所有对局记录</div>
+                  </div>
+                  <Badge variant="outline" className="text-lg px-4 py-2">
+                    {matchCount} 个
+                  </Badge>
+                </div>
+
+                <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <div className="flex items-start gap-3">
+                    <Trash2 className="w-5 h-5 text-destructive mt-0.5" />
+                    <div>
+                      <div className="font-medium text-destructive">危险操作警告</div>
+                      <ul className="text-sm text-muted-foreground mt-1 space-y-1">
+                        <li>• 清除所有对局将删除全部对战记录</li>
+                        <li>• 此操作不可恢复，请谨慎操作</li>
+                        <li>• 适用于修复匹配系统bug后的数据清理</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      disabled={clearingMatches || matchCount === 0}
+                      className="w-full"
+                      size="lg"
+                    >
+                      <Trash2 className={`w-4 h-4 mr-2 ${clearingMatches ? 'animate-spin' : ''}`} />
+                      {clearingMatches ? '清除中...' : `清除所有对局 (${matchCount}个)`}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>确认清除所有对局</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        确定要清除所有 <strong>{matchCount}</strong> 个对局记录吗？此操作不可撤销。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>取消</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={clearAllMatches}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        确认清除
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <Button
+                  variant="outline"
+                  onClick={fetchMatchCount}
+                  className="w-full"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  刷新对局数量
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

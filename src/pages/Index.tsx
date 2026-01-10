@@ -8,8 +8,12 @@ const Index = () => {
   const { user, profile, loading } = useAuth();
   const navigate = useNavigate();
 
+  // Debug logging
+  console.log("[Index] State:", { loading, hasUser: !!user, hasProfile: !!profile, userId: user?.id });
+
   useEffect(() => {
     if (!loading && !user) {
+      console.log("[Index] No user, redirecting to auth");
       navigate("/auth");
     }
   }, [user, loading, navigate]);

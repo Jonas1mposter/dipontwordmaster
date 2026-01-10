@@ -56,6 +56,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [learnedWords, setLearnedWords] = useState<Set<string>>(new Set());
+  const [energyDeducted, setEnergyDeducted] = useState(false);
   // 预加载的学习进度缓存
   const [existingProgress, setExistingProgress] = useState<Map<string, any>>(new Map());
 
@@ -191,8 +192,36 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     }
   };
 
+  // 扣除能量（仅在开始测验阶段时扣除一次）
+  const deductEnergy = async () => {
+    if (!profile || energyDeducted) return;
+    
+    const energyCost = 1;
+    if (profile.energy < energyCost) {
+      toast.error("能量不足！");
+      onBack();
+      return;
+    }
+    
+    const { error } = await supabase
+      .from("profiles")
+      .update({ energy: profile.energy - energyCost })
+      .eq("id", profile.id);
+    
+    if (!error) {
+      setEnergyDeducted(true);
+      await refreshProfile();
+    }
+  };
+
   const handleCorrect = async () => {
-    setCorrectCount(prev => prev + 1);
+    // 在第一次答题时扣除能量
+    if (!energyDeducted && phase === "quiz") {
+      await deductEnergy();
+    }
+    
+    const newCorrectCount = correctCount + 1;
+    setCorrectCount(newCorrectCount);
 
     // 使用缓存更新学习进度
     if (profile && currentWord) {
@@ -225,11 +254,17 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       }
     }
 
-    nextWord();
+    nextWord(newCorrectCount, incorrectCount);
   };
 
   const handleIncorrect = async () => {
-    setIncorrectCount(prev => prev + 1);
+    // 在第一次答题时扣除能量
+    if (!energyDeducted && phase === "quiz") {
+      await deductEnergy();
+    }
+    
+    const newIncorrectCount = incorrectCount + 1;
+    setIncorrectCount(newIncorrectCount);
 
     if (profile && currentWord) {
       const existing = existingProgress.get(currentWord.id);
@@ -258,23 +293,22 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       }
     }
 
-    nextWord();
+    nextWord(correctCount, newIncorrectCount);
   };
 
-  const nextWord = () => {
+  const nextWord = (currentCorrect: number, currentIncorrect: number) => {
     if (currentIndex < words.length - 1) {
       setTimeout(() => {
         setCurrentIndex(prev => prev + 1);
       }, 500);
     } else {
-      finishLevel();
+      finishLevel(currentCorrect, currentIncorrect);
     }
   };
 
-  const finishLevel = async () => {
-    // correctCount is already updated by handleCorrect/handleIncorrect before nextWord() calls finishLevel()
-    const totalAnswered = correctCount + incorrectCount;
-    const accuracy = words.length > 0 ? correctCount / words.length : 0;
+  const finishLevel = async (finalCorrect: number, finalIncorrect: number) => {
+    // 使用传入的最终分数，避免状态更新延迟问题
+    const accuracy = words.length > 0 ? finalCorrect / words.length : 0;
     
     const baseXp = 5;
     const bonusXp = Math.floor(accuracy * 5);
@@ -287,7 +321,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
 
     if (profile) {
       try {
-        // Calculate stars
+        // Calculate stars based on actual final correct count
         const stars = accuracy >= 0.9 ? 3 : accuracy >= 0.7 ? 2 : accuracy >= 0.5 ? 1 : 0;
 
         // 检查是否是字母关卡格式
@@ -394,7 +428,7 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             .eq("quest_date", today)
             .maybeSingle();
 
-          const newProgress = (questProgress?.progress || 0) + correctCount;
+          const newProgress = (questProgress?.progress || 0) + finalCorrect;
           const completed = newProgress >= wordsQuest.target;
 
           await supabase
@@ -515,6 +549,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
               setCorrectCount(0);
               setIncorrectCount(0);
               setShowResult(false);
+              setPhase("learn");
+              setEnergyDeducted(false);
             }}>
               <RotateCcw className="w-4 h-4 mr-2" />
               再来一次

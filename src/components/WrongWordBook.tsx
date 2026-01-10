@@ -353,15 +353,15 @@ const WrongWordBook = ({ onStartReview }: WrongWordBookProps) => {
           <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-3 h-3 text-destructive" />
-              <span>需加强：正确率 &lt; 50%</span>
+              <span>需加强：正确 &lt; 错误</span>
             </div>
             <div className="flex items-center gap-2">
               <RefreshCw className="w-3 h-3 text-primary" />
-              <span>学习中：正确率 50-100%</span>
+              <span>学习中：正确 ≥ 错误</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-3 h-3 text-success" />
-              <span>已掌握：正确率 &gt; 200%</span>
+              <span>已掌握：正确 ≥ 错误×2</span>
             </div>
           </div>
         </>

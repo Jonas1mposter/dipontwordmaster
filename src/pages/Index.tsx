@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Dashboard from "@/components/Dashboard";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
   const { user, profile, loading } = useAuth();
@@ -13,20 +14,25 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  // 加载中或等待 profile 数据
+  if (loading || (user && !profile)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-        <div className="text-white text-lg">加载中...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="text-muted-foreground">加载中...</div>
+        </div>
       </div>
     );
   }
 
-  if (!user || !profile) {
+  // 未登录则不渲染（useEffect 会跳转）
+  if (!user) {
     return null;
   }
 
   // 用户只能进入自己年级的专区
-  const userGrade = profile.grade as 7 | 8;
+  const userGrade = (profile?.grade || 7) as 7 | 8;
 
   return (
     <Dashboard grade={userGrade} />

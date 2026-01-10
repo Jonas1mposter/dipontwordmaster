@@ -4,6 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import WordCard from "./WordCard";
 import QuizCard, { QuizType } from "./QuizCard";
 import { 
@@ -15,7 +25,9 @@ import {
   Trophy,
   RotateCcw,
   Loader2,
-  Shuffle
+  Shuffle,
+  AlertTriangle,
+  Battery
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -57,8 +69,13 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [learnedWords, setLearnedWords] = useState<Set<string>>(new Set());
   const [energyDeducted, setEnergyDeducted] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showEnergyDialog, setShowEnergyDialog] = useState(false);
   // 预加载的学习进度缓存
   const [existingProgress, setExistingProgress] = useState<Map<string, any>>(new Map());
+
+  // 检查能量是否足够
+  const hasEnoughEnergy = profile ? profile.energy >= 1 : false;
 
   useEffect(() => {
     const fetchWords = async () => {
@@ -193,14 +210,13 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   };
 
   // 扣除能量（仅在开始测验阶段时扣除一次）
-  const deductEnergy = async () => {
-    if (!profile || energyDeducted) return;
+  const deductEnergy = async (): Promise<boolean> => {
+    if (!profile || energyDeducted) return true;
     
     const energyCost = 1;
     if (profile.energy < energyCost) {
-      toast.error("能量不足！");
-      onBack();
-      return;
+      setShowEnergyDialog(true);
+      return false;
     }
     
     const { error } = await supabase
@@ -211,13 +227,26 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     if (!error) {
       setEnergyDeducted(true);
       await refreshProfile();
+      return true;
+    }
+    return false;
+  };
+
+  // 处理退出
+  const handleBack = () => {
+    // 如果已经开始答题（测验阶段且已有进度），显示确认弹窗
+    if (phase === "quiz" && (correctCount > 0 || incorrectCount > 0)) {
+      setShowExitDialog(true);
+    } else {
+      onBack();
     }
   };
 
   const handleCorrect = async () => {
     // 在第一次答题时扣除能量
     if (!energyDeducted && phase === "quiz") {
-      await deductEnergy();
+      const success = await deductEnergy();
+      if (!success) return; // 能量不足，不继续
     }
     
     const newCorrectCount = correctCount + 1;
@@ -260,7 +289,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const handleIncorrect = async () => {
     // 在第一次答题时扣除能量
     if (!energyDeducted && phase === "quiz") {
-      await deductEnergy();
+      const success = await deductEnergy();
+      if (!success) return; // 能量不足，不继续
     }
     
     const newIncorrectCount = incorrectCount + 1;
@@ -497,6 +527,16 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
           <h2 className="font-gaming text-3xl mb-2 text-glow-purple">关卡完成！</h2>
           <p className="text-muted-foreground mb-6">{levelName}</p>
 
+          {/* 低于两星提示 */}
+          {stars < 2 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <span className="text-sm text-amber-200">
+                需要获得至少2颗星才能解锁下一关，再试一次吧！
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-center gap-2 mb-8">
             {[1, 2, 3].map((star) => (
               <Star
@@ -566,13 +606,13 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
-            <Button variant="ghost" size="sm" onClick={onBack}>
+            <Button variant="ghost" size="sm" onClick={handleBack}>
               <ChevronLeft className="w-4 h-4 mr-1" />
               返回
             </Button>
             <Badge variant="energy">
               <Zap className="w-3 h-3 mr-1" />
-              消耗能量
+              {profile?.energy || 0} 能量
             </Badge>
           </div>
 
@@ -662,6 +702,55 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
           </div>
         </div>
       </main>
+
+      {/* 退出确认弹窗 */}
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              确定要退出吗？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              你正在进行测验，退出后当前进度将会丢失，已消耗的能量不会退还。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续答题</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={onBack}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              确认退出
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 能量不足弹窗 */}
+      <AlertDialog open={showEnergyDialog} onOpenChange={setShowEnergyDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Battery className="w-5 h-5 text-amber-500" />
+              能量不足
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              你的能量不足以开始测验。能量会随时间自动恢复，也可以通过完成每日任务获取。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center justify-center py-4">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-center">
+              <Zap className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <div className="font-gaming text-2xl text-amber-500">{profile?.energy || 0}</div>
+              <div className="text-xs text-muted-foreground">当前能量</div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={onBack}>返回关卡</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

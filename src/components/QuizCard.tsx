@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Volume2, Check, X, Eye, EyeOff } from "lucide-react";
+import { Volume2, Check, X, Eye, EyeOff, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type QuizType = "meaning" | "spelling" | "listening" | "fillBlank" | "reverse";
@@ -144,6 +144,34 @@ const QuizCard = ({
             );
           })}
         </div>
+
+        {/* 答错后显示详细解析 */}
+        {showResult && selectedOption !== word.meaning && (
+          <div className="mt-6 p-4 bg-muted/50 rounded-xl border border-border animate-fade-in">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">答案解析</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-gaming">{word.word}</span>
+                <button
+                  onClick={speakWord}
+                  className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                >
+                  <Volume2 className="w-4 h-4 text-primary" />
+                </button>
+              </div>
+              {word.phonetic && (
+                <p className="text-sm text-muted-foreground">{word.phonetic}</p>
+              )}
+              <p className="text-success font-medium">✓ {word.meaning}</p>
+              {word.example && (
+                <p className="text-sm text-muted-foreground italic mt-2">例句: {word.example}</p>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
     );
   }
@@ -185,6 +213,34 @@ const QuizCard = ({
             );
           })}
         </div>
+
+        {/* 答错后显示详细解析 */}
+        {showResult && selectedOption !== word.word && (
+          <div className="mt-6 p-4 bg-muted/50 rounded-xl border border-border animate-fade-in">
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">答案解析</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-gaming">{word.word}</span>
+                <button
+                  onClick={speakWord}
+                  className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                >
+                  <Volume2 className="w-4 h-4 text-primary" />
+                </button>
+              </div>
+              {word.phonetic && (
+                <p className="text-sm text-muted-foreground">{word.phonetic}</p>
+              )}
+              <p className="text-success font-medium">释义: {word.meaning}</p>
+              {word.example && (
+                <p className="text-sm text-muted-foreground italic mt-2">例句: {word.example}</p>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
     );
   }
@@ -225,9 +281,28 @@ const QuizCard = ({
           />
 
           {showResult && userInput.toLowerCase() !== word.word.toLowerCase() && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">正确答案:</p>
-              <p className="text-xl font-mono text-success">{word.word}</p>
+            <div className="p-4 bg-muted/50 rounded-xl border border-border animate-fade-in">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-primary">答案解析</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl font-gaming text-success">{word.word}</span>
+                  <button
+                    onClick={speakWord}
+                    className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  >
+                    <Volume2 className="w-4 h-4 text-primary" />
+                  </button>
+                </div>
+                {word.phonetic && (
+                  <p className="text-sm text-muted-foreground text-center">{word.phonetic}</p>
+                )}
+                {word.example && (
+                  <p className="text-sm text-muted-foreground italic text-center mt-2">例句: {word.example}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -287,14 +362,34 @@ const QuizCard = ({
             autoFocus
           />
 
-          {showResult && (
-            <div className="text-center space-y-1">
-              {userInput.toLowerCase() !== word.word.toLowerCase() && (
-                <>
-                  <p className="text-sm text-muted-foreground">正确答案:</p>
-                  <p className="text-xl font-mono text-success">{word.word}</p>
-                </>
-              )}
+          {showResult && userInput.toLowerCase() !== word.word.toLowerCase() && (
+            <div className="p-4 bg-muted/50 rounded-xl border border-border animate-fade-in">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-primary">答案解析</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl font-gaming text-success">{word.word}</span>
+                  <button
+                    onClick={speakWord}
+                    className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  >
+                    <Volume2 className="w-4 h-4 text-primary" />
+                  </button>
+                </div>
+                {word.phonetic && (
+                  <p className="text-sm text-muted-foreground text-center">{word.phonetic}</p>
+                )}
+                <p className="text-center text-muted-foreground">{word.meaning}</p>
+                {word.example && (
+                  <p className="text-sm text-muted-foreground italic text-center mt-2">例句: {word.example}</p>
+                )}
+              </div>
+            </div>
+          )}
+          {showResult && userInput.toLowerCase() === word.word.toLowerCase() && (
+            <div className="text-center">
               <p className="text-muted-foreground">{word.meaning}</p>
             </div>
           )}
@@ -351,9 +446,28 @@ const QuizCard = ({
           />
 
           {showResult && userInput.toLowerCase() !== word.word.toLowerCase() && (
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">正确答案:</p>
-              <p className="text-xl font-mono text-success">{word.word}</p>
+            <div className="p-4 bg-muted/50 rounded-xl border border-border animate-fade-in">
+              <div className="flex items-center gap-2 mb-3">
+                <BookOpen className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-primary">答案解析</span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl font-gaming text-success">{word.word}</span>
+                  <button
+                    onClick={speakWord}
+                    className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  >
+                    <Volume2 className="w-4 h-4 text-primary" />
+                  </button>
+                </div>
+                {word.phonetic && (
+                  <p className="text-sm text-muted-foreground text-center">{word.phonetic}</p>
+                )}
+                {word.example && (
+                  <p className="text-sm text-muted-foreground italic text-center">完整句子: {word.example}</p>
+                )}
+              </div>
             </div>
           )}
 

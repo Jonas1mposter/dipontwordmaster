@@ -64,6 +64,9 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [phase, setPhase] = useState<"learn" | "quiz">("learn");
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
+  // 保存最终结果，避免状态更新延迟问题
+  const [finalCorrectCount, setFinalCorrectCount] = useState(0);
+  const [finalIncorrectCount, setFinalIncorrectCount] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
@@ -337,7 +340,10 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   };
 
   const finishLevel = async (finalCorrect: number, finalIncorrect: number) => {
-    // 使用传入的最终分数，避免状态更新延迟问题
+    // 保存最终分数，避免状态更新延迟问题
+    setFinalCorrectCount(finalCorrect);
+    setFinalIncorrectCount(finalIncorrect);
+    
     const accuracy = words.length > 0 ? finalCorrect / words.length : 0;
     
     const baseXp = 5;
@@ -481,7 +487,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   };
 
   const getStars = () => {
-    const accuracy = correctCount / words.length;
+    // 使用保存的最终正确数，避免状态更新延迟
+    const accuracy = finalCorrectCount / words.length;
     if (accuracy >= 0.9) return 3;
     if (accuracy >= 0.7) return 2;
     if (accuracy >= 0.5) return 1;
@@ -554,12 +561,12 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-success/10 rounded-xl p-4 border border-success/20">
               <CheckCircle className="w-6 h-6 text-success mx-auto mb-2" />
-              <div className="font-gaming text-2xl text-success">{correctCount}</div>
+              <div className="font-gaming text-2xl text-success">{finalCorrectCount}</div>
               <div className="text-xs text-muted-foreground">正确</div>
             </div>
             <div className="bg-destructive/10 rounded-xl p-4 border border-destructive/20">
               <XCircle className="w-6 h-6 text-destructive mx-auto mb-2" />
-              <div className="font-gaming text-2xl text-destructive">{incorrectCount}</div>
+              <div className="font-gaming text-2xl text-destructive">{finalIncorrectCount}</div>
               <div className="text-xs text-muted-foreground">错误</div>
             </div>
           </div>
@@ -588,6 +595,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
               setCurrentIndex(0);
               setCorrectCount(0);
               setIncorrectCount(0);
+              setFinalCorrectCount(0);
+              setFinalIncorrectCount(0);
               setShowResult(false);
               setPhase("learn");
               setEnergyDeducted(false);

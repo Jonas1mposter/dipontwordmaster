@@ -1747,9 +1747,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
   const speakWord = () => {
     if (words[currentWordIndex]) {
-      const utterance = new SpeechSynthesisUtterance(words[currentWordIndex].word);
-      utterance.lang = "en-US";
-      speechSynthesis.speak(utterance);
+      import("@/hooks/useSpeech").then(({ speakWord: speak }) => speak(words[currentWordIndex].word));
     }
   };
 

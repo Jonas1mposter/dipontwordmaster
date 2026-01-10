@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Volume2, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { speakWord as speak } from "@/hooks/useSpeech";
 
 export type BattleQuizType = "meaning" | "reverse" | "spelling" | "listening";
 
@@ -47,10 +48,7 @@ const BattleQuizCard = ({
   }, [word.id, quizType]);
 
   const speakWord = useCallback(() => {
-    const utterance = new SpeechSynthesisUtterance(word.word);
-    utterance.lang = "en-US";
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
+    speak(word.word);
   }, [word.word]);
 
   // Auto-play for listening type

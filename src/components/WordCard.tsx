@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Volume2, Check, X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { speakWord as speak } from "@/hooks/useSpeech";
 
 interface WordCardProps {
   word: string;
@@ -60,9 +61,7 @@ const WordCard = ({
   };
 
   const speakWord = () => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = "en-US";
-    speechSynthesis.speak(utterance);
+    speak(word);
   };
 
   if (mode === "quiz" && options) {

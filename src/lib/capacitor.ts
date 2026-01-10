@@ -1,14 +1,21 @@
-import { Capacitor } from '@capacitor/core';
-
 /**
  * Check if the app is running as a native mobile app
+ * Uses window.Capacitor which is injected by the Capacitor runtime
  */
-export const isNativePlatform = () => Capacitor.isNativePlatform();
+export const isNativePlatform = (): boolean => {
+  return typeof window !== 'undefined' && 
+    !!(window as any).Capacitor?.isNativePlatform?.();
+};
 
 /**
  * Get the current platform (web, ios, android)
  */
-export const getPlatform = () => Capacitor.getPlatform();
+export const getPlatform = (): string => {
+  if (typeof window !== 'undefined' && (window as any).Capacitor) {
+    return (window as any).Capacitor.getPlatform?.() || 'web';
+  }
+  return 'web';
+};
 
 /**
  * Initialize native app settings

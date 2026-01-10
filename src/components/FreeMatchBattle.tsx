@@ -942,6 +942,16 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                 finishMatchWithRealPlayer(newScore, opponentFinalScore);
               }
             }, 500);
+          } else {
+            // Set timeout to auto-finish if opponent doesn't respond within 30 seconds
+            setTimeout(() => {
+              if (!matchFinishedRef.current && myFinishedRef.current) {
+                console.log("Opponent timeout - auto-finishing with current opponent score");
+                // Get current opponent score or default to 0
+                const currentOpponentScore = opponentFinalScore ?? opponentProgress;
+                finishMatchWithRealPlayer(newScore, currentOpponentScore);
+              }
+            }, 30000); // 30 second timeout
           }
           // Otherwise wait for opponent (handled by realtime listener + polling)
         }
@@ -1242,12 +1252,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       });
 
     // OPTIMIZED: Polling fallback for opponent progress - uses cached isPlayer1
+    // Reduced polling interval from 4s to 2s for better responsiveness
     const pollInterval = setInterval(async () => {
       if (!isActive || matchFinishedRef.current || isPlayer1 === null) return;
       
       const { data: matchData } = await supabase
         .from("ranked_matches")
-        .select("player1_score, player2_score, status")
+        .select("player1_score, player2_score, status, started_at")
         .eq("id", matchId)
         .single();
       
@@ -1288,7 +1299,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
-    }, 4000); // Poll every 4 seconds
+    }, 2000); // Reduced from 4s to 2s for faster sync
 
     return () => {
       isActive = false;
@@ -1755,7 +1766,34 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
         {/* Main game area */}
         <main className="flex-1 container mx-auto px-4 py-8 flex flex-col items-center justify-center">
-          {currentWord && (
+          {/* Waiting for opponent overlay */}
+          {waitingForOpponent && !matchFinished && (
+            <div className="w-full max-w-lg">
+              <Card variant="glow" className="border-neon-cyan/30">
+                <CardContent className="p-8 text-center">
+                  <Loader2 className="w-12 h-12 mx-auto mb-4 text-neon-cyan animate-spin" />
+                  <h3 className="font-gaming text-xl text-glow-cyan mb-2">你已完成答题！</h3>
+                  <p className="text-muted-foreground mb-4">等待对手完成中...</p>
+                  <div className="flex items-center justify-center gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-success" />
+                      <span>你的得分: {myScore}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-neon-cyan" />
+                      <span>对手进度: {opponentProgress}/10</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-4">
+                    如果对手30秒内无响应将自动结算
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Normal quiz UI */}
+          {!waitingForOpponent && currentWord && (
             <div className={cn(
               "w-full max-w-lg transition-all duration-300",
               answerAnimation === 'correct' && "animate-correct-answer",

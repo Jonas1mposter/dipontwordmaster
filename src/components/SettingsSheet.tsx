@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
+import SpeechSpeedSelector from "@/components/SpeechSpeedSelector";
 
 interface GameSettings {
   soundEnabled: boolean;
@@ -367,8 +368,13 @@ export const SettingsSheet = () => {
                     <span>音乐音量</span>
                     <span>{settings.musicVolume}%</span>
                   </div>
-                  <Slider value={[settings.musicVolume]} onValueChange={([value]) => updateSettings("musicVolume", value)} max={100} step={5} className="cursor-pointer" />
+              <Slider value={[settings.musicVolume]} onValueChange={([value]) => updateSettings("musicVolume", value)} max={100} step={5} className="cursor-pointer" />
                 </div>}
+
+              {/* Speech Speed Selector */}
+              <div className="pt-2">
+                <SpeechSpeedSelector />
+              </div>
             </div>
           </div>
 

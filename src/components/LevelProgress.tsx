@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Star, CheckCircle, Play, Zap, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Lock, Star, CheckCircle, Play, Zap, Loader2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useQuery } from "@tanstack/react-query";
@@ -155,21 +155,28 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
     return subLevels;
   };
 
-  // 获取小关卡状态
+  // 获取小关卡状态 - 需要至少2星才能解锁下一关
   const getSubLevelStatus = (words: Word[], letterUnlocked: boolean, subLevelIndex: number, allSubLevels: Word[][]) => {
     if (!letterUnlocked) return "locked";
     
     const completedCount = words.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
+    const ratio = completedCount / words.length;
     
-    if (completedCount === words.length) return "completed";
+    // 判断是否达到2星标准（70%正确率）
+    const hasTwoStars = ratio >= 0.7;
     
-    // 检查前一个小关卡是否完成
+    if (completedCount === words.length && hasTwoStars) return "completed";
+    if (completedCount === words.length && !hasTwoStars) return "needs_retry"; // 完成但星级不够
+    
+    // 检查前一个小关卡是否完成且达到2星
     if (subLevelIndex === 0) return "available";
     
     const prevSubLevel = allSubLevels[subLevelIndex - 1];
-    const prevCompleted = prevSubLevel.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
+    const prevCompletedCount = prevSubLevel.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
+    const prevRatio = prevCompletedCount / prevSubLevel.length;
+    const prevHasTwoStars = prevRatio >= 0.7;
     
-    return prevCompleted === prevSubLevel.length ? "available" : "locked";
+    return prevCompletedCount === prevSubLevel.length && prevHasTwoStars ? "available" : "locked";
   };
 
   // 获取小关卡星星数
@@ -285,6 +292,7 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-lg transition-all",
                           status === "completed" && "bg-success/10 border border-success/20",
+                          status === "needs_retry" && "bg-amber-500/10 border border-amber-500/30",
                           status === "available" && "bg-primary/10 border border-primary/20",
                           status === "locked" && "bg-secondary/50 opacity-60"
                         )}
@@ -292,6 +300,7 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
                         <div className={cn(
                           "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold",
                           status === "completed" && "bg-success text-success-foreground",
+                          status === "needs_retry" && "bg-amber-500 text-white",
                           status === "available" && "bg-primary text-primary-foreground",
                           status === "locked" && "bg-secondary text-muted-foreground"
                         )}>
@@ -306,12 +315,18 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
                                 <Zap className="w-3 h-3 mr-0.5" />1
                               </Badge>
                             )}
+                            {status === "needs_retry" && (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-400">
+                                <AlertTriangle className="w-3 h-3 mr-0.5" />
+                                需2星
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {subLevelWords.length} 个单词
                           </p>
 
-                          {status === "completed" && (
+                          {(status === "completed" || status === "needs_retry") && (
                             <div className="flex gap-0.5 mt-1">
                               {[1, 2, 3].map((star) => (
                                 <Star
@@ -344,6 +359,16 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
                             onClick={() => onSelectLevel(levelId, levelName)}
                           >
                             重玩
+                          </Button>
+                        )}
+                        {status === "needs_retry" && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-amber-500 hover:bg-amber-600"
+                            onClick={() => onSelectLevel(levelId, levelName)}
+                          >
+                            重试
                           </Button>
                         )}
                         {status === "locked" && (

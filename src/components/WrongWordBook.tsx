@@ -17,9 +17,12 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { zhCN } from "date-fns/locale";
 
 interface WrongWord {
   id: string;
@@ -325,6 +328,17 @@ const WrongWordBook = ({ onStartReview }: WrongWordBookProps) => {
                             <span className="text-success">{word.correct_count}</span>
                           </div>
                         </div>
+                        {word.last_reviewed_at && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              {formatDistanceToNow(new Date(word.last_reviewed_at), {
+                                addSuffix: true,
+                                locale: zhCN,
+                              })}
+                            </span>
+                          </div>
+                        )}
                         <Badge
                           variant={
                             mastery === "mastered"

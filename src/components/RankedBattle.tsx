@@ -5,6 +5,7 @@ import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
+import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
@@ -828,11 +829,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     });
   }, [profile]);
 
-  // Helper function to check if error is due to active match constraint
-  const isActiveMatchError = (error: any): boolean => {
-    const errorMessage = error?.message || error?.details || String(error);
-    return errorMessage.includes('already in an active match');
-  };
+  // Use automatic match cleanup hook
+  useMatchCleanup({ 
+    profileId: profile?.id, 
+    grade: profile?.grade,
+    enabled: matchStatus === "idle" 
+  });
 
   // Start searching for a match
   const startSearch = async () => {
@@ -891,7 +893,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       if (createError) {
         if (isActiveMatchError(createError)) {
-          toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+          handleActiveMatchError();
           setMatchStatus("idle");
           return;
         }
@@ -908,7 +910,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     } catch (error: any) {
       console.error("Match error:", error);
       if (isActiveMatchError(error)) {
-        toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+        handleActiveMatchError();
       } else {
         toast.error("匹配失败，请重试");
       }

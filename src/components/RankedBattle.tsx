@@ -813,8 +813,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     enabled: matchStatus === "idle" && !waitingMatchId
   });
 
-  // Lock to prevent multiple startSearch calls
+  // Lock to prevent multiple startSearch calls - persists across re-renders
   const searchLockRef = useRef(false);
+  const isSearchingRef = useRef(false); // Additional flag to track active search
   
   // Start searching for a match - with lock protection
   const startSearch = async () => {
@@ -823,12 +824,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       return;
     }
     
-    // Prevent duplicate calls
-    if (searchLockRef.current) {
+    // Prevent duplicate calls - check both ref and state
+    if (searchLockRef.current || isSearchingRef.current || matchStatus === "searching") {
       addMatchDebugLog("搜索已在进行中，忽略重复调用", "warn");
       return;
     }
     searchLockRef.current = true;
+    isSearchingRef.current = true;
 
     // Warmup audio system before starting match
     await audioManager.warmup();
@@ -839,12 +841,15 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setShowAIOption(false);
 
     try {
-      // First, cancel any old waiting matches from this user
+      // CRITICAL: Only cancel OLD waiting matches (>30 seconds old), not recent ones
+      // This prevents cancelling a match that was just created
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
       const { data: cancelledMatches } = await supabase
         .from("ranked_matches")
         .update({ status: "cancelled" })
         .eq("player1_id", profile.id)
         .eq("status", "waiting")
+        .lt("created_at", thirtySecondsAgo) // Only cancel matches older than 30 seconds
         .select("id");
       
       if (cancelledMatches && cancelledMatches.length > 0) {
@@ -857,6 +862,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (joined) {
         addMatchDebugLog("成功加入现有比赛", "success");
         searchLockRef.current = false;
+        isSearchingRef.current = false;
         return;
       }
       addMatchDebugLog("没有找到可加入的比赛，创建新比赛", "info");
@@ -897,8 +903,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         toast.error("匹配失败，请重试");
       }
       setMatchStatus("idle");
+      isSearchingRef.current = false;
     } finally {
       searchLockRef.current = false;
+      isSearchingRef.current = false;
     }
   };
 

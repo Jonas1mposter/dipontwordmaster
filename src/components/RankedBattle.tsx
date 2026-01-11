@@ -891,16 +891,27 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       await cancelPlayerStaleMatches(profile.id, profile.grade);
       addMatchDebugLog("旧对局清理完成", "success");
 
-      // Try to join an existing match first
+      // Try to join an existing match first - with retry to handle race conditions
+      // This is crucial because another player might be creating their match at the same time
       addMatchDebugLog("正在搜索可加入的比赛...", "info");
-      const joined = await tryJoinExistingMatch();
-      if (joined) {
-        addMatchDebugLog("成功加入现有比赛，释放锁", "success");
-        // Release lock only after successful join (state will change to "found")
-        searchLockRef.current = false;
-        return;
+      
+      // Try up to 3 times with 500ms delay between attempts
+      let joined = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        joined = await tryJoinExistingMatch();
+        if (joined) {
+          addMatchDebugLog(`第${attempt}次尝试成功加入现有比赛，释放锁`, "success");
+          searchLockRef.current = false;
+          return;
+        }
+        
+        // Don't delay after the last attempt
+        if (attempt < 3) {
+          addMatchDebugLog(`第${attempt}次未找到，等待500ms后重试...`, "info");
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
-      addMatchDebugLog("没有找到可加入的比赛，创建新比赛", "info");
+      addMatchDebugLog("3次尝试后仍没有找到可加入的比赛，创建新比赛", "info");
 
       // No match to join, create our own
       const { data: newMatch, error: createError } = await supabase

@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Volume2, Check, X, Eye, EyeOff, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { speakWord as speak } from "@/hooks/useSpeech";
+import { useMatchSounds } from "@/hooks/useMatchSounds";
+import { haptics } from "@/lib/haptics";
 
 export type QuizType = "meaning" | "spelling" | "listening" | "fillBlank" | "reverse";
 
@@ -35,6 +37,9 @@ const QuizCard = ({
   const [showResult, setShowResult] = useState(false);
   const [userInput, setUserInput] = useState("");
   const [showHint, setShowHint] = useState(false);
+  
+  // Sound effects
+  const sounds = useMatchSounds();
 
   // Reset state when word changes
   useEffect(() => {
@@ -57,6 +62,15 @@ const QuizCard = ({
       ? option === word.word 
       : option === word.meaning;
 
+    // Play sound and haptic feedback
+    if (isCorrect) {
+      sounds.playCorrect();
+      haptics.success();
+    } else {
+      sounds.playWrong();
+      haptics.error();
+    }
+
     setTimeout(() => {
       if (isCorrect) {
         onCorrect();
@@ -73,6 +87,15 @@ const QuizCard = ({
     const normalizedInput = userInput.trim().toLowerCase();
     const normalizedWord = word.word.toLowerCase();
     const isCorrect = normalizedInput === normalizedWord;
+
+    // Play sound and haptic feedback
+    if (isCorrect) {
+      sounds.playCorrect();
+      haptics.success();
+    } else {
+      sounds.playWrong();
+      haptics.error();
+    }
 
     setTimeout(() => {
       if (isCorrect) {

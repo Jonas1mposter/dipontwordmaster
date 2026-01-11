@@ -934,16 +934,26 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   };
 
   // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
+  // CRITICAL: Use empty deps + refs to avoid re-running effect on profile changes
   useEffect(() => {
-    if (matchStatus !== "searching" || !profile) return;
+    // Check conditions inside effect, not as dependencies
+    if (matchStatus !== "searching") return;
     
-    // Capture current profile values at effect start
-    const currentProfile = profileRef.current || profile;
+    const currentProfile = profileRef.current;
+    if (!currentProfile) return;
+    
     const currentProfileId = currentProfile.id;
     const currentGrade = currentProfile.grade;
+    const currentWaitingId = waitingMatchIdRef.current;
 
-    console.log("Setting up matchmaking subscription");
-    addMatchDebugLog("设置匹配订阅...", "info");
+    // If no waiting match ID yet, wait for startSearch to set it
+    if (!currentWaitingId) {
+      addMatchDebugLog("等待创建对局...", "info");
+      return;
+    }
+
+    console.log("Setting up matchmaking subscription for match:", currentWaitingId);
+    addMatchDebugLog(`监听对局: ${currentWaitingId.slice(0, 8)}...`, "info");
     
     let isActive = true;
     let matchJoinedLock = false;
@@ -976,29 +986,24 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setTimeout(() => setMatchStatus("playing"), 5000);
     };
 
-    // Only listen for realtime updates on our own match
+    // Realtime subscription - filter by specific match ID
     const matchmakingChannel = supabase
-      .channel(`ranked-matchmaking-${currentGrade}-${currentProfileId}`)
+      .channel(`ranked-match-${currentWaitingId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "ranked_matches",
+          filter: `id=eq.${currentWaitingId}`,
         },
         async (payload) => {
           if (!isActive || matchJoinedLock) return;
           const record = payload.new as any;
           if (!record) return;
           
-          const currentWaitingMatchId = waitingMatchIdRef.current;
-          
-          // Only care about updates to OUR waiting match
-          if (currentWaitingMatchId && 
-              record.id === currentWaitingMatchId && 
-              record.status === "in_progress" && 
-              record.player2_id) {
-            console.log("Realtime: Opponent joined our match!", currentWaitingMatchId);
+          if (record.status === "in_progress" && record.player2_id) {
+            console.log("Realtime: Opponent joined our match!", currentWaitingId);
             addMatchDebugLog(`实时：对手加入! ${record.player2_id.slice(0, 8)}...`, "success");
             
             if (matchJoinedLock) return;
@@ -1018,7 +1023,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               phonetic: w.phonetic,
             })) || [];
             
-            await onMatchJoined(record, opponentData, matchWords);
+            await onMatchJoined(record, opponentData, matchWords as Word[]);
           }
         }
       )
@@ -1031,41 +1036,36 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const pollInterval = setInterval(async () => {
       if (!isActive || matchJoinedLock) return;
       
-      const currentWaitingMatchId = waitingMatchIdRef.current;
+      const { data: ourMatch } = await supabase
+        .from("ranked_matches")
+        .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
+        .eq("id", currentWaitingId)
+        .single();
       
-      // Only check our waiting match status
-      if (currentWaitingMatchId) {
-        const { data: ourMatch } = await supabase
-          .from("ranked_matches")
-          .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
-          .eq("id", currentWaitingMatchId)
-          .single();
+      if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedLock) {
+        console.log("Polling: Opponent joined our match!");
+        addMatchDebugLog(`轮询：对手加入!`, "success");
+        matchJoinedLock = true;
+        isActive = false;
         
-        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedLock) {
-          console.log("Polling: Opponent joined our match!");
-          addMatchDebugLog(`轮询：对手加入!`, "success");
-          matchJoinedLock = true;
-          isActive = false;
-          
-          const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
-            id: w.id,
-            word: w.word,
-            meaning: w.meaning,
-            phonetic: w.phonetic,
-          })) || [];
-          await onMatchJoined(ourMatch, ourMatch.player2, matchWords);
-          return;
-        }
-        
-        // If our match got cancelled, stop searching (don't auto-create)
-        if (ourMatch?.status === "cancelled" || !ourMatch) {
-          addMatchDebugLog("对局被取消，停止搜索", "warn");
-          isActive = false;
-          setWaitingMatchId(null);
-          setMatchStatus("idle");
-          toast.error("匹配被取消，请重新搜索");
-          return;
-        }
+        const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
+          id: w.id,
+          word: w.word,
+          meaning: w.meaning,
+          phonetic: w.phonetic,
+        })) || [];
+        await onMatchJoined(ourMatch, ourMatch.player2, matchWords as Word[]);
+        return;
+      }
+      
+      // If our match got cancelled, stop searching
+      if (ourMatch?.status === "cancelled" || !ourMatch) {
+        addMatchDebugLog("对局被取消，停止搜索", "warn");
+        isActive = false;
+        setWaitingMatchId(null);
+        setMatchStatus("idle");
+        toast.error("匹配被取消，请重新搜索");
+        return;
       }
     }, 3000);
 
@@ -1073,6 +1073,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
     }, 15000);
+    
     return () => {
       console.log("Cleaning up matchmaking subscription");
       isActive = false;
@@ -1080,7 +1081,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, profile?.id, profile?.grade, profile?.elo_rating]); // Stable dependencies only
+  }, [matchStatus, waitingMatchId]); // Only re-run when matchStatus or waitingMatchId changes
 
   // Cancel search
   const cancelSearch = async () => {

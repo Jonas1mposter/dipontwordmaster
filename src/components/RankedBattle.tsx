@@ -10,6 +10,7 @@ import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
 import MatchSearchProgress from "@/components/MatchSearchProgress";
+import MatchWaitingTips from "@/components/MatchWaitingTips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1975,6 +1976,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <span className="text-success font-medium">{onlineCount} 人在线</span>
             </div>
           </div>
+          
+          {/* Waiting tips and word preview */}
+          <MatchWaitingTips 
+            grade={profile?.grade} 
+            variant="ranked" 
+            className="mb-6"
+          />
           
           {showAIOption && (
             <div className="mb-4 p-4 bg-accent/10 rounded-xl border border-accent/20 animate-scale-in max-w-xs mx-auto">

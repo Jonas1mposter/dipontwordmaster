@@ -9,6 +9,7 @@ import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
 import MatchSearchProgress from "@/components/MatchSearchProgress";
+import MatchWaitingTips from "@/components/MatchWaitingTips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1517,6 +1518,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           {/* Search Progress with phases */}
           <MatchSearchProgress 
             searchTime={searchTime} 
+            variant="free" 
+            className="mb-6"
+          />
+          
+          {/* Waiting tips and word preview */}
+          <MatchWaitingTips 
+            grade={profile?.grade} 
             variant="free" 
             className="mb-6"
           />

@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Volume2, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Volume2, CheckCircle, XCircle, Loader2, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { speakWord as speak } from "@/hooks/useSpeech";
+import { useMatchSounds } from "@/hooks/useMatchSounds";
+import { haptics } from "@/lib/haptics";
 
 export type BattleQuizType = "meaning" | "reverse" | "spelling" | "listening";
 
@@ -23,6 +25,7 @@ interface BattleQuizCardProps {
   onAnswer: (isCorrect: boolean) => void;
   disabled?: boolean;
   answerAnimation?: 'correct' | 'wrong' | null;
+  comboCount?: number; // Current combo count for combo sound effects
 }
 
 const BattleQuizCard = ({
@@ -33,7 +36,9 @@ const BattleQuizCard = ({
   onAnswer,
   disabled = false,
   answerAnimation,
+  comboCount = 0,
 }: BattleQuizCardProps) => {
+  const sounds = useMatchSounds();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [userInput, setUserInput] = useState("");
   const [showResult, setShowResult] = useState(false);
@@ -69,6 +74,19 @@ const BattleQuizCard = ({
       ? option === word.word 
       : option === word.meaning;
 
+    // Play combo sound for streaks, otherwise normal correct/wrong sounds
+    if (isCorrect) {
+      if (comboCount >= 2) {
+        sounds.playCombo(comboCount + 1);
+      } else {
+        sounds.playCorrect();
+      }
+      haptics.success();
+    } else {
+      sounds.playWrong();
+      haptics.error();
+    }
+
     setTimeout(() => {
       onAnswer(isCorrect);
     }, 600);
@@ -82,6 +100,19 @@ const BattleQuizCard = ({
     const normalizedInput = userInput.trim().toLowerCase();
     const normalizedWord = word.word.toLowerCase();
     const isCorrect = normalizedInput === normalizedWord;
+
+    // Play combo sound for streaks, otherwise normal correct/wrong sounds
+    if (isCorrect) {
+      if (comboCount >= 2) {
+        sounds.playCombo(comboCount + 1);
+      } else {
+        sounds.playCorrect();
+      }
+      haptics.success();
+    } else {
+      sounds.playWrong();
+      haptics.error();
+    }
 
     setTimeout(() => {
       onAnswer(isCorrect);

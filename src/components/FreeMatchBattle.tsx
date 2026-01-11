@@ -29,7 +29,8 @@ import {
   Wifi,
   Globe,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
@@ -106,6 +107,10 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const [matchFinished, setMatchFinished] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Combo system states
+  const [comboCount, setComboCount] = useState(0);
+  const [showComboPopup, setShowComboPopup] = useState(false);
   
   // OPTIMIZED: Cache player position to avoid repeated DB queries
   const [isPlayer1, setIsPlayer1] = useState<boolean | null>(null);
@@ -885,12 +890,26 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     if (isCorrect) {
       setMyScore(newScore);
       setAnswerAnimation('correct');
-      sounds.playCorrect();
-      haptics.success(); // Vibration feedback for correct answer
+      
+      // Play combo sound for streaks, otherwise normal correct sounds
+      const newCombo = comboCount + 1;
+      setComboCount(newCombo);
+      
+      if (newCombo >= 3) {
+        sounds.playCombo(newCombo);
+        setShowComboPopup(true);
+        setTimeout(() => setShowComboPopup(false), 800);
+      } else {
+        sounds.playCorrect();
+      }
+      haptics.success();
     } else {
       setAnswerAnimation('wrong');
       sounds.playWrong();
-      haptics.error(); // Vibration feedback for wrong answer
+      haptics.error();
+      
+      // Reset combo on wrong answer
+      setComboCount(0);
     }
 
     // ALWAYS update progress to database for matches (regardless of isRealPlayer flag)
@@ -1771,6 +1790,33 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           </div>
         </header>
 
+        {/* Combo Popup */}
+        {showComboPopup && comboCount >= 3 && (
+          <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+            <div className={cn(
+              "animate-scale-in flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl",
+              comboCount >= 10 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+              comboCount >= 7 ? "bg-gradient-to-r from-purple-500 to-pink-500" :
+              comboCount >= 5 ? "bg-gradient-to-r from-neon-blue to-neon-cyan" :
+              "bg-gradient-to-r from-primary to-neon-pink"
+            )}>
+              <Flame className={cn(
+                "w-8 h-8 text-white",
+                comboCount >= 5 && "animate-pulse"
+              )} />
+              <div className="text-white">
+                <div className="font-gaming text-3xl">{comboCount} 连击!</div>
+                <div className="text-sm opacity-80">
+                  {comboCount >= 10 ? "无敌了！🔥" :
+                   comboCount >= 7 ? "势不可挡！💪" :
+                   comboCount >= 5 ? "太强了！⚡" :
+                   "继续保持！🎯"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main game area */}
         <main className="flex-1 container mx-auto px-4 py-8 flex flex-col items-center justify-center">
           {/* Waiting for opponent overlay */}
@@ -1866,6 +1912,19 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                   );
                 })}
               </div>
+              
+              {/* Combo counter display */}
+              {comboCount >= 2 && (
+                <div className="flex items-center justify-center mt-4">
+                  <div className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl transition-all",
+                    comboCount >= 5 ? "text-amber-500 bg-amber-500/10" : "text-orange-400 bg-orange-400/10"
+                  )}>
+                    <Flame className={cn("w-5 h-5", comboCount >= 5 && "animate-pulse")} />
+                    <span className="font-gaming">{comboCount}连击</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
@@ -1957,6 +2016,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                 setMatchFinished(false);
                 setWaitingForOpponent(false);
                 setOpponentProgress(0);
+                setComboCount(0);
+                setShowComboPopup(false);
                 // Reset locks
                 globalMatchLockRef.current = false;
                 matchJoinedRef.current = false;

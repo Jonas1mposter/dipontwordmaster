@@ -30,7 +30,8 @@ import {
   Loader2,
   Wifi,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { updateProfileWithXp } from "@/lib/levelUp";
@@ -311,6 +312,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     newStars: number;
   } | null>(null);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Combo system states
+  const [comboCount, setComboCount] = useState(0);
+  const [showComboPopup, setShowComboPopup] = useState(false);
 
   // Refs to track latest state values without triggering re-subscriptions
   const myFinishedRef = useRef(myFinished);
@@ -359,6 +364,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setOpponentNameCard(null);
     setBattleChannel(null);
     setIsAnswerLocked(false);
+    setComboCount(0);
+    setShowComboPopup(false);
     friendMatchInitialized.current = false;
   }, []);
 
@@ -1188,12 +1195,23 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     if (isCorrect) {
       setMyScore(newScore);
       setAnswerAnimation('correct');
-      sounds.playCorrect();
-      haptics.success(); // Vibration feedback for correct answer
+      // Note: Sound and haptic feedback are now handled in BattleQuizCard with combo support
+      
+      // Update combo
+      const newCombo = comboCount + 1;
+      setComboCount(newCombo);
+      
+      // Show combo popup for streaks of 3+
+      if (newCombo >= 3) {
+        setShowComboPopup(true);
+        setTimeout(() => setShowComboPopup(false), 800);
+      }
     } else {
       setAnswerAnimation('wrong');
-      sounds.playWrong();
-      haptics.error(); // Vibration feedback for wrong answer
+      // Note: Sound and haptic feedback are now handled in BattleQuizCard
+      
+      // Reset combo on wrong answer
+      setComboCount(0);
     }
 
     // ALWAYS update progress to database for real player matches (regardless of isRealPlayer flag)
@@ -2250,6 +2268,33 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           </div>
         </header>
 
+        {/* Combo Popup */}
+        {showComboPopup && comboCount >= 3 && (
+          <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+            <div className={cn(
+              "animate-scale-in flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl",
+              comboCount >= 10 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+              comboCount >= 7 ? "bg-gradient-to-r from-purple-500 to-pink-500" :
+              comboCount >= 5 ? "bg-gradient-to-r from-neon-blue to-neon-cyan" :
+              "bg-gradient-to-r from-primary to-neon-pink"
+            )}>
+              <Flame className={cn(
+                "w-8 h-8 text-white",
+                comboCount >= 5 && "animate-pulse"
+              )} />
+              <div className="text-white">
+                <div className="font-gaming text-3xl">{comboCount} 连击!</div>
+                <div className="text-sm opacity-80">
+                  {comboCount >= 10 ? "无敌了！🔥" :
+                   comboCount >= 7 ? "势不可挡！💪" :
+                   comboCount >= 5 ? "太强了！⚡" :
+                   "继续保持！🎯"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quiz Card - using BattleQuizCard for multiple quiz types */}
         <main className="container mx-auto px-4 py-8">
           <BattleQuizCard
@@ -2260,11 +2305,23 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             onAnswer={handleBattleAnswer}
             disabled={isAnswerLocked}
             answerAnimation={answerAnimation}
+            comboCount={comboCount}
           />
 
-          <p className="text-center text-muted-foreground mt-4">
-            第 {currentWordIndex + 1} / 10 题
-          </p>
+          <div className="flex items-center justify-center gap-4 mt-4">
+            <p className="text-muted-foreground">
+              第 {currentWordIndex + 1} / 10 题
+            </p>
+            {comboCount >= 2 && (
+              <div className={cn(
+                "flex items-center gap-2 transition-all",
+                comboCount >= 5 ? "text-amber-500" : "text-orange-400"
+              )}>
+                <Flame className={cn("w-5 h-5", comboCount >= 5 && "animate-pulse")} />
+                <span className="font-gaming">{comboCount}连击</span>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     );

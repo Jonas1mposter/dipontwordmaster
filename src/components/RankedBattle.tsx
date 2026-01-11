@@ -9,6 +9,7 @@ import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/h
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
+import MatchSearchProgress from "@/components/MatchSearchProgress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1957,11 +1958,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             <div className="w-2 h-2 bg-primary rounded-full animate-dot-bounce" style={{ animationDelay: '0.3s' }} />
           </div>
           
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary/50 rounded-full border border-border/50 mb-4">
-            <Clock className="w-4 h-4 text-muted-foreground" />
-            <span className="font-gaming text-lg">{searchTime}</span>
-            <span className="text-muted-foreground text-sm">秒</span>
-          </div>
+          {/* Search Progress with phases */}
+          <MatchSearchProgress 
+            searchTime={searchTime} 
+            variant="ranked" 
+            className="mb-6"
+          />
           
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-6">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded-full">

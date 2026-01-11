@@ -8,6 +8,7 @@ import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/h
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
+import MatchSearchProgress from "@/components/MatchSearchProgress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1511,12 +1512,14 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           </div>
           
           <h2 className="font-gaming text-2xl mb-2 text-glow-cyan">自由匹配中</h2>
-          <p className="text-muted-foreground mb-4">正在全服寻找对手...</p>
+          <p className="text-muted-foreground mb-6">正在全服寻找对手...</p>
           
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <Clock className="w-4 h-4 text-neon-cyan" />
-            <span className="font-mono text-lg">{searchTime}s</span>
-          </div>
+          {/* Search Progress with phases */}
+          <MatchSearchProgress 
+            searchTime={searchTime} 
+            variant="free" 
+            className="mb-6"
+          />
 
           {showAIOption && (
             <div className="space-y-3 animate-fade-in">

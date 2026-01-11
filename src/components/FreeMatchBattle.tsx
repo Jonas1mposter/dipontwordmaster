@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
-import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
+import { useMatchCleanup, isActiveMatchError, handleActiveMatchError, cancelPlayerStaleMatches } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
@@ -464,13 +464,21 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     setShowAIOption(false);
 
     try {
-      // CRITICAL: First check if player is already in an active match
+      // CRITICAL: First clean up ALL stale matches (waiting AND in_progress that are 10+ minutes old)
+      // This ensures we don't get blocked by the database trigger due to old stuck matches
+      addMatchDebugLog("清理旧的卡住对局...", "info");
+      await cancelPlayerStaleMatches(profile.id, 0); // grade 0 for free matches
+      addMatchDebugLog("旧对局清理完成", "success");
+
+      // Check if player is already in a RECENT active match (created within last 10 minutes)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       const { data: existingActiveMatch } = await supabase
         .from("ranked_matches")
         .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
         .eq("grade", 0)
         .in("status", ["waiting", "in_progress"])
         .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .gte("created_at", tenMinutesAgo) // Only consider matches from last 10 minutes
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -506,15 +514,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           }
         }
         
-        // CRITICAL: Only cancel if the existing match is old (>30 seconds)
-        const matchAge = Date.now() - new Date(existingActiveMatch.created_at).getTime();
-        if (matchAge > 30000) {
-          await supabase
-            .from("ranked_matches")
-            .update({ status: "cancelled" })
-            .eq("id", existingActiveMatch.id);
-        } else {
-          // Recent waiting match - use it instead of cancelling
+        // Recent waiting match - reuse it
+        if (existingActiveMatch.status === "waiting") {
           addMatchDebugLog("复用现有等待对局，锁保持激活", "info");
           setMatchId(existingActiveMatch.id);
           setWaitingMatchId(existingActiveMatch.id);
@@ -522,16 +523,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           return;
         }
       }
-
-      // Clean up stale free matches (only this player's)
-      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
-      await supabase
-        .from("ranked_matches")
-        .update({ status: "cancelled" })
-        .eq("player1_id", profile.id)
-        .eq("status", "waiting")
-        .eq("grade", 0)
-        .lt("created_at", thirtySecondsAgo);
 
       // Try to join an existing match first
       const joined = await tryJoinExistingMatch();

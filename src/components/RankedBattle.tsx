@@ -5,6 +5,8 @@ import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
+import { audioManager } from "@/lib/audioManager";
+import { haptics } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -820,6 +822,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       return;
     }
 
+    // Warmup audio system before starting match
+    await audioManager.warmup();
+    
     setMatchStatus("searching");
     setSearchTime(0);
     setShowAIOption(false);
@@ -1184,9 +1189,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setMyScore(newScore);
       setAnswerAnimation('correct');
       sounds.playCorrect();
+      haptics.success(); // Vibration feedback for correct answer
     } else {
       setAnswerAnimation('wrong');
       sounds.playWrong();
+      haptics.error(); // Vibration feedback for wrong answer
     }
 
     // ALWAYS update progress to database for real player matches (regardless of isRealPlayer flag)

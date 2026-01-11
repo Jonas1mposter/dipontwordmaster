@@ -560,12 +560,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     return data && data.length > 0;
   };
   
-  // Realtime + Polling for reliable matchmaking
+  // Simplified matchmaking: Realtime + Polling only
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
 
     console.log("Setting up free match subscription");
-    addMatchDebugLog("设置自由对战实时订阅", "info");
+    addMatchDebugLog("设置自由对战订阅...", "info");
+    
     let isActive = true;
     // DO NOT reset matchJoinedRef here - it should persist across effect runs
     
@@ -587,26 +588,11 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       
       console.log("Free match joined successfully:", matchData.id);
       addMatchDebugLog(`匹配成功! 对手: ${opponentData?.username || '未知'}`, "success");
-      
-      // CRITICAL FIX: Cancel our waiting match FIRST before setting any other state
-      // This ensures no other player can join our abandoned match
-      const currentWaitingMatchId = waitingMatchIdRef.current;
-      if (currentWaitingMatchId && currentWaitingMatchId !== matchData.id) {
-        console.log("Immediately cancelling our waiting match:", currentWaitingMatchId);
-        await supabase
-          .from("ranked_matches")
-          .update({ status: "cancelled" })
-          .eq("id", currentWaitingMatchId)
-          .eq("status", "waiting"); // Only cancel if still waiting
-      }
-      
-      // Now set the waiting match ID to null first
-      setWaitingMatchId(null);
 
+      setWaitingMatchId(null);
       setMatchId(matchData.id);
       setOpponent(opponentData);
       setIsRealPlayer(true);
-      // OPTIMIZED: Cache player position - if we're joining, we're player2
       setIsPlayer1(matchData.player1_id === profile.id);
       setWords(matchWords);
       if (matchWords.length > 0) {
@@ -614,78 +600,72 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
       setMatchStatus("found");
       sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 5000);
+      setTimeout(() => setMatchStatus("playing"), 5000);
     };
 
-    // OPTIMIZED: Single combined channel for both DB changes and broadcast
-    // This reduces connection count from 2 to 1 per user
+    // Try to join an existing match - ONLY called if we don't have our own waiting match
+    const tryJoinMatch = async (matchIdToJoin: string, opponentData: any): Promise<boolean> => {
+      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return false;
+      
+      addMatchDebugLog(`尝试加入比赛: ${matchIdToJoin.slice(0, 8)}...`, "info");
+      
+      const matchWords = await fetchMatchWords();
+      if (matchWords.length === 0) {
+        addMatchDebugLog("获取单词失败", "error");
+        return false;
+      }
+      
+      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return false;
+      
+      const { data: updatedMatch, error } = await supabase
+        .from("ranked_matches")
+        .update({
+          player2_id: profile.id,
+          player2_elo: profile.elo_free || 1000,
+          status: "in_progress",
+          words: matchWords,
+          started_at: new Date().toISOString(),
+        })
+        .eq("id", matchIdToJoin)
+        .eq("status", "waiting")
+        .is("player2_id", null)
+        .select()
+        .maybeSingle();
+
+      if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+        addMatchDebugLog(`成功加入比赛`, "success");
+        await onMatchJoined(updatedMatch, opponentData, matchWords);
+        return true;
+      }
+      
+      addMatchDebugLog(`加入失败: ${error?.message || "对局已被占用"}`, "warn");
+      return false;
+    };
+
+    // Only listen for realtime updates on our own match
     const matchmakingChannel = supabase
       .channel(`free-matchmaking-${profile.id}`)
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "UPDATE",
           schema: "public",
           table: "ranked_matches",
         },
         async (payload) => {
-          // CRITICAL: Check all locks before processing
           if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
-          
           const record = payload.new as any;
-          if (!record || record.grade !== 0) return; // Only free matches
-          
-          console.log("Realtime DB event (free):", payload.eventType, record.id, record.status);
-          addMatchDebugLog(`实时事件: ${payload.eventType} ${record.id.slice(0, 8)}... 状态:${record.status}`, "info");
-          
-          if (payload.eventType === "INSERT" && 
-              record.status === "waiting" && 
-              record.player1_id !== profile.id) {
-            console.log("Realtime: New waiting free match detected:", record.id);
-            addMatchDebugLog(`发现新等待自由比赛: ${record.id.slice(0, 8)}...`, "info");
-            // Double-check we're not already in a match
-            if (globalMatchLockRef.current || matchJoinedRef.current) return;
-            
-            // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join
-            const currentWaitingMatchId = waitingMatchIdRef.current;
-            if (currentWaitingMatchId && currentWaitingMatchId !== record.id) {
-              console.log("Pre-emptively cancelling our waiting match before joining:", currentWaitingMatchId);
-              await supabase
-                .from("ranked_matches")
-                .update({ status: "cancelled" })
-                .eq("id", currentWaitingMatchId)
-                .eq("status", "waiting");
-            }
-            
-            const matchWords = await fetchMatchWords();
-            if (matchWords.length === 0 || !isActive || globalMatchLockRef.current) return;
-            
-            const { data: updatedMatch, error } = await supabase
-              .from("ranked_matches")
-              .update({
-                player2_id: profile.id,
-                status: "in_progress",
-                words: matchWords,
-                started_at: new Date().toISOString(),
-              })
-              .eq("id", record.id)
-              .eq("status", "waiting")
-              .is("player2_id", null)
-              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-              .maybeSingle();
-
-            if (!error && updatedMatch && isActive && !globalMatchLockRef.current) {
-              await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
-            }
-          }
+          if (!record || record.grade !== 0) return;
           
           const currentWaitingMatchId = waitingMatchIdRef.current;
-          if (payload.eventType === "UPDATE" && 
-              currentWaitingMatchId && 
+          
+          // Only care about updates to OUR waiting match
+          if (currentWaitingMatchId && 
               record.id === currentWaitingMatchId && 
               record.status === "in_progress" && 
               record.player2_id) {
             console.log("Realtime: Opponent joined our free match!", currentWaitingMatchId);
+            addMatchDebugLog(`实时：对手加入! ${record.player2_id.slice(0, 8)}...`, "success");
             
             const { data: opponentData } = await supabase
               .from("profiles")
@@ -701,119 +681,24 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
               grade: w.grade,
             })) || [];
             
-            if (isActive && !globalMatchLockRef.current) {
+            if (isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
               await onMatchJoined(record, opponentData, matchWords);
             }
           }
         }
       )
-      .on('broadcast', { event: 'free_match_request' }, async (payload) => {
-        // CRITICAL: Check all locks
-        const currentWaitingMatchId = waitingMatchIdRef.current;
-        if (!isActive || !currentWaitingMatchId || globalMatchLockRef.current || matchJoinedRef.current) return;
-        
-        const data = payload.payload as any;
-        if (data.playerId === profile.id) return;
-        
-        console.log("Broadcast: Received free match request from", data.username, "Grade", data.grade);
-        
-        // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join
-        if (currentWaitingMatchId && currentWaitingMatchId !== data.matchId) {
-          console.log("Pre-emptively cancelling our waiting match before joining broadcast match:", currentWaitingMatchId);
-          await supabase
-            .from("ranked_matches")
-            .update({ status: "cancelled" })
-            .eq("id", currentWaitingMatchId)
-            .eq("status", "waiting");
-        }
-        
-        const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive || globalMatchLockRef.current) return;
-        
-        const { data: updatedMatch, error } = await supabase
-          .from("ranked_matches")
-          .update({
-            player2_id: profile.id,
-            status: "in_progress",
-            words: matchWords,
-            started_at: new Date().toISOString(),
-          })
-          .eq("id", data.matchId)
-          .eq("status", "waiting")
-          .is("player2_id", null)
-          .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-          .maybeSingle();
-
-        if (!error && updatedMatch && isActive && !globalMatchLockRef.current) {
-          await onMatchJoined(updatedMatch, updatedMatch.player1, matchWords);
-        }
-      })
-      .subscribe(async (status) => {
-        console.log("Free combined matchmaking channel status:", status);
-        // Immediately check for waiting matches when subscription is ready
-        if (status === 'SUBSCRIBED' && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-          console.log("Free channel subscribed - immediate poll check");
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-          const { data: waitingMatches } = await supabase
-            .from("ranked_matches")
-            .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-            .eq("status", "waiting")
-            .eq("grade", 0)
-            .neq("player1_id", profile.id)
-            .gte("created_at", fiveMinutesAgo)
-            .order("created_at", { ascending: true })
-            .limit(5);
-
-          if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-            console.log("Immediate poll: Found", waitingMatches.length, "waiting free matches");
-            
-            // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join any
-            const currentWaitingMatchId = waitingMatchIdRef.current;
-            if (currentWaitingMatchId) {
-              console.log("Pre-emptively cancelling our waiting match before immediate poll join:", currentWaitingMatchId);
-              await supabase
-                .from("ranked_matches")
-                .update({ status: "cancelled" })
-                .eq("id", currentWaitingMatchId)
-                .eq("status", "waiting");
-            }
-            
-            const matchWords = await fetchMatchWords();
-            if (matchWords.length === 0 || !isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
-            
-            for (const matchToJoin of waitingMatches) {
-              if (globalMatchLockRef.current || matchJoinedRef.current) return;
-              
-              const { data: updatedMatch, error } = await supabase
-                .from("ranked_matches")
-                .update({
-                  player2_id: profile.id,
-                  status: "in_progress",
-                  words: matchWords,
-                  started_at: new Date().toISOString(),
-                })
-                .eq("id", matchToJoin.id)
-                .eq("status", "waiting")
-                .is("player2_id", null)
-                .select()
-                .maybeSingle();
-
-              if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-                await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
-                return;
-              }
-            }
-          }
-        }
+      .subscribe((status) => {
+        console.log("Free matchmaking channel status:", status);
+        addMatchDebugLog(`频道状态: ${status}`, "info");
       });
 
-    // Polling - check both our match and other waiting matches
+    // Polling every 3 seconds - simpler and more reliable
     const pollInterval = setInterval(async () => {
-      // CRITICAL: Check all locks
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
-      // First check if someone joined our match
       const currentWaitingMatchId = waitingMatchIdRef.current;
+      
+      // Case 1: We have a waiting match - just check if it was joined
       if (currentWaitingMatchId) {
         const { data: ourMatch } = await supabase
           .from("ranked_matches")
@@ -822,7 +707,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           .single();
         
         if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-          console.log("Polling: Opponent joined our free match!", currentWaitingMatchId);
+          console.log("Polling: Opponent joined our free match!");
+          addMatchDebugLog(`轮询：对手加入!`, "success");
+          
           const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
             id: w.id,
             word: w.word,
@@ -833,13 +720,35 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           await onMatchJoined(ourMatch, ourMatch.player2, matchWords);
           return;
         }
+        
+        // If our match got cancelled somehow, create a new one
+        if (ourMatch?.status === "cancelled" || !ourMatch) {
+          addMatchDebugLog("我们的对局被取消了，创建新对局", "warn");
+          setWaitingMatchId(null);
+          
+          // Create a new waiting match
+          const { data: newMatch, error: createError } = await supabase
+            .from("ranked_matches")
+            .insert({
+              player1_id: profile.id,
+              player1_elo: profile.elo_free || 1000,
+              grade: 0,
+              status: "waiting",
+            })
+            .select()
+            .single();
+          
+          if (!createError && newMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+            addMatchDebugLog(`创建新对局: ${newMatch.id.slice(0, 8)}...`, "success");
+            setMatchId(newMatch.id);
+            setWaitingMatchId(newMatch.id);
+          }
+        }
+        
+        return; // Don't try to join others while we have/are creating a waiting match
       }
       
-      // Also skip if we're already in a match
-      if (globalMatchLockRef.current || matchJoinedRef.current) return;
-      
-      // IMPORTANT: Also check for other waiting matches even if we have our own
-      // This fixes the case where two players create waiting matches at the same time
+      // Case 2: We don't have a waiting match - try to join one
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
         .from("ranked_matches")
@@ -847,51 +756,21 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         .eq("status", "waiting")
         .eq("grade", 0)
         .neq("player1_id", profile.id)
+        .is("player2_id", null)
         .gte("created_at", fiveMinutesAgo)
         .order("created_at", { ascending: true })
         .limit(5);
 
       if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-        console.log("Polling: Found", waitingMatches.length, "waiting free matches to potentially join");
-        
-        // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join any
-        const pollWaitingMatchId = waitingMatchIdRef.current;
-        if (pollWaitingMatchId) {
-          console.log("Pre-emptively cancelling our waiting match before polling join:", pollWaitingMatchId);
-          await supabase
-            .from("ranked_matches")
-            .update({ status: "cancelled" })
-            .eq("id", pollWaitingMatchId)
-            .eq("status", "waiting");
-        }
-        
-        const matchWords = await fetchMatchWords();
-        if (matchWords.length === 0 || !isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
+        addMatchDebugLog(`轮询：发现 ${waitingMatches.length} 个等待对局`, "info");
         
         for (const matchToJoin of waitingMatches) {
-          if (globalMatchLockRef.current || matchJoinedRef.current) return;
-          
-          const { data: updatedMatch, error } = await supabase
-            .from("ranked_matches")
-            .update({
-              player2_id: profile.id,
-              status: "in_progress",
-              words: matchWords,
-              started_at: new Date().toISOString(),
-            })
-            .eq("id", matchToJoin.id)
-            .eq("status", "waiting")
-            .is("player2_id", null) // Atomic check - ensure no one else joined
-            .select()
-            .maybeSingle();
-
-          if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-            await onMatchJoined(updatedMatch, matchToJoin.player1, matchWords);
-            return;
-          }
+          if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) break;
+          const joined = await tryJoinMatch(matchToJoin.id, matchToJoin.player1);
+          if (joined) return;
         }
       }
-    }, 2000); // Poll every 2 seconds for faster cross-platform matching
+    }, 3000);
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);

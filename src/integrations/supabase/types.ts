@@ -573,6 +573,45 @@ export type Database = {
         }
         Relationships: []
       }
+      match_queue: {
+        Row: {
+          created_at: string
+          elo_rating: number
+          grade: number
+          id: string
+          match_id: string | null
+          match_type: string
+          matched_at: string | null
+          matched_with: string | null
+          profile_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          elo_rating?: number
+          grade: number
+          id?: string
+          match_id?: string | null
+          match_type?: string
+          matched_at?: string | null
+          matched_with?: string | null
+          profile_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          elo_rating?: number
+          grade?: number
+          id?: string
+          match_id?: string | null
+          match_type?: string
+          matched_at?: string | null
+          matched_with?: string | null
+          profile_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -1203,6 +1242,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_queue_entry: {
+        Args: { p_match_type: string; p_profile_id: string }
+        Returns: undefined
+      }
+      check_queue_status: {
+        Args: { p_match_type: string; p_profile_id: string }
+        Returns: {
+          match_id: string
+          matched_with: string
+          queue_status: string
+        }[]
+      }
+      cleanup_expired_queue_entries: { Args: never; Returns: undefined }
+      find_match_in_queue: {
+        Args: {
+          p_elo_rating: number
+          p_grade: number
+          p_match_type: string
+          p_profile_id: string
+        }
+        Returns: {
+          matched_profile_id: string
+          matched_queue_id: string
+          new_match_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -539,32 +539,67 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         }
       }
 
-      // Try to join an existing match first - with retry to handle race conditions
-      // This is crucial because another player might be creating their match at the same time
-      addMatchDebugLog("正在搜索可加入的自由比赛...", "info");
+      // ===== NEW: USE SERVER-SIDE MATCH QUEUE =====
+      // This ensures atomic matching at the database level
+      addMatchDebugLog("加入服务器匹配池 (自由对战)...", "info");
       
-      // Try up to 5 times with increasing delay between attempts
-      // This gives more time for the other player to create their match
-      let joined = false;
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        joined = await tryJoinExistingMatch();
-        if (joined) {
-          addMatchDebugLog(`第${attempt}次尝试成功加入现有自由比赛，释放锁`, "success");
+      const { data: queueResult, error: queueError } = await supabase.rpc('find_match_in_queue', {
+        p_profile_id: profile.id,
+        p_grade: 0, // Free match uses grade 0
+        p_match_type: 'free',
+        p_elo_rating: profile.elo_free || 1000,
+      });
+
+      if (queueError) {
+        console.error("Queue error:", queueError);
+        addMatchDebugLog(`匹配池错误: ${queueError.message}`, "error");
+        throw queueError;
+      }
+
+      // Check if we got matched immediately
+      if (queueResult && queueResult.length > 0 && queueResult[0].new_match_id) {
+        const result = queueResult[0];
+        addMatchDebugLog(`服务器配对成功! 对局ID: ${result.new_match_id.slice(0, 8)}...`, "success");
+        
+        // Fetch match details including opponent
+        const { data: matchData } = await supabase
+          .from("ranked_matches")
+          .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+          .eq("id", result.new_match_id)
+          .single();
+
+        if (matchData) {
+          const matchWords = await fetchMatchWords();
+          if (matchWords.length > 0) {
+            // Update match with words
+            await supabase
+              .from("ranked_matches")
+              .update({ words: matchWords })
+              .eq("id", result.new_match_id);
+          }
+
+          const isPlayer1Matched = matchData.player1_id === profile.id;
+          const opponentData = isPlayer1Matched ? matchData.player2 : matchData.player1;
+          
+          setMatchId(result.new_match_id);
+          setOpponent(opponentData);
+          setIsRealPlayer(true);
+          setIsPlayer1(isPlayer1Matched);
+          setWords(matchWords);
+          if (matchWords.length > 0) {
+            setOptions(generateOptions(matchWords[0].meaning, matchWords));
+          }
+          setMatchStatus("found");
+          sounds.playMatchFound();
           searchLockRef.current = false;
           return;
         }
-        
-        // Don't delay after the last attempt
-        if (attempt < 5) {
-          // Increase delay progressively: 400ms, 600ms, 800ms, 1000ms
-          const delay = 400 + (attempt - 1) * 200;
-          addMatchDebugLog(`第${attempt}次未找到，等待${delay}ms后重试...`, "info");
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
       }
-      addMatchDebugLog("5次尝试后仍没有找到可加入的自由比赛，创建新比赛", "info");
 
-      // No match to join, create our own with grade = 0 (free match) - include player1 ELO
+      // No immediate match - we're in the queue, set up waiting state
+      addMatchDebugLog("已加入匹配池，等待对手...", "info");
+
+      // Create a waiting match for legacy subscription compatibility
       const { data: newMatch, error: createError } = await supabase
         .from("ranked_matches")
         .insert({
@@ -590,11 +625,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
 
       console.log("Created new free match, waiting for opponent:", newMatch.id);
-      addMatchDebugLog(`创建新自由比赛: ${newMatch.id.slice(0, 8)}... 锁保持激活`, "success");
+      addMatchDebugLog(`创建等待对局: ${newMatch.id.slice(0, 8)}... 匹配池轮询中`, "success");
       setMatchId(newMatch.id);
-      setWaitingMatchId(newMatch.id);
-      
-      // CRITICAL: Do NOT release lock here - lock stays active while waiting for opponent
+      setWaitingMatchId(newMatch.id)
 
     } catch (error: any) {
       console.error("Match error:", error);
@@ -739,10 +772,50 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         addMatchDebugLog(`频道状态: ${status}`, "info");
       });
 
-    // Polling every 3 seconds - ONLY checks, NEVER creates
+    // Polling every 2 seconds - checks both match table AND match queue
     const pollInterval = setInterval(async () => {
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
+      // FIRST: Check match queue for server-side matching
+      try {
+        const { data: queueStatus } = await supabase.rpc('check_queue_status', {
+          p_profile_id: currentProfileId,
+          p_match_type: 'free',
+        });
+
+        if (queueStatus && queueStatus.length > 0) {
+          const status = queueStatus[0];
+          if (status.queue_status === 'matched' && status.match_id && !globalMatchLockRef.current && !matchJoinedRef.current) {
+            addMatchDebugLog(`匹配池发现对局! ${status.match_id.slice(0, 8)}...`, "success");
+            
+            // Fetch full match data
+            const { data: matchData } = await supabase
+              .from("ranked_matches")
+              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+              .eq("id", status.match_id)
+              .single();
+
+            if (matchData) {
+              const isPlayer1Matched = matchData.player1_id === currentProfileId;
+              const opponentData = isPlayer1Matched ? matchData.player2 : matchData.player1;
+              const matchWords = (matchData.words as any[])?.map((w: any) => ({
+                id: w.id,
+                word: w.word,
+                meaning: w.meaning,
+                phonetic: w.phonetic,
+                grade: w.grade,
+              })) || [];
+              
+              await onMatchJoined(matchData, opponentData, matchWords);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Queue status check error:", err);
+      }
+      
+      // FALLBACK: Check our waiting match directly
       const { data: ourMatch } = await supabase
         .from("ranked_matches")
         .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
@@ -774,7 +847,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         toast.error("匹配被取消，请重新搜索");
         return;
       }
-    }, 3000);
+    }, 2000);
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
@@ -789,8 +862,16 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     };
   }, [matchStatus, waitingMatchId]); // Only re-run when matchStatus or waitingMatchId changes
 
-  // Cancel search
+  // Cancel search - also cleans up queue
   const cancelSearch = async () => {
+    // Cancel queue entry
+    if (profile) {
+      await supabase.rpc('cancel_queue_entry', {
+        p_profile_id: profile.id,
+        p_match_type: 'free',
+      });
+    }
+    
     if (matchId) {
       await supabase
         .from("ranked_matches")
@@ -808,8 +889,16 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     setShowAIOption(false);
   };
 
-  // Choose to play with AI
+  // Choose to play with AI - also cleans up queue
   const chooseAIBattle = async () => {
+    // Cancel queue entry
+    if (profile) {
+      await supabase.rpc('cancel_queue_entry', {
+        p_profile_id: profile.id,
+        p_match_type: 'free',
+      });
+    }
+    
     if (matchId) {
       await supabase
         .from("ranked_matches")

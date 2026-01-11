@@ -8,13 +8,14 @@ import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Settings, Volume2, VolumeX, Music, Bell, Moon, Sun, Vibrate, Gamepad2, Info, Shield, LogOut, Lock, School, User, Trash2, FileText, Mail, ExternalLink } from "lucide-react";
+import { Settings, Volume2, VolumeX, Music, Bell, Moon, Sun, Vibrate, Gamepad2, Info, Shield, LogOut, Lock, School, User, Trash2, FileText, Mail, ExternalLink, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
 import SpeechSpeedSelector from "@/components/SpeechSpeedSelector";
+import { useMatchSounds } from "@/hooks/useMatchSounds";
 
 interface GameSettings {
   soundEnabled: boolean;
@@ -52,6 +53,10 @@ export const SettingsSheet = () => {
     signOut,
     refreshProfile
   } = useAuth();
+  
+  // Sound effects hook
+  const sounds = useMatchSounds();
+  const [isTestingSound, setIsTestingSound] = useState(false);
 
   // Password change state
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -65,6 +70,26 @@ export const SettingsSheet = () => {
 
   // Account deletion state
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Test sound effects
+  const handleTestSounds = async () => {
+    if (isTestingSound) return;
+    setIsTestingSound(true);
+    
+    try {
+      // Play a sequence of sounds to test
+      await sounds.playCorrect();
+      await new Promise(resolve => setTimeout(resolve, 400));
+      await sounds.playWrong();
+      await new Promise(resolve => setTimeout(resolve, 400));
+      await sounds.playVictory();
+      toast.success("音效测试完成！如果没有听到声音，请检查设备音量");
+    } catch (e) {
+      toast.error("音效播放失败，请确保浏览器允许播放音频");
+    } finally {
+      setIsTestingSound(false);
+    }
+  };
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -345,13 +370,29 @@ export const SettingsSheet = () => {
                 <Switch id="sound-enabled" checked={settings.soundEnabled} onCheckedChange={checked => updateSettings("soundEnabled", checked)} />
               </div>
 
-              {settings.soundEnabled && <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>音效音量</span>
-                    <span>{settings.soundVolume}%</span>
+              {settings.soundEnabled && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>音效音量</span>
+                      <span>{settings.soundVolume}%</span>
+                    </div>
+                    <Slider value={[settings.soundVolume]} onValueChange={([value]) => updateSettings("soundVolume", value)} max={100} step={5} className="cursor-pointer" />
                   </div>
-                  <Slider value={[settings.soundVolume]} onValueChange={([value]) => updateSettings("soundVolume", value)} max={100} step={5} className="cursor-pointer" />
-                </div>}
+                  
+                  {/* Sound Test Button */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={handleTestSounds}
+                    disabled={isTestingSound}
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    {isTestingSound ? "测试中..." : "测试音效"}
+                  </Button>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

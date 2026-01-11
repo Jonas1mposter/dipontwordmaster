@@ -643,7 +643,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   };
   
   // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
-  // CRITICAL: Use waitingMatchId as dependency to avoid re-running on profile changes
+  // CRITICAL: Use waitingMatchId directly (not ref) to ensure effect re-runs when it changes
   useEffect(() => {
     if (matchStatus !== "searching") return;
     
@@ -651,7 +651,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     if (!currentProfile) return;
     
     const currentProfileId = currentProfile.id;
-    const currentWaitingId = waitingMatchIdRef.current;
+    // CRITICAL FIX: Use waitingMatchId directly from state, not ref
+    // This ensures we use the latest value when the effect runs
+    const currentWaitingId = waitingMatchId;
 
     // If no waiting match ID yet, wait for startSearch to set it
     if (!currentWaitingId) {

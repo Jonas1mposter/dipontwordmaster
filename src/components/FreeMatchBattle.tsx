@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
+import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
@@ -205,6 +206,14 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         });
     }
   }, [initialMatchId, profile, matchStatus]);
+  
+  // Use automatic match cleanup hook
+  useMatchCleanup({ 
+    profileId: profile?.id, 
+    grade: 0, // Free match uses grade 0
+    enabled: matchStatus === "idle" 
+  });
+
   // OPTIMIZED: Only track presence when in idle state to reduce connections
   // Presence is only needed on the idle screen, not during matches
   useEffect(() => {
@@ -494,10 +503,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         .single();
 
       if (createError) {
-        // Check if error is due to already being in an active match
-        const errorMessage = createError.message || String(createError);
-        if (errorMessage.includes('already in an active match')) {
-          toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+        // Check if error is due to already being in an active match (database trigger)
+        if (isActiveMatchError(createError)) {
+          handleActiveMatchError();
           setMatchStatus("idle");
           isJoiningRef.current = false;
           return;
@@ -514,9 +522,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
     } catch (error: any) {
       console.error("Match error:", error);
-      const errorMessage = error?.message || String(error);
-      if (errorMessage.includes('already in an active match')) {
-        toast.error("你已在一场比赛中，请先完成当前比赛", { duration: 4000 });
+      if (isActiveMatchError(error)) {
+        handleActiveMatchError();
       } else {
         toast.error("匹配失败，请重试");
       }

@@ -24,6 +24,7 @@ interface QuizCardProps {
   options?: string[];
   onCorrect: () => void;
   onIncorrect: () => void;
+  comboCount?: number;
 }
 
 const QuizCard = ({
@@ -32,6 +33,7 @@ const QuizCard = ({
   options = [],
   onCorrect,
   onIncorrect,
+  comboCount = 0,
 }: QuizCardProps) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -64,7 +66,12 @@ const QuizCard = ({
 
     // Play sound and haptic feedback
     if (isCorrect) {
-      sounds.playCorrect();
+      // Play combo sound if this creates a combo (comboCount is the count BEFORE this answer)
+      if (comboCount >= 2) {
+        sounds.playCombo(comboCount + 1);
+      } else {
+        sounds.playCorrect();
+      }
       haptics.success();
     } else {
       sounds.playWrong();
@@ -90,7 +97,11 @@ const QuizCard = ({
 
     // Play sound and haptic feedback
     if (isCorrect) {
-      sounds.playCorrect();
+      if (comboCount >= 2) {
+        sounds.playCombo(comboCount + 1);
+      } else {
+        sounds.playCorrect();
+      }
       haptics.success();
     } else {
       sounds.playWrong();

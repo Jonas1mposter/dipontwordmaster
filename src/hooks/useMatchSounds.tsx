@@ -227,6 +227,47 @@ export const useMatchSounds = () => {
     }
   }, [ensureAudioReady]);
 
+  // Play combo sound - higher pitch for higher combos
+  const playCombo = useCallback(async (comboCount: number) => {
+    if (!isEnabledRef.current) return;
+    try {
+      const ctx = await ensureAudioReady();
+      
+      // Base frequency increases with combo (capped at 10)
+      const baseFreq = 523.25; // C5
+      const multiplier = 1 + Math.min(comboCount, 10) * 0.1;
+      const freq = baseFreq * multiplier;
+      
+      // Play ascending notes for combo effect
+      const notes = [
+        { freq: freq, time: 0 },
+        { freq: freq * 1.25, time: 0.06 },
+        { freq: freq * 1.5, time: 0.12 },
+      ];
+      
+      notes.forEach(({ freq: noteFreq, time }) => {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(noteFreq, ctx.currentTime + time);
+        
+        const volume = 0.12 + Math.min(comboCount, 10) * 0.01;
+        gainNode.gain.setValueAtTime(0, ctx.currentTime + time);
+        gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + time + 0.02);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + time + 0.15);
+        
+        oscillator.start(ctx.currentTime + time);
+        oscillator.stop(ctx.currentTime + time + 0.15);
+      });
+    } catch (e) {
+      console.log('Sound playback failed:', e);
+    }
+  }, [ensureAudioReady]);
+
   // Play urgent warning (for low time)
   const playUrgent = useCallback(async () => {
     if (!isEnabledRef.current) return;
@@ -267,6 +308,7 @@ export const useMatchSounds = () => {
     playDefeat,
     playTick,
     playUrgent,
+    playCombo,
     toggleSounds,
     unlockAudio,
   };

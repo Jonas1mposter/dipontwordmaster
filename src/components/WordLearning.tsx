@@ -29,7 +29,8 @@ import {
   Loader2,
   Shuffle,
   AlertTriangle,
-  Battery
+  Battery,
+  Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -77,6 +78,10 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
   const [energyDeducted, setEnergyDeducted] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showEnergyDialog, setShowEnergyDialog] = useState(false);
+  // 连击系统
+  const [comboCount, setComboCount] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [showComboPopup, setShowComboPopup] = useState(false);
   // 预加载的学习进度缓存
   const [existingProgress, setExistingProgress] = useState<Map<string, any>>(new Map());
 
@@ -257,6 +262,19 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     
     const newCorrectCount = correctCount + 1;
     setCorrectCount(newCorrectCount);
+    
+    // 更新连击
+    const newCombo = comboCount + 1;
+    setComboCount(newCombo);
+    if (newCombo > maxCombo) {
+      setMaxCombo(newCombo);
+    }
+    
+    // 显示连击提示 (3连击及以上)
+    if (newCombo >= 3) {
+      setShowComboPopup(true);
+      setTimeout(() => setShowComboPopup(false), 800);
+    }
 
     // 使用缓存更新学习进度
     if (profile && currentWord) {
@@ -301,8 +319,9 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     
     const newIncorrectCount = incorrectCount + 1;
     setIncorrectCount(newIncorrectCount);
-
-    if (profile && currentWord) {
+    
+    // 重置连击
+    setComboCount(0);
       const existing = existingProgress.get(currentWord.id);
 
       if (existing) {
@@ -612,6 +631,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
               setShowResult(false);
               setPhase("learn");
               setEnergyDeducted(false);
+              setComboCount(0);
+              setMaxCombo(0);
             }}>
               <RotateCcw className="w-4 h-4 mr-2" />
               再来一次
@@ -709,7 +730,35 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             options={getCurrentQuizType === "reverse" ? getWordOptions : getMeaningOptions}
             onCorrect={handleCorrect}
             onIncorrect={handleIncorrect}
+            comboCount={comboCount}
           />
+        )}
+
+        {/* 连击提示弹窗 */}
+        {showComboPopup && comboCount >= 3 && (
+          <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+            <div className={cn(
+              "animate-scale-in flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl",
+              comboCount >= 10 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+              comboCount >= 7 ? "bg-gradient-to-r from-purple-500 to-pink-500" :
+              comboCount >= 5 ? "bg-gradient-to-r from-blue-500 to-cyan-500" :
+              "bg-gradient-to-r from-green-500 to-emerald-500"
+            )}>
+              <Flame className={cn(
+                "w-8 h-8 text-white",
+                comboCount >= 5 && "animate-pulse"
+              )} />
+              <div className="text-white">
+                <div className="font-gaming text-3xl">{comboCount} 连击!</div>
+                <div className="text-sm opacity-80">
+                  {comboCount >= 10 ? "无敌了！🔥" :
+                   comboCount >= 7 ? "太强了！💪" :
+                   comboCount >= 5 ? "继续保持！✨" :
+                   "不错哦！👍"}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="flex justify-center gap-8 mt-8">
@@ -717,6 +766,16 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
             <CheckCircle className="w-5 h-5" />
             <span className="font-gaming">{correctCount}</span>
           </div>
+          {/* 当前连击显示 */}
+          {comboCount >= 2 && (
+            <div className={cn(
+              "flex items-center gap-2 transition-all",
+              comboCount >= 5 ? "text-amber-500" : "text-orange-400"
+            )}>
+              <Flame className={cn("w-5 h-5", comboCount >= 5 && "animate-pulse")} />
+              <span className="font-gaming">{comboCount}连击</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-destructive">
             <XCircle className="w-5 h-5" />
             <span className="font-gaming">{incorrectCount}</span>

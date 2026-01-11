@@ -980,7 +980,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   }, [matchStatus]);
 
   // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
-  // CRITICAL: Use empty deps + refs to avoid re-running effect on profile changes
+  // CRITICAL: Use waitingMatchId directly (not ref) to ensure effect re-runs when it changes
   useEffect(() => {
     // Check conditions inside effect, not as dependencies
     if (matchStatus !== "searching") return;
@@ -990,7 +990,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     const currentProfileId = currentProfile.id;
     const currentGrade = currentProfile.grade;
-    const currentWaitingId = waitingMatchIdRef.current;
+    // CRITICAL FIX: Use waitingMatchId directly from state, not ref
+    // This ensures we use the latest value when the effect runs
+    const currentWaitingId = waitingMatchId;
 
     // If no waiting match ID yet, wait for startSearch to set it
     if (!currentWaitingId) {

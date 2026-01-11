@@ -763,6 +763,18 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (!joinError && updatedMatch) {
         console.log("Successfully joined match:", updatedMatch.id);
         
+        // CRITICAL: Cancel our own waiting match IMMEDIATELY before any other async operations
+        // This prevents other players from joining our abandoned match
+        if (waitingMatchId && waitingMatchId !== matchToJoin.id) {
+          console.log("Immediately cancelling our waiting match before proceeding:", waitingMatchId);
+          await supabase
+            .from("ranked_matches")
+            .update({ status: "cancelled" })
+            .eq("id", waitingMatchId)
+            .eq("status", "waiting");
+          setWaitingMatchId(null);
+        }
+        
         // Also update player1_elo for tracking
         await supabase
           .from("ranked_matches")
@@ -950,11 +962,31 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
 
     // Helper to try joining a match with lock protection
-    const tryJoinMatch = async (matchId: string, opponentData: any): Promise<boolean> => {
+    const tryJoinMatch = async (matchIdToJoin: string, opponentData: any): Promise<boolean> => {
       if (!isActive || matchJoinedLock) return false;
       
+      // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join another
+      // This prevents another player from joining our match while we're joining theirs
+      let cancelledOurMatch = false;
+      if (waitingMatchId && waitingMatchId !== matchIdToJoin) {
+        console.log("Pre-emptively cancelling our waiting match before joining:", waitingMatchId);
+        const { error: cancelError } = await supabase
+          .from("ranked_matches")
+          .update({ status: "cancelled" })
+          .eq("id", waitingMatchId)
+          .eq("status", "waiting");
+        
+        if (!cancelError) {
+          cancelledOurMatch = true;
+        }
+      }
+      
       const matchWords = await fetchMatchWords();
-      if (matchWords.length === 0 || !isActive || matchJoinedLock) return false;
+      if (matchWords.length === 0 || !isActive || matchJoinedLock) {
+        // If we cancelled our match but failed to join, we need to create a new one
+        // This is handled by falling through - the caller will try next match or create new
+        return false;
+      }
       
       const { data: updatedMatch, error } = await supabase
         .from("ranked_matches")
@@ -965,13 +997,17 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           words: matchWords,
           started_at: new Date().toISOString(),
         })
-        .eq("id", matchId)
+        .eq("id", matchIdToJoin)
         .eq("status", "waiting")
         .is("player2_id", null)
         .select()
         .maybeSingle();
 
       if (!error && updatedMatch && isActive && !matchJoinedLock) {
+        // Clear the waitingMatchId since we've already cancelled it
+        if (cancelledOurMatch) {
+          setWaitingMatchId(null);
+        }
         await onMatchJoined(updatedMatch, opponentData, matchWords);
         return true;
       }

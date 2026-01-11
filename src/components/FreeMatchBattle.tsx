@@ -419,24 +419,41 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
   // OPTIMIZED: Removed separate broadcast function - now uses combined channel in matchmaking useEffect
 
-  // Ref to prevent double-joining
-  const isJoiningRef = useRef(false);
-  const isSearchingRef = useRef(false); // Additional flag to track active search
+  // Lock to prevent multiple startSearch calls - persists across re-renders
+  // CRITICAL: This lock should NOT be released until match is found or cancelled
+  const searchLockRef = useRef(false);
   
-  // Start searching for a free match
+  // Start searching for a free match - with strict lock protection
   const startSearch = async () => {
     if (!profile) {
       toast.error("请先登录");
       return;
     }
 
-    // Prevent double start - check both refs and state
-    if (isJoiningRef.current || isSearchingRef.current || matchStatus === "searching") {
-      addMatchDebugLog("搜索已在进行中，忽略重复调用", "warn");
+    // STRICT lock check - if we're already searching or have an active search, reject
+    if (searchLockRef.current) {
+      addMatchDebugLog("搜索锁已激活，忽略重复调用", "warn");
+      console.log("[startSearch] Lock already active, ignoring call");
       return;
     }
-    isJoiningRef.current = true;
-    isSearchingRef.current = true;
+    
+    // Also check state-based locks
+    if (matchStatus === "searching" || matchStatus === "found" || matchStatus === "playing") {
+      addMatchDebugLog(`当前状态(${matchStatus})不允许新搜索`, "warn");
+      console.log("[startSearch] Invalid state for new search:", matchStatus);
+      return;
+    }
+    
+    // Check if we already have a waiting match
+    if (waitingMatchId) {
+      addMatchDebugLog("已有等待中的对局，忽略重复调用", "warn");
+      console.log("[startSearch] Already have waiting match:", waitingMatchId);
+      return;
+    }
+    
+    // Acquire lock IMMEDIATELY and don't release until search ends
+    searchLockRef.current = true;
+    addMatchDebugLog("获取搜索锁成功", "info");
 
     // Warmup audio system before starting match
     await audioManager.warmup();
@@ -483,8 +500,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             setMatchStatus("found");
             sounds.playMatchFound();
             setTimeout(() => setMatchStatus("playing"), 5000);
-            isJoiningRef.current = false;
-            isSearchingRef.current = false;
+            addMatchDebugLog("重新连接到进行中的对局，释放锁", "success");
+            searchLockRef.current = false;
             return;
           }
         }
@@ -498,29 +515,29 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             .eq("id", existingActiveMatch.id);
         } else {
           // Recent waiting match - use it instead of cancelling
+          addMatchDebugLog("复用现有等待对局，锁保持激活", "info");
           setMatchId(existingActiveMatch.id);
           setWaitingMatchId(existingActiveMatch.id);
-          isJoiningRef.current = false;
-          isSearchingRef.current = false;
+          // CRITICAL: Do NOT release lock - still waiting for opponent
           return;
         }
       }
 
-      // Clean up stale free matches
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      // Clean up stale free matches (only this player's)
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
       await supabase
         .from("ranked_matches")
         .update({ status: "cancelled" })
+        .eq("player1_id", profile.id)
         .eq("status", "waiting")
         .eq("grade", 0)
-        .lt("created_at", fiveMinutesAgo);
+        .lt("created_at", thirtySecondsAgo);
 
       // Try to join an existing match first
       const joined = await tryJoinExistingMatch();
       if (joined) {
-        addMatchDebugLog("成功加入现有自由比赛", "success");
-        isJoiningRef.current = false;
-        isSearchingRef.current = false;
+        addMatchDebugLog("成功加入现有自由比赛，释放锁", "success");
+        searchLockRef.current = false;
         return;
       }
       addMatchDebugLog("没有找到可加入的自由比赛，创建新比赛", "info");
@@ -542,34 +559,45 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         if (isActiveMatchError(createError)) {
           handleActiveMatchError();
           setMatchStatus("idle");
-          isJoiningRef.current = false;
-          isSearchingRef.current = false;
+          addMatchDebugLog("活跃对局冲突，释放锁", "warn");
+          searchLockRef.current = false;
           return;
         }
         throw createError;
       }
 
       console.log("Created new free match, waiting for opponent:", newMatch.id);
-      addMatchDebugLog(`创建新自由比赛: ${newMatch.id.slice(0, 8)}...`, "success");
+      addMatchDebugLog(`创建新自由比赛: ${newMatch.id.slice(0, 8)}... 锁保持激活`, "success");
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
       
-      // Broadcast is now handled via the combined matchmaking channel
-      isJoiningRef.current = false;
-      isSearchingRef.current = false;
+      // CRITICAL: Do NOT release lock here - lock stays active while waiting for opponent
 
     } catch (error: any) {
       console.error("Match error:", error);
+      addMatchDebugLog(`匹配错误: ${error.message}，释放锁`, "error");
       if (isActiveMatchError(error)) {
         handleActiveMatchError();
       } else {
         toast.error("匹配失败，请重试");
       }
       setMatchStatus("idle");
-      isJoiningRef.current = false;
-      isSearchingRef.current = false;
+      searchLockRef.current = false;
     }
+    // NO finally block - lock release is handled explicitly in each path
   };
+  
+  // Release search lock when match is found or search is cancelled
+  useEffect(() => {
+    // Release lock when we transition away from searching
+    if (matchStatus !== "searching" && matchStatus !== "idle") {
+      // We've found a match or are playing
+      if (searchLockRef.current) {
+        addMatchDebugLog(`状态变为${matchStatus}，释放搜索锁`, "info");
+        searchLockRef.current = false;
+      }
+    }
+  }, [matchStatus]);
 
   // Ref to track if match has been joined - MOVED TO COMPONENT LEVEL
   const matchJoinedRef = useRef(false);
@@ -743,7 +771,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     // Reset all locks
     globalMatchLockRef.current = false;
     matchJoinedRef.current = false;
-    isJoiningRef.current = false;
+    searchLockRef.current = false;
     
     setMatchStatus("idle");
     setMatchId(null);
@@ -889,7 +917,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     // CRITICAL: Reset locks for next match
     globalMatchLockRef.current = false;
     matchJoinedRef.current = false;
-    isJoiningRef.current = false;
+    searchLockRef.current = false;
     
     const playerScore = finalScore;
     const simulatedOpponentScore = Math.floor(Math.random() * 10);
@@ -977,7 +1005,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     // CRITICAL: Reset locks for next match
     globalMatchLockRef.current = false;
     matchJoinedRef.current = false;
-    isJoiningRef.current = false;
+    searchLockRef.current = false;
     
     setOpponentScore(theirFinalScore);
     
@@ -1988,7 +2016,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                 // Reset locks
                 globalMatchLockRef.current = false;
                 matchJoinedRef.current = false;
-                isJoiningRef.current = false;
+                searchLockRef.current = false;
               }}
               className="flex-1 bg-gradient-to-r from-neon-cyan to-neon-green"
             >

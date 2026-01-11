@@ -814,23 +814,40 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   });
 
   // Lock to prevent multiple startSearch calls - persists across re-renders
+  // CRITICAL: This lock should NOT be released until match is found or cancelled
   const searchLockRef = useRef(false);
-  const isSearchingRef = useRef(false); // Additional flag to track active search
   
-  // Start searching for a match - with lock protection
+  // Start searching for a match - with strict lock protection
   const startSearch = async () => {
     if (!profile) {
       toast.error("请先登录");
       return;
     }
     
-    // Prevent duplicate calls - check both ref and state
-    if (searchLockRef.current || isSearchingRef.current || matchStatus === "searching") {
-      addMatchDebugLog("搜索已在进行中，忽略重复调用", "warn");
+    // STRICT lock check - if we're already searching or have an active search, reject
+    if (searchLockRef.current) {
+      addMatchDebugLog("搜索锁已激活，忽略重复调用", "warn");
+      console.log("[startSearch] Lock already active, ignoring call");
       return;
     }
+    
+    // Also check state-based locks
+    if (matchStatus === "searching" || matchStatus === "found" || matchStatus === "playing") {
+      addMatchDebugLog(`当前状态(${matchStatus})不允许新搜索`, "warn");
+      console.log("[startSearch] Invalid state for new search:", matchStatus);
+      return;
+    }
+    
+    // Check if we already have a waiting match
+    if (waitingMatchId) {
+      addMatchDebugLog("已有等待中的对局，忽略重复调用", "warn");
+      console.log("[startSearch] Already have waiting match:", waitingMatchId);
+      return;
+    }
+    
+    // Acquire lock IMMEDIATELY and don't release until search ends
     searchLockRef.current = true;
-    isSearchingRef.current = true;
+    addMatchDebugLog("获取搜索锁成功", "info");
 
     // Warmup audio system before starting match
     await audioManager.warmup();
@@ -860,9 +877,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       addMatchDebugLog("正在搜索可加入的比赛...", "info");
       const joined = await tryJoinExistingMatch();
       if (joined) {
-        addMatchDebugLog("成功加入现有比赛", "success");
+        addMatchDebugLog("成功加入现有比赛，释放锁", "success");
+        // Release lock only after successful join (state will change to "found")
         searchLockRef.current = false;
-        isSearchingRef.current = false;
         return;
       }
       addMatchDebugLog("没有找到可加入的比赛，创建新比赛", "info");
@@ -884,31 +901,48 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           handleActiveMatchError();
           setMatchStatus("idle");
           searchLockRef.current = false;
+          addMatchDebugLog("活跃对局冲突，释放锁", "warn");
           return;
         }
         throw createError;
       }
 
       console.log("Created new match, waiting for opponent:", newMatch.id);
-      addMatchDebugLog(`创建新比赛: ${newMatch.id.slice(0, 8)}...`, "success");
+      addMatchDebugLog(`创建新比赛: ${newMatch.id.slice(0, 8)}... 锁保持激活`, "success");
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
+      
+      // CRITICAL: Do NOT release lock here - lock stays active while waiting for opponent
+      // Lock will be released when:
+      // 1. Match is found (onMatchJoined callback)
+      // 2. Search is cancelled (cancelSearch)
+      // 3. Error occurs (catch block below)
 
     } catch (error: any) {
       console.error("Match error:", error);
-      addMatchDebugLog(`匹配错误: ${error.message}`, "error");
+      addMatchDebugLog(`匹配错误: ${error.message}，释放锁`, "error");
       if (isActiveMatchError(error)) {
         handleActiveMatchError();
       } else {
         toast.error("匹配失败，请重试");
       }
       setMatchStatus("idle");
-      isSearchingRef.current = false;
-    } finally {
       searchLockRef.current = false;
-      isSearchingRef.current = false;
     }
+    // NO finally block - lock release is handled explicitly in each path
   };
+  
+  // Release search lock when match is found or search is cancelled
+  useEffect(() => {
+    // Release lock when we transition away from searching
+    if (matchStatus !== "searching" && matchStatus !== "idle") {
+      // We've found a match or are playing
+      if (searchLockRef.current) {
+        addMatchDebugLog(`状态变为${matchStatus}，释放搜索锁`, "info");
+        searchLockRef.current = false;
+      }
+    }
+  }, [matchStatus]);
 
   // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
   // CRITICAL: Use empty deps + refs to avoid re-running effect on profile changes
@@ -1060,8 +1094,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
   }, [matchStatus, waitingMatchId]); // Only re-run when matchStatus or waitingMatchId changes
 
-  // Cancel search
+  // Cancel search - also releases the search lock
   const cancelSearch = async () => {
+    addMatchDebugLog("用户取消搜索，释放锁", "info");
+    searchLockRef.current = false; // Release lock first
+    
     if (matchId) {
       await supabase
         .from("ranked_matches")
@@ -1074,8 +1111,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setShowAIOption(false);
   };
 
-  // Choose to play with AI
+  // Choose to play with AI - also releases the search lock
   const chooseAIBattle = async () => {
+    addMatchDebugLog("用户选择AI对战，释放锁", "info");
+    searchLockRef.current = false; // Release lock first
+    
     if (matchId) {
       await supabase
         .from("ranked_matches")

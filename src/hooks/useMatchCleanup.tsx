@@ -3,9 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // Constants for cleanup timing
-const STALE_MATCH_MINUTES = 5; // Matches waiting longer than this are considered stale
+const STALE_WAITING_MATCH_MINUTES = 5; // Waiting matches older than this are considered stale
+const STALE_IN_PROGRESS_MATCH_MINUTES = 10; // In-progress matches older than this are considered abandoned (should be much longer than game duration)
 const CLEANUP_INTERVAL_MS = 60 * 1000; // Run cleanup every 60 seconds
-const PLAYER_STALE_MATCH_MINUTES = 2; // Player's own matches older than this should be abandoned
 
 /**
  * Check if an error is due to the database trigger preventing multiple active matches
@@ -48,18 +48,26 @@ export const useMatchCleanup = ({ profileId, grade, enabled = true }: UseMatchCl
     lastCleanupRef.current = now;
 
     try {
-      // Clean up player's own stale matches
-      const playerStaleTime = new Date(now - PLAYER_STALE_MATCH_MINUTES * 60 * 1000).toISOString();
+      // Clean up player's own stale WAITING matches (shorter timeout - 5 min)
+      const waitingStaleTime = new Date(now - STALE_WAITING_MATCH_MINUTES * 60 * 1000).toISOString();
+      await supabase
+        .from("ranked_matches")
+        .update({ status: "cancelled" })
+        .or(`player1_id.eq.${profileId},player2_id.eq.${profileId}`)
+        .eq("status", "waiting")
+        .lt("created_at", waitingStaleTime);
+
+      // Clean up player's own stale IN_PROGRESS matches (longer timeout - 10 min, well after game should be done)
+      const inProgressStaleTime = new Date(now - STALE_IN_PROGRESS_MATCH_MINUTES * 60 * 1000).toISOString();
       await supabase
         .from("ranked_matches")
         .update({ status: "abandoned" })
         .or(`player1_id.eq.${profileId},player2_id.eq.${profileId}`)
-        .in("status", ["waiting", "in_progress"])
-        .lt("created_at", playerStaleTime);
+        .eq("status", "in_progress")
+        .lt("created_at", inProgressStaleTime);
 
       // Clean up global stale waiting matches
-      const globalStaleTime = new Date(now - STALE_MATCH_MINUTES * 60 * 1000).toISOString();
-      const gradeFilter = grade !== undefined ? { grade } : {};
+      const globalStaleTime = new Date(now - STALE_WAITING_MATCH_MINUTES * 60 * 1000).toISOString();
       
       await supabase
         .from("ranked_matches")
@@ -115,14 +123,14 @@ export const cancelPlayerStaleMatches = async (profileId: string, grade?: number
     
     await query;
 
-    // Also abandon any stale in_progress matches
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    // Also abandon any stale in_progress matches (10 minutes - well after any game should be done)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     await supabase
       .from("ranked_matches")
       .update({ status: "abandoned" })
       .or(`player1_id.eq.${profileId},player2_id.eq.${profileId}`)
-      .in("status", ["waiting", "in_progress"])
-      .lt("created_at", twoMinutesAgo);
+      .eq("status", "in_progress")
+      .lt("created_at", tenMinutesAgo);
   } catch (error) {
     console.error("Error cancelling stale matches:", error);
   }

@@ -328,6 +328,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const myScoreRef = useRef(myScore);
   const opponentFinishedRef = useRef(opponentFinished);
   const waitingMatchIdRef = useRef(waitingMatchId); // CRITICAL: Use ref to avoid useEffect re-runs
+  const profileRef = useRef(profile); // Ref to access profile without dependency
   
   // Keep refs in sync
   useEffect(() => {
@@ -336,7 +337,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     myScoreRef.current = myScore;
     opponentFinishedRef.current = opponentFinished;
     waitingMatchIdRef.current = waitingMatchId;
-  }, [myFinished, matchFinished, myScore, opponentFinished, waitingMatchId]);
+    profileRef.current = profile;
+  }, [myFinished, matchFinished, myScore, opponentFinished, waitingMatchId, profile]);
 
   // Full state reset function for error recovery
   const resetGameState = useCallback(() => {
@@ -945,6 +947,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   // Simplified matchmaking: Realtime + Polling only
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
+    
+    // Capture current profile values at effect start
+    const currentProfile = profileRef.current || profile;
+    const currentProfileId = currentProfile.id;
+    const currentGrade = currentProfile.grade;
+    const currentElo = currentProfile.elo_rating || 1000;
 
     console.log("Setting up matchmaking subscription");
     addMatchDebugLog("设置匹配订阅...", "info");
@@ -998,8 +1006,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       const { data: updatedMatch, error } = await supabase
         .from("ranked_matches")
         .update({
-          player2_id: profile.id,
-          player2_elo: profile.elo_rating || 1000,
+          player2_id: currentProfileId,
+          player2_elo: currentElo,
           status: "in_progress",
           words: matchWords,
           started_at: new Date().toISOString(),
@@ -1022,7 +1030,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     // Only listen for realtime updates on our own match
     const matchmakingChannel = supabase
-      .channel(`ranked-matchmaking-${profile.grade}-${profile.id}`)
+      .channel(`ranked-matchmaking-${currentGrade}-${currentProfileId}`)
       .on(
         "postgres_changes",
         {
@@ -1110,9 +1118,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           const { data: newMatch, error: createError } = await supabase
             .from("ranked_matches")
             .insert({
-              player1_id: profile.id,
-              player1_elo: profile.elo_rating || 1000,
-              grade: profile.grade,
+              player1_id: currentProfileId,
+              player1_elo: currentElo,
+              grade: currentGrade,
               status: "waiting",
             })
             .select()
@@ -1134,8 +1142,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .from("ranked_matches")
         .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
         .eq("status", "waiting")
-        .eq("grade", profile.grade)
-        .neq("player1_id", profile.id)
+        .eq("grade", currentGrade)
+        .neq("player1_id", currentProfileId)
         .is("player2_id", null)
         .gte("created_at", fiveMinutesAgo)
         .order("created_at", { ascending: true })
@@ -1163,7 +1171,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, profile, generateOptions, fetchMatchWords]); // CRITICAL: Use waitingMatchIdRef instead of waitingMatchId to prevent re-runs
+  }, [matchStatus, profile?.id, profile?.grade, profile?.elo_rating]); // Stable dependencies only
 
   // Cancel search
   const cancelSearch = async () => {

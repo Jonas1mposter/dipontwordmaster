@@ -131,6 +131,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const globalMatchLockRef = useRef(false);
   const activeMatchIdRef = useRef<string | null>(null);
   
+  // Profile ref for stable access in useEffect
+  const profileRef = useRef(profile);
+  
   // Keep refs in sync
   useEffect(() => { myScoreRef.current = myScore; }, [myScore]);
   useEffect(() => { myFinishedRef.current = myFinished; }, [myFinished]);
@@ -138,6 +141,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   useEffect(() => { opponentFinishedRef.current = opponentFinished; }, [opponentFinished]);
   useEffect(() => { activeMatchIdRef.current = matchId; }, [matchId]);
   useEffect(() => { waitingMatchIdRef.current = waitingMatchId; }, [waitingMatchId]);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
 
   // Handle reconnect to an existing match
   const reconnectInitialized = useRef(false);
@@ -563,6 +567,11 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   // Simplified matchmaking: Realtime + Polling only
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
+    
+    // Capture current profile values at effect start
+    const currentProfile = profileRef.current || profile;
+    const currentProfileId = currentProfile.id;
+    const currentEloFree = currentProfile.elo_free || 1000;
 
     console.log("Setting up free match subscription");
     addMatchDebugLog("设置自由对战订阅...", "info");
@@ -593,7 +602,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       setMatchId(matchData.id);
       setOpponent(opponentData);
       setIsRealPlayer(true);
-      setIsPlayer1(matchData.player1_id === profile.id);
+      setIsPlayer1(matchData.player1_id === currentProfileId);
       setWords(matchWords);
       if (matchWords.length > 0) {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
@@ -620,8 +629,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       const { data: updatedMatch, error } = await supabase
         .from("ranked_matches")
         .update({
-          player2_id: profile.id,
-          player2_elo: profile.elo_free || 1000,
+          player2_id: currentProfileId,
+          player2_elo: currentEloFree,
           status: "in_progress",
           words: matchWords,
           started_at: new Date().toISOString(),
@@ -644,7 +653,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
     // Only listen for realtime updates on our own match
     const matchmakingChannel = supabase
-      .channel(`free-matchmaking-${profile.id}`)
+      .channel(`free-matchmaking-${currentProfileId}`)
       .on(
         "postgres_changes",
         {
@@ -730,8 +739,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           const { data: newMatch, error: createError } = await supabase
             .from("ranked_matches")
             .insert({
-              player1_id: profile.id,
-              player1_elo: profile.elo_free || 1000,
+              player1_id: currentProfileId,
+              player1_elo: currentEloFree,
               grade: 0,
               status: "waiting",
             })
@@ -755,7 +764,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
         .eq("status", "waiting")
         .eq("grade", 0)
-        .neq("player1_id", profile.id)
+        .neq("player1_id", currentProfileId)
         .is("player2_id", null)
         .gte("created_at", fiveMinutesAgo)
         .order("created_at", { ascending: true })
@@ -783,7 +792,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, profile, generateOptions, fetchMatchWords]); // CRITICAL: Use waitingMatchIdRef instead of waitingMatchId to prevent re-runs
+  }, [matchStatus, profile?.id, profile?.grade, profile?.elo_free]); // Stable dependencies only
 
   // Cancel search
   const cancelSearch = async () => {

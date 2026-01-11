@@ -421,6 +421,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
   // Ref to prevent double-joining
   const isJoiningRef = useRef(false);
+  const isSearchingRef = useRef(false); // Additional flag to track active search
   
   // Start searching for a free match
   const startSearch = async () => {
@@ -429,9 +430,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       return;
     }
 
-    // Prevent double start
-    if (isJoiningRef.current) return;
+    // Prevent double start - check both refs and state
+    if (isJoiningRef.current || isSearchingRef.current || matchStatus === "searching") {
+      addMatchDebugLog("搜索已在进行中，忽略重复调用", "warn");
+      return;
+    }
     isJoiningRef.current = true;
+    isSearchingRef.current = true;
 
     // Warmup audio system before starting match
     await audioManager.warmup();
@@ -479,15 +484,26 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             sounds.playMatchFound();
             setTimeout(() => setMatchStatus("playing"), 5000);
             isJoiningRef.current = false;
+            isSearchingRef.current = false;
             return;
           }
         }
         
-        // Cancel the existing waiting match
-        await supabase
-          .from("ranked_matches")
-          .update({ status: "cancelled" })
-          .eq("id", existingActiveMatch.id);
+        // CRITICAL: Only cancel if the existing match is old (>30 seconds)
+        const matchAge = Date.now() - new Date(existingActiveMatch.created_at).getTime();
+        if (matchAge > 30000) {
+          await supabase
+            .from("ranked_matches")
+            .update({ status: "cancelled" })
+            .eq("id", existingActiveMatch.id);
+        } else {
+          // Recent waiting match - use it instead of cancelling
+          setMatchId(existingActiveMatch.id);
+          setWaitingMatchId(existingActiveMatch.id);
+          isJoiningRef.current = false;
+          isSearchingRef.current = false;
+          return;
+        }
       }
 
       // Clean up stale free matches
@@ -504,6 +520,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       if (joined) {
         addMatchDebugLog("成功加入现有自由比赛", "success");
         isJoiningRef.current = false;
+        isSearchingRef.current = false;
         return;
       }
       addMatchDebugLog("没有找到可加入的自由比赛，创建新比赛", "info");
@@ -526,6 +543,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           handleActiveMatchError();
           setMatchStatus("idle");
           isJoiningRef.current = false;
+          isSearchingRef.current = false;
           return;
         }
         throw createError;
@@ -538,6 +556,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       
       // Broadcast is now handled via the combined matchmaking channel
       isJoiningRef.current = false;
+      isSearchingRef.current = false;
 
     } catch (error: any) {
       console.error("Match error:", error);
@@ -548,6 +567,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
       setMatchStatus("idle");
       isJoiningRef.current = false;
+      isSearchingRef.current = false;
     }
   };
 

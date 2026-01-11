@@ -58,10 +58,10 @@ export const useMatchReconnect = ({ profileId, enabled = true }: UseMatchReconne
       const maxMatchAge = 5 * 60 * 1000; // 5 minutes
       
       if (matchAge > maxMatchAge) {
-        // Match is too old, mark it as abandoned
+        // Match is too old, mark it as cancelled
         await supabase
           .from("ranked_matches")
-          .update({ status: "abandoned" })
+          .update({ status: "cancelled" })
           .eq("id", match.id);
         setActiveMatch(null);
         return null;
@@ -102,7 +102,7 @@ export const useMatchReconnect = ({ profileId, enabled = true }: UseMatchReconne
       if (timeRemaining <= 0) {
         await supabase
           .from("ranked_matches")
-          .update({ status: "abandoned" })
+          .update({ status: "cancelled" })
           .eq("id", match.id);
         setActiveMatch(null);
         return null;
@@ -140,10 +140,10 @@ export const useMatchReconnect = ({ profileId, enabled = true }: UseMatchReconne
   const dismissMatch = useCallback(async () => {
     if (!activeMatch) return;
     
-    // Mark the match as abandoned
+    // Mark the match as cancelled (user dismissed the reconnect option)
     await supabase
       .from("ranked_matches")
-      .update({ status: "abandoned" })
+      .update({ status: "cancelled" })
       .eq("id", activeMatch.id);
     
     setActiveMatch(null);

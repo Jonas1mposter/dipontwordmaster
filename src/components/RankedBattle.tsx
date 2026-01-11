@@ -1569,6 +1569,35 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         }
       );
 
+      // Save combo record if achieved 3+ combo
+      if (comboCount >= 3) {
+        // Check if this is a new personal best
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("max_combo")
+          .eq("id", profile.id)
+          .single();
+        
+        const currentMax = profileData?.max_combo || 0;
+        
+        // Insert combo record
+        await supabase
+          .from("combo_records")
+          .insert({
+            profile_id: profile.id,
+            combo_count: comboCount,
+            mode: "ranked",
+          });
+        
+        // Update profile max_combo if this is a new record
+        if (comboCount > currentMax) {
+          await supabase
+            .from("profiles")
+            .update({ max_combo: comboCount })
+            .eq("id", profile.id);
+        }
+      }
+
       refreshProfile();
     }
   };

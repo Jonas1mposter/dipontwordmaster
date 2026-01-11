@@ -172,6 +172,41 @@ export type Database = {
           },
         ]
       }
+      combo_records: {
+        Row: {
+          combo_count: number
+          created_at: string
+          id: string
+          level_name: string | null
+          mode: string
+          profile_id: string
+        }
+        Insert: {
+          combo_count: number
+          created_at?: string
+          id?: string
+          level_name?: string | null
+          mode: string
+          profile_id: string
+        }
+        Update: {
+          combo_count?: number
+          created_at?: string
+          id?: string
+          level_name?: string | null
+          mode?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "combo_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_quests: {
         Row: {
           created_at: string
@@ -630,6 +665,7 @@ export type Database = {
           id: string
           level: number
           losses: number
+          max_combo: number | null
           max_energy: number
           rank_points: number
           rank_stars: number
@@ -659,6 +695,7 @@ export type Database = {
           id?: string
           level?: number
           losses?: number
+          max_combo?: number | null
           max_energy?: number
           rank_points?: number
           rank_stars?: number
@@ -688,6 +725,7 @@ export type Database = {
           id?: string
           level?: number
           losses?: number
+          max_combo?: number | null
           max_energy?: number
           rank_points?: number
           rank_stars?: number

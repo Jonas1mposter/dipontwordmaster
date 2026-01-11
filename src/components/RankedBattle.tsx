@@ -860,14 +860,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .eq("player1_id", profile.id)
         .eq("status", "waiting");
 
-      // Also cancel any in_progress matches where this user is a participant but match is stale
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      // Also clean up very old in_progress matches (10+ minutes - well after any game should be done)
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
       await supabase
         .from("ranked_matches")
         .update({ status: "abandoned" })
         .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
-        .in("status", ["waiting", "in_progress"])
-        .lt("created_at", twoMinutesAgo);
+        .eq("status", "in_progress")
+        .lt("created_at", tenMinutesAgo);
 
       // Clean up stale matches from others (older than 5 minutes)
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();

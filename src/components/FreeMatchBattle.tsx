@@ -772,11 +772,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         addMatchDebugLog(`频道状态: ${status}`, "info");
       });
 
-    // Polling every 2 seconds - checks both match table AND match queue
+    // Polling every 1.5 seconds - checks match queue FIRST for server-side matching
     const pollInterval = setInterval(async () => {
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
-      // FIRST: Check match queue for server-side matching
+      // PRIORITY: Check match queue for server-side matching
+      // This is the PRIMARY mechanism - when another player joins via find_match_in_queue,
+      // they create a NEW match and update OUR queue entry with that match_id
       try {
         const { data: queueStatus } = await supabase.rpc('check_queue_status', {
           p_profile_id: currentProfileId,
@@ -785,69 +787,112 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
         if (queueStatus && queueStatus.length > 0) {
           const status = queueStatus[0];
+          addMatchDebugLog(`队列状态: ${status.queue_status}, match_id: ${status.match_id?.slice(0, 8) || 'null'}`, "info");
+          
           if (status.queue_status === 'matched' && status.match_id && !globalMatchLockRef.current && !matchJoinedRef.current) {
             addMatchDebugLog(`匹配池发现对局! ${status.match_id.slice(0, 8)}...`, "success");
             
-            // Fetch full match data
-            const { data: matchData } = await supabase
-              .from("ranked_matches")
-              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
-              .eq("id", status.match_id)
-              .single();
+            // Cancel our waiting match since we're joining a different one
+            if (currentWaitingId && currentWaitingId !== status.match_id) {
+              addMatchDebugLog(`取消旧等待对局: ${currentWaitingId.slice(0, 8)}...`, "info");
+              await supabase
+                .from("ranked_matches")
+                .update({ status: "cancelled" })
+                .eq("id", currentWaitingId)
+                .eq("status", "waiting");
+            }
+            
+            // Fetch full match data with retry for consistency
+            let matchData = null;
+            for (let retry = 0; retry < 3; retry++) {
+              const { data } = await supabase
+                .from("ranked_matches")
+                .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+                .eq("id", status.match_id)
+                .single();
+              
+              if (data && data.player1 && data.player2) {
+                matchData = data;
+                break;
+              }
+              
+              if (retry < 2) {
+                await new Promise(r => setTimeout(r, 300));
+              }
+            }
 
             if (matchData) {
               const isPlayer1Matched = matchData.player1_id === currentProfileId;
               const opponentData = isPlayer1Matched ? matchData.player2 : matchData.player1;
-              const matchWords = (matchData.words as any[])?.map((w: any) => ({
+              
+              // If words are empty, fetch them
+              let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
+              if (matchWords.length === 0) {
+                addMatchDebugLog("对局没有词汇，正在获取...", "info");
+                matchWords = await fetchMatchWords();
+                if (matchWords.length > 0) {
+                  await supabase
+                    .from("ranked_matches")
+                    .update({ words: matchWords })
+                    .eq("id", status.match_id);
+                }
+              }
+              
+              const formattedWords = matchWords.map((w: any) => ({
                 id: w.id,
                 word: w.word,
                 meaning: w.meaning,
                 phonetic: w.phonetic,
                 grade: w.grade,
-              })) || [];
+              }));
               
-              await onMatchJoined(matchData, opponentData, matchWords);
+              await onMatchJoined(matchData, opponentData, formattedWords);
               return;
+            } else {
+              addMatchDebugLog("无法获取完整对局数据，重试中...", "warn");
             }
           }
         }
       } catch (err) {
         console.error("Queue status check error:", err);
+        addMatchDebugLog(`队列检查错误: ${err}`, "error");
       }
       
-      // FALLBACK: Check our waiting match directly
-      const { data: ourMatch } = await supabase
-        .from("ranked_matches")
-        .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
-        .eq("id", currentWaitingId)
-        .single();
-      
-      if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-        console.log("Polling: Opponent joined our free match!");
-        addMatchDebugLog(`轮询：对手加入!`, "success");
+      // FALLBACK: Check our waiting match directly (for legacy compatibility)
+      if (currentWaitingId) {
+        const { data: ourMatch } = await supabase
+          .from("ranked_matches")
+          .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
+          .eq("id", currentWaitingId)
+          .single();
         
-        const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
-          id: w.id,
-          word: w.word,
-          meaning: w.meaning,
-          phonetic: w.phonetic,
-          grade: w.grade,
-        })) || [];
-        await onMatchJoined(ourMatch, ourMatch.player2, matchWords);
-        return;
+        if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
+          console.log("Polling: Opponent joined our free match!");
+          addMatchDebugLog(`轮询：对手加入我们的对局!`, "success");
+          
+          const matchWords = (ourMatch.words as any[])?.map((w: any) => ({
+            id: w.id,
+            word: w.word,
+            meaning: w.meaning,
+            phonetic: w.phonetic,
+            grade: w.grade,
+          })) || [];
+          await onMatchJoined(ourMatch, ourMatch.player2, matchWords);
+          return;
+        }
+        
+        // If our match got cancelled, stop searching
+        if (ourMatch?.status === "cancelled") {
+          addMatchDebugLog("对局被取消，停止搜索", "warn");
+          isActive = false;
+          setWaitingMatchId(null);
+          setCancelReason("匹配房间已失效，可能因为等待时间过长或系统清理");
+          setMatchStatus("idle");
+          toast.error("匹配被取消，请重新搜索");
+          return;
+        }
       }
-      
-      // If our match got cancelled, stop searching
-      if (ourMatch?.status === "cancelled" || !ourMatch) {
-        addMatchDebugLog("对局被取消，停止搜索", "warn");
-        isActive = false;
-        setWaitingMatchId(null);
-        setCancelReason("匹配房间已失效，可能因为等待时间过长或系统清理");
-        setMatchStatus("idle");
-        toast.error("匹配被取消，请重新搜索");
-        return;
-      }
-    }, 2000);
+    }, 1500);
 
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);

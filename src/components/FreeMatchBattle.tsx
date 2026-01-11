@@ -219,11 +219,11 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     }
   }, [initialMatchId, profile, matchStatus]);
   
-  // Use automatic match cleanup hook
+  // Use automatic match cleanup hook - ONLY when truly idle (not during searching)
   useMatchCleanup({ 
     profileId: profile?.id, 
     grade: 0, // Free match uses grade 0
-    enabled: matchStatus === "idle" 
+    enabled: matchStatus === "idle" && !waitingMatchId
   });
 
   // OPTIMIZED: Only track presence when in idle state to reduce connections

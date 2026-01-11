@@ -1364,8 +1364,14 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     
     let isActive = true;
     
-    // Setup ready channel
-    const channel = supabase.channel(`free-ready-sync-${matchId}`)
+    console.log("[FreeReadySync] Setting up channel for match:", matchId);
+    
+    // Setup ready channel with presence for better reliability
+    const channel = supabase.channel(`free-ready-sync-${matchId}`, {
+      config: {
+        presence: { key: profile.id },
+      },
+    })
       .on('broadcast', { event: 'player_ready' }, (payload) => {
         if (!isActive) return;
         const data = payload.payload as any;
@@ -1373,13 +1379,23 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         // Ignore our own messages
         if (data.playerId === profile.id) return;
         
-        console.log("Free match opponent ready:", data);
+        console.log("[FreeReadySync] Opponent ready received:", data);
         setOpponentReady(true);
       })
-      .subscribe((status) => {
-        console.log("Free ready channel status:", status);
+      .on('presence', { event: 'join' }, ({ key }) => {
+        console.log("[FreeReadySync] Player joined presence:", key);
+      })
+      .subscribe(async (status) => {
+        console.log("[FreeReadySync] Channel status:", status);
         if (status === 'SUBSCRIBED') {
           setReadyChannel(channel);
+          
+          // Track presence to ensure both players are connected
+          await channel.track({ 
+            online_at: new Date().toISOString(),
+            player_id: profile.id,
+          });
+          console.log("[FreeReadySync] Channel fully subscribed and tracking presence");
         }
       });
     
@@ -1402,25 +1418,45 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     };
   }, [matchStatus, matchId, profile]);
   
-  // Handle ready confirmation
-  const handleReady = useCallback(() => {
+  // Handle ready confirmation - with retry for channel not ready
+  const handleReady = useCallback(async () => {
     if (!profile || !matchId || myReady) return;
     
     setMyReady(true);
     sounds.playCorrect();
     haptics.success();
     
-    // Broadcast ready status
-    if (readyChannel) {
-      readyChannel.send({
-        type: 'broadcast',
-        event: 'player_ready',
-        payload: {
-          playerId: profile.id,
-          ready: true,
+    console.log("[FreeReadySync] Sending ready status, channel ready:", !!readyChannel);
+    
+    // Broadcast ready status with retry logic
+    const sendReady = async (retries = 3) => {
+      const channel = readyChannel;
+      if (channel) {
+        try {
+          await channel.send({
+            type: 'broadcast',
+            event: 'player_ready',
+            payload: {
+              playerId: profile.id,
+              ready: true,
+              timestamp: Date.now(),
+            }
+          });
+          console.log("[FreeReadySync] Ready status sent successfully");
+        } catch (err) {
+          console.error("[FreeReadySync] Failed to send ready:", err);
+          if (retries > 0) {
+            setTimeout(() => sendReady(retries - 1), 500);
+          }
         }
-      });
-    }
+      } else if (retries > 0) {
+        // Channel not ready yet, retry after delay
+        console.log("[FreeReadySync] Channel not ready, retrying...");
+        setTimeout(() => sendReady(retries - 1), 500);
+      }
+    };
+    
+    sendReady();
   }, [profile, matchId, myReady, readyChannel, sounds]);
   
   // Start match when both ready or timeout

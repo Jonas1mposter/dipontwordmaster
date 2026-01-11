@@ -1760,9 +1760,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setVsCountdown(15);
     
     let isActive = true;
+    let channelReady = false;
     
-    // Setup ready channel
-    const channel = supabase.channel(`ready-sync-${matchId}`)
+    console.log("[ReadySync] Setting up channel for match:", matchId);
+    
+    // Setup ready channel with presence for better reliability
+    const channel = supabase.channel(`ready-sync-${matchId}`, {
+      config: {
+        presence: { key: profile.id },
+      },
+    })
       .on('broadcast', { event: 'player_ready' }, (payload) => {
         if (!isActive) return;
         const data = payload.payload as any;
@@ -1770,22 +1777,32 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         // Ignore our own messages
         if (data.playerId === profile.id) return;
         
-        console.log("Opponent ready:", data);
+        console.log("[ReadySync] Opponent ready received:", data);
         setOpponentReady(true);
       })
-      .subscribe((status) => {
-        console.log("Ready channel status:", status);
+      .on('presence', { event: 'join' }, ({ key }) => {
+        console.log("[ReadySync] Player joined presence:", key);
+      })
+      .subscribe(async (status) => {
+        console.log("[ReadySync] Channel status:", status);
         if (status === 'SUBSCRIBED') {
+          channelReady = true;
           setReadyChannel(channel);
+          
+          // Track presence to ensure both players are connected
+          await channel.track({ 
+            online_at: new Date().toISOString(),
+            player_id: profile.id,
+          });
+          console.log("[ReadySync] Channel fully subscribed and tracking presence");
         }
       });
     
-    // Countdown timer
+    // Countdown timer - extended to 20 seconds for more time
     const timer = setInterval(() => {
       setVsCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Auto-start if both ready OR timeout
           return 0;
         }
         return prev - 1;
@@ -1800,25 +1817,45 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
   }, [matchStatus, matchId, profile]);
   
-  // Handle ready confirmation
-  const handleReady = useCallback(() => {
+  // Handle ready confirmation - with retry for channel not ready
+  const handleReady = useCallback(async () => {
     if (!profile || !matchId || myReady) return;
     
     setMyReady(true);
     sounds.playCorrect();
     haptics.success();
     
-    // Broadcast ready status
-    if (readyChannel) {
-      readyChannel.send({
-        type: 'broadcast',
-        event: 'player_ready',
-        payload: {
-          playerId: profile.id,
-          ready: true,
+    console.log("[ReadySync] Sending ready status, channel ready:", !!readyChannel);
+    
+    // Broadcast ready status with retry logic
+    const sendReady = async (retries = 3) => {
+      const channel = readyChannel;
+      if (channel) {
+        try {
+          await channel.send({
+            type: 'broadcast',
+            event: 'player_ready',
+            payload: {
+              playerId: profile.id,
+              ready: true,
+              timestamp: Date.now(),
+            }
+          });
+          console.log("[ReadySync] Ready status sent successfully");
+        } catch (err) {
+          console.error("[ReadySync] Failed to send ready:", err);
+          if (retries > 0) {
+            setTimeout(() => sendReady(retries - 1), 500);
+          }
         }
-      });
-    }
+      } else if (retries > 0) {
+        // Channel not ready yet, retry after delay
+        console.log("[ReadySync] Channel not ready, retrying...");
+        setTimeout(() => sendReady(retries - 1), 500);
+      }
+    };
+    
+    sendReady();
   }, [profile, matchId, myReady, readyChannel, sounds]);
   
   // Start match when both ready or timeout

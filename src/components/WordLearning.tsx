@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useMatchSounds } from "@/hooks/useMatchSounds";
+import { haptics } from "@/lib/haptics";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ interface Word {
 
 const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningProps) => {
   const { profile, refreshProfile } = useAuth();
+  const sounds = useMatchSounds();
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -345,6 +348,15 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     setFinalIncorrectCount(finalIncorrect);
     
     const accuracy = words.length > 0 ? finalCorrect / words.length : 0;
+    
+    // Play completion sound based on performance
+    if (accuracy >= 0.7) {
+      sounds.playVictory();
+      haptics.success();
+    } else {
+      sounds.playDefeat();
+      haptics.warning();
+    }
     
     const baseXp = 5;
     const bonusXp = Math.floor(accuracy * 5);

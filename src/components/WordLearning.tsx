@@ -322,6 +322,8 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
     
     // 重置连击
     setComboCount(0);
+
+    if (profile && currentWord) {
       const existing = existingProgress.get(currentWord.id);
 
       if (existing) {

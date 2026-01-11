@@ -7,6 +7,7 @@ import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
 import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
+import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +109,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const [matchFinished, setMatchFinished] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState(false);
   
   // Combo system states
   const [comboCount, setComboCount] = useState(0);
@@ -423,6 +427,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     // Warmup audio system before starting match
     await audioManager.warmup();
     
+    addMatchDebugLog(`开始搜索自由对战 (玩家: ${profile.username})`, "info");
     setMatchStatus("searching");
     setSearchTime(0);
     setShowAIOption(false);
@@ -488,9 +493,11 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       // Try to join an existing match first
       const joined = await tryJoinExistingMatch();
       if (joined) {
+        addMatchDebugLog("成功加入现有自由比赛", "success");
         isJoiningRef.current = false;
         return;
       }
+      addMatchDebugLog("没有找到可加入的自由比赛，创建新比赛", "info");
 
       // No match to join, create our own with grade = 0 (free match) - include player1 ELO
       const { data: newMatch, error: createError } = await supabase
@@ -516,6 +523,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
 
       console.log("Created new free match, waiting for opponent:", newMatch.id);
+      addMatchDebugLog(`创建新自由比赛: ${newMatch.id.slice(0, 8)}...`, "success");
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
       
@@ -557,6 +565,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     if (matchStatus !== "searching" || !profile) return;
 
     console.log("Setting up free match subscription");
+    addMatchDebugLog("设置自由对战实时订阅", "info");
     let isActive = true;
     // DO NOT reset matchJoinedRef here - it should persist across effect runs
     
@@ -577,6 +586,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       isActive = false;
       
       console.log("Free match joined successfully:", matchData.id);
+      addMatchDebugLog(`匹配成功! 对手: ${opponentData?.username || '未知'}`, "success");
       
       // CRITICAL FIX: Cancel our waiting match FIRST before setting any other state
       // This ensures no other player can join our abandoned match
@@ -626,12 +636,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           if (!record || record.grade !== 0) return; // Only free matches
           
           console.log("Realtime DB event (free):", payload.eventType, record.id, record.status);
+          addMatchDebugLog(`实时事件: ${payload.eventType} ${record.id.slice(0, 8)}... 状态:${record.status}`, "info");
           
           if (payload.eventType === "INSERT" && 
               record.status === "waiting" && 
               record.player1_id !== profile.id) {
             console.log("Realtime: New waiting free match detected:", record.id);
-            
+            addMatchDebugLog(`发现新等待自由比赛: ${record.id.slice(0, 8)}...`, "info");
             // Double-check we're not already in a match
             if (globalMatchLockRef.current || matchJoinedRef.current) return;
             
@@ -1652,8 +1663,21 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
               <Globe className="w-5 h-5 mr-2" />
               {isCheckingActiveMatch ? "检测中..." : "开始自由匹配"}
             </Button>
+
+            {/* Debug mode toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDebugMode(!debugMode)}
+              className="mt-4 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {debugMode ? "🔧 调试模式已开启" : "🔧 开启调试模式"}
+            </Button>
           </div>
         </main>
+        
+        {/* Debug Panel */}
+        <MatchDebugPanel enabled={debugMode} />
       </div>
     );
   }
@@ -1707,6 +1731,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             取消匹配
           </Button>
         </div>
+        
+        {/* Debug Panel */}
+        <MatchDebugPanel enabled={debugMode} />
       </div>
     );
   }

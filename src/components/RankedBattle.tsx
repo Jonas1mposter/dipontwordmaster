@@ -8,6 +8,7 @@ import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
 import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
+import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -313,6 +314,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     newStars: number;
   } | null>(null);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
+  
+  // Debug mode state
+  const [debugMode, setDebugMode] = useState(false);
   
   // Combo system states
   const [comboCount, setComboCount] = useState(0);
@@ -848,6 +852,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     // Warmup audio system before starting match
     await audioManager.warmup();
     
+    addMatchDebugLog(`开始搜索匹配 (玩家: ${profile.username}, 年级: ${profile.grade})`, "info");
     setMatchStatus("searching");
     setSearchTime(0);
     setShowAIOption(false);
@@ -879,7 +884,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       // Try to join an existing match first
       const joined = await tryJoinExistingMatch();
-      if (joined) return;
+      if (joined) {
+        addMatchDebugLog("成功加入现有比赛", "success");
+        return;
+      }
+      addMatchDebugLog("没有找到可加入的比赛，创建新比赛", "info");
 
       // No match to join, create our own and wait - include player1 ELO
       const { data: newMatch, error: createError } = await supabase
@@ -903,11 +912,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }
 
       console.log("Created new match, waiting for opponent:", newMatch.id);
+      addMatchDebugLog(`创建新比赛: ${newMatch.id.slice(0, 8)}...`, "success");
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
       
       // Broadcast to other players
       broadcastMatchRequest(newMatch.id);
+      addMatchDebugLog("已广播匹配请求", "info");
 
     } catch (error: any) {
       console.error("Match error:", error);
@@ -1037,12 +1048,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           if (!record || record.grade !== profile.grade) return;
           
           console.log("Realtime DB event:", payload.eventType, record.id, record.status);
+          addMatchDebugLog(`实时事件: ${payload.eventType} ${record.id.slice(0, 8)}... 状态:${record.status}`, "info");
           
           // Case 1: Someone created a new waiting match we can join
           if (payload.eventType === "INSERT" && 
               record.status === "waiting" && 
               record.player1_id !== profile.id) {
             console.log("Realtime: New waiting match detected:", record.id);
+            addMatchDebugLog(`发现新等待比赛，尝试加入: ${record.id.slice(0, 8)}...`, "info");
             
             // Fetch player1 info first
             const { data: player1Data } = await supabase
@@ -1051,7 +1064,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               .eq("id", record.player1_id)
               .single();
             
-            await tryJoinMatch(record.id, player1Data);
+            const joined = await tryJoinMatch(record.id, player1Data);
+            if (joined) {
+              addMatchDebugLog(`成功加入比赛: ${record.id.slice(0, 8)}...`, "success");
+            } else {
+              addMatchDebugLog(`加入比赛失败: ${record.id.slice(0, 8)}...`, "warn");
+            }
           }
           
           // Case 2: Our waiting match was joined by someone
@@ -1062,8 +1080,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               record.status === "in_progress" && 
               record.player2_id) {
             console.log("Realtime: Opponent joined our match!", currentWaitingMatchId);
+            addMatchDebugLog(`对手加入了我们的比赛! 对手ID: ${record.player2_id.slice(0, 8)}...`, "success");
             
-            if (matchJoinedLock) return; // Already joining another match
+            if (matchJoinedLock) {
+              addMatchDebugLog("已在加入其他比赛，跳过", "warn");
+              return; // Already joining another match
+            }
             matchJoinedLock = true;
             isActive = false;
             
@@ -1073,6 +1095,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               .eq("id", record.player2_id)
               .single();
 
+            addMatchDebugLog(`对手信息: ${opponentData?.username || '未知'}`, "info");
+
             const matchWords = (record.words as any[])?.map((w: any) => ({
               id: w.id,
               word: w.word,
@@ -1080,7 +1104,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               phonetic: w.phonetic,
             })) || [];
             
+            addMatchDebugLog(`比赛单词数: ${matchWords.length}`, "info");
             await onMatchJoined(record, opponentData, matchWords);
+            addMatchDebugLog("匹配成功，进入VS画面", "success");
           }
         }
       )
@@ -1982,8 +2008,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
               <Swords className="w-5 h-5 mr-2" />
               {isCheckingActiveMatch ? "检测中..." : "开始匹配"}
             </Button>
+
+            {/* Debug mode toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDebugMode(!debugMode)}
+              className="mt-4 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {debugMode ? "🔧 调试模式已开启" : "🔧 开启调试模式"}
+            </Button>
           </div>
         </main>
+        
+        {/* Debug Panel */}
+        <MatchDebugPanel enabled={debugMode} />
       </div>
     );
   }
@@ -2092,6 +2131,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
             取消匹配
           </Button>
         </div>
+        
+        {/* Debug Panel */}
+        <MatchDebugPanel enabled={debugMode} />
       </div>
     );
   }

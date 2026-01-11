@@ -5,7 +5,7 @@ import { useMatchSounds } from "@/hooks/useMatchSounds";
 import { useGameStateRecovery } from "@/hooks/useGameStateRecovery";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useEloSystem, calculateEloRange } from "@/hooks/useEloSystem";
-import { useMatchCleanup, isActiveMatchError, handleActiveMatchError } from "@/hooks/useMatchCleanup";
+import { useMatchCleanup, isActiveMatchError, handleActiveMatchError, cancelPlayerStaleMatches } from "@/hooks/useMatchCleanup";
 import { audioManager } from "@/lib/audioManager";
 import { haptics } from "@/lib/haptics";
 import { MatchDebugPanel, addMatchDebugLog } from "@/components/MatchDebugPanel";
@@ -552,6 +552,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   useEffect(() => {
     if (!profile) return;
 
+    console.log("[Presence] Setting up presence channel for grade:", profile.grade);
     const channel = supabase.channel(`ranked-lobby-grade-${profile.grade}`, {
       config: { presence: { key: profile.id } }
     });
@@ -560,19 +561,29 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const count = Object.keys(state).length;
+        console.log("[Presence] Synced, online count:", count, "state:", state);
         setOnlineCount(count);
       })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log("[Presence] User joined:", key, newPresences);
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log("[Presence] User left:", key, leftPresences);
+      })
       .subscribe(async (status) => {
+        console.log("[Presence] Subscription status:", status);
         if (status === 'SUBSCRIBED') {
-          await channel.track({
+          const trackResult = await channel.track({
             user_id: profile.id,
             username: profile.username,
             online_at: new Date().toISOString(),
           });
+          console.log("[Presence] Track result:", trackResult);
         }
       });
 
     return () => {
+      console.log("[Presence] Cleaning up presence channel");
       supabase.removeChannel(channel);
     };
   }, [profile]);
@@ -858,20 +869,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setShowAIOption(false);
 
     try {
-      // CRITICAL: Only cancel OLD waiting matches (>30 seconds old), not recent ones
-      // This prevents cancelling a match that was just created
-      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
-      const { data: cancelledMatches } = await supabase
-        .from("ranked_matches")
-        .update({ status: "cancelled" })
-        .eq("player1_id", profile.id)
-        .eq("status", "waiting")
-        .lt("created_at", thirtySecondsAgo) // Only cancel matches older than 30 seconds
-        .select("id");
-      
-      if (cancelledMatches && cancelledMatches.length > 0) {
-        addMatchDebugLog(`已取消 ${cancelledMatches.length} 个旧等待对局`, "info");
-      }
+      // CRITICAL: First cancel ALL stale matches (waiting AND in_progress that are 10+ minutes old)
+      // This ensures we don't get blocked by the database trigger due to old stuck matches
+      addMatchDebugLog("清理旧的卡住对局...", "info");
+      await cancelPlayerStaleMatches(profile.id, profile.grade);
+      addMatchDebugLog("旧对局清理完成", "success");
 
       // Try to join an existing match first
       addMatchDebugLog("正在搜索可加入的比赛...", "info");

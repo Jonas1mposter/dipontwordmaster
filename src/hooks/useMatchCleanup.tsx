@@ -48,23 +48,42 @@ export const useMatchCleanup = ({ profileId, grade, enabled = true }: UseMatchCl
     lastCleanupRef.current = now;
 
     try {
-      // ONLY clean up this player's own stale WAITING matches (10+ minutes old)
+      // ONLY clean up this player's own stale matches (10+ minutes old)
       // NEVER touch other players' matches or global cleanup
-      const waitingStaleTime = new Date(now - STALE_WAITING_MATCH_MINUTES * 60 * 1000).toISOString();
+      const staleTime = new Date(now - STALE_WAITING_MATCH_MINUTES * 60 * 1000).toISOString();
       
-      let query = supabase
+      // 1. Clean up stale WAITING matches
+      let waitingQuery = supabase
         .from("ranked_matches")
         .update({ status: "cancelled" })
         .eq("player1_id", profileId) // CRITICAL: Only this player's matches where they are player1
         .eq("status", "waiting")
-        .lt("created_at", waitingStaleTime);
+        .lt("created_at", staleTime);
+      
+      // 2. Clean up stale IN_PROGRESS matches where player is player1
+      let inProgressQuery1 = supabase
+        .from("ranked_matches")
+        .update({ status: "cancelled" })
+        .eq("player1_id", profileId)
+        .eq("status", "in_progress")
+        .lt("created_at", staleTime);
+        
+      // 3. Clean up stale IN_PROGRESS matches where player is player2
+      let inProgressQuery2 = supabase
+        .from("ranked_matches")
+        .update({ status: "cancelled" })
+        .eq("player2_id", profileId)
+        .eq("status", "in_progress")
+        .lt("created_at", staleTime);
       
       // If grade is specified, also filter by grade
       if (grade !== undefined) {
-        query = query.eq("grade", grade);
+        waitingQuery = waitingQuery.eq("grade", grade);
+        inProgressQuery1 = inProgressQuery1.eq("grade", grade);
+        inProgressQuery2 = inProgressQuery2.eq("grade", grade);
       }
       
-      await query;
+      await Promise.all([waitingQuery, inProgressQuery1, inProgressQuery2]);
 
       console.log("Match cleanup completed for player:", profileId);
     } catch (error) {
@@ -100,21 +119,57 @@ export const useMatchCleanup = ({ profileId, grade, enabled = true }: UseMatchCl
 /**
  * Helper to check and cancel player's own stale matches before starting a new search
  * ONLY cancels this player's matches, never others
+ * Now also cleans up stale in_progress matches (10+ minutes old)
  */
 export const cancelPlayerStaleMatches = async (profileId: string, grade?: number): Promise<void> => {
   try {
-    // Cancel any old waiting matches from this user (only where they are player1)
-    let query = supabase
+    const staleTime = new Date(Date.now() - STALE_WAITING_MATCH_MINUTES * 60 * 1000).toISOString();
+    
+    // 1. Cancel old waiting matches from this user (only where they are player1)
+    let waitingQuery = supabase
       .from("ranked_matches")
       .update({ status: "cancelled" })
       .eq("player1_id", profileId)
-      .eq("status", "waiting");
+      .eq("status", "waiting")
+      .lt("created_at", staleTime);
     
     if (grade !== undefined) {
-      query = query.eq("grade", grade);
+      waitingQuery = waitingQuery.eq("grade", grade);
     }
     
-    await query;
+    // 2. Also cancel old in_progress matches (10+ minutes old) where this user is a participant
+    // These are matches that were stuck without proper cleanup
+    let inProgressQuery1 = supabase
+      .from("ranked_matches")
+      .update({ status: "cancelled" })
+      .eq("player1_id", profileId)
+      .eq("status", "in_progress")
+      .lt("created_at", staleTime);
+      
+    let inProgressQuery2 = supabase
+      .from("ranked_matches")
+      .update({ status: "cancelled" })
+      .eq("player2_id", profileId)
+      .eq("status", "in_progress")
+      .lt("created_at", staleTime);
+    
+    if (grade !== undefined) {
+      inProgressQuery1 = inProgressQuery1.eq("grade", grade);
+      inProgressQuery2 = inProgressQuery2.eq("grade", grade);
+    }
+    
+    // Execute all queries in parallel
+    const [r1, r2, r3] = await Promise.all([
+      waitingQuery,
+      inProgressQuery1,
+      inProgressQuery2,
+    ]);
+    
+    console.log("Cleaned up stale matches:", { 
+      waiting: r1.count, 
+      inProgress1: r2.count, 
+      inProgress2: r3.count 
+    });
   } catch (error) {
     console.error("Error cancelling stale matches:", error);
   }

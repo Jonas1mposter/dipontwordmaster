@@ -819,7 +819,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         setMatchStatus("found");
         sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 8000);
+        // NOTE: Do NOT auto-transition to playing here!
+        // Both players need to confirm ready via the ready confirmation system
         return true;
       } else {
         console.log("Failed to join match (likely already taken):", matchToJoin.id, joinError?.message);
@@ -1014,7 +1015,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setWaitingMatchId(null);
       setMatchStatus("found");
       sounds.playMatchFound();
-      setTimeout(() => setMatchStatus("playing"), 5000);
+      // NOTE: Do NOT auto-transition to playing here!
+      // Both players need to confirm ready via the ready confirmation system
     };
 
     // Realtime subscription - filter by specific match ID

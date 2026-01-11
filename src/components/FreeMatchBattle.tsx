@@ -417,7 +417,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
         setMatchStatus("found");
         sounds.playMatchFound();
-        setTimeout(() => setMatchStatus("playing"), 5000);
+        // NOTE: Do NOT auto-transition to playing here!
+        // Both players need to confirm ready via the ready confirmation system
         return true;
       } else {
         console.log("Failed to join free match:", matchToJoin.id, joinError?.message);
@@ -520,7 +521,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
             setMatchStatus("found");
             sounds.playMatchFound();
-            setTimeout(() => setMatchStatus("playing"), 5000);
+            // NOTE: For reconnection, skip ready confirmation - go straight to playing
+            setTimeout(() => setMatchStatus("playing"), 1000);
             addMatchDebugLog("重新连接到进行中的对局，释放锁", "success");
             searchLockRef.current = false;
             return;
@@ -670,7 +672,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
       setMatchStatus("found");
       sounds.playMatchFound();
-      setTimeout(() => setMatchStatus("playing"), 5000);
+      // NOTE: Do NOT auto-transition to playing here!
+      // Both players need to confirm ready via the ready confirmation system
     };
 
     // Realtime subscription - filter by specific match ID

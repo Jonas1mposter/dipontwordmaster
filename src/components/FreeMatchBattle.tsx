@@ -334,7 +334,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
     // Get player's free match ELO
     const playerElo = profile.elo_free || 1000;
-    const eloRange = calculateEloRange(searchTime);
+    // Use initial wide range (±200) to maximize chances of finding a match immediately
+    const eloRange = 200;
     const minElo = playerElo - eloRange;
     const maxElo = playerElo + eloRange;
 
@@ -346,6 +347,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       .eq("status", "waiting")
       .eq("grade", 0) // grade = 0 for free match
       .neq("player1_id", profile.id)
+      .is("player2_id", null) // CRITICAL: Only matches without player2
       .gte("created_at", fiveMinutesAgo)
       .order("created_at", { ascending: true })
       .limit(20);
@@ -389,6 +391,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
 
       if (!joinError && updatedMatch) {
         console.log("Successfully joined free match:", updatedMatch.id);
+        addMatchDebugLog(`成功加入对局: ${updatedMatch.id.slice(0, 8)}...`, "success");
         
         // Also update player1_elo for tracking
         await supabase

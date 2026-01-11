@@ -716,7 +716,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     // Get player's current ELO
     const playerElo = profile.elo_rating || 1000;
-    const eloRange = calculateEloRange(searchTime);
+    // Use initial wide range (±200) to maximize chances of finding a match immediately
+    const eloRange = 200;
     const minElo = playerElo - eloRange;
     const maxElo = playerElo + eloRange;
 
@@ -773,18 +774,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
       if (!joinError && updatedMatch) {
         console.log("Successfully joined match:", updatedMatch.id);
-        
-        // CRITICAL: Cancel our own waiting match IMMEDIATELY before any other async operations
-        // This prevents other players from joining our abandoned match
-        if (waitingMatchId && waitingMatchId !== matchToJoin.id) {
-          console.log("Immediately cancelling our waiting match before proceeding:", waitingMatchId);
-          await supabase
-            .from("ranked_matches")
-            .update({ status: "cancelled" })
-            .eq("id", waitingMatchId)
-            .eq("status", "waiting");
-          setWaitingMatchId(null);
-        }
+        addMatchDebugLog(`成功加入对局: ${updatedMatch.id.slice(0, 8)}...`, "success");
         
         // Also update player1_elo for tracking
         await supabase
@@ -816,34 +806,11 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     return false;
   };
 
-  // Broadcast match request to other players (uses temporary channel, closes after send)
-  const broadcastMatchRequest = useCallback((matchId: string) => {
-    if (!profile) return;
-    
-    const channel = supabase.channel(`ranked-matchmaking-${profile.grade}-${profile.id}`);
-    channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.send({
-          type: 'broadcast',
-          event: 'match_request',
-          payload: {
-            matchId,
-            playerId: profile.id,
-            username: profile.username,
-            grade: profile.grade,
-            timestamp: Date.now(),
-          }
-        });
-        // Channel will be cleaned up by the matchmaking useEffect
-      }
-    });
-  }, [profile]);
-
-  // Use automatic match cleanup hook
+  // Use automatic match cleanup hook - ONLY when truly idle (not during searching)
   useMatchCleanup({ 
     profileId: profile?.id, 
     grade: profile?.grade,
-    enabled: matchStatus === "idle" 
+    enabled: matchStatus === "idle" && !waitingMatchId
   });
 
   // Lock to prevent multiple startSearch calls

@@ -323,6 +323,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const matchFinishedRef = useRef(matchFinished);
   const myScoreRef = useRef(myScore);
   const opponentFinishedRef = useRef(opponentFinished);
+  const waitingMatchIdRef = useRef(waitingMatchId); // CRITICAL: Use ref to avoid useEffect re-runs
   
   // Keep refs in sync
   useEffect(() => {
@@ -330,7 +331,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     matchFinishedRef.current = matchFinished;
     myScoreRef.current = myScore;
     opponentFinishedRef.current = opponentFinished;
-  }, [myFinished, matchFinished, myScore, opponentFinished]);
+    waitingMatchIdRef.current = waitingMatchId;
+  }, [myFinished, matchFinished, myScore, opponentFinished, waitingMatchId]);
 
   // Full state reset function for error recovery
   const resetGameState = useCallback(() => {
@@ -937,12 +939,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       
       // CRITICAL: Immediately cancel our waiting match if different
       // This prevents another player from joining our abandoned match
-      if (waitingMatchId && waitingMatchId !== matchData.id) {
-        console.log("Cancelling our waiting match:", waitingMatchId);
+      const currentWaitingMatchId = waitingMatchIdRef.current;
+      if (currentWaitingMatchId && currentWaitingMatchId !== matchData.id) {
+        console.log("Cancelling our waiting match:", currentWaitingMatchId);
         await supabase
           .from("ranked_matches")
           .update({ status: "cancelled" })
-          .eq("id", waitingMatchId)
+          .eq("id", currentWaitingMatchId)
           .eq("status", "waiting"); // Only cancel if still waiting
       }
 
@@ -970,12 +973,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       // CRITICAL FIX: Cancel our waiting match BEFORE attempting to join another
       // This prevents another player from joining our match while we're joining theirs
       let cancelledOurMatch = false;
-      if (waitingMatchId && waitingMatchId !== matchIdToJoin) {
-        console.log("Pre-emptively cancelling our waiting match before joining:", waitingMatchId);
+      const currentWaitingMatchId = waitingMatchIdRef.current;
+      if (currentWaitingMatchId && currentWaitingMatchId !== matchIdToJoin) {
+        console.log("Pre-emptively cancelling our waiting match before joining:", currentWaitingMatchId);
         const { error: cancelError } = await supabase
           .from("ranked_matches")
           .update({ status: "cancelled" })
-          .eq("id", waitingMatchId)
+          .eq("id", currentWaitingMatchId)
           .eq("status", "waiting");
         
         if (!cancelError) {
@@ -1051,12 +1055,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           }
           
           // Case 2: Our waiting match was joined by someone
+          const currentWaitingMatchId = waitingMatchIdRef.current;
           if (payload.eventType === "UPDATE" && 
-              waitingMatchId && 
-              record.id === waitingMatchId && 
+              currentWaitingMatchId && 
+              record.id === currentWaitingMatchId && 
               record.status === "in_progress" && 
               record.player2_id) {
-            console.log("Realtime: Opponent joined our match!");
+            console.log("Realtime: Opponent joined our match!", currentWaitingMatchId);
             
             if (matchJoinedLock) return; // Already joining another match
             matchJoinedLock = true;
@@ -1080,7 +1085,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         }
       )
       .on('broadcast', { event: 'match_request' }, async (payload) => {
-        if (!isActive || matchJoinedLock || !waitingMatchId) return;
+        const currentWaitingMatchId = waitingMatchIdRef.current;
+        if (!isActive || matchJoinedLock || !currentWaitingMatchId) return;
         
         const data = payload.payload as any;
         if (data.playerId === profile.id) return;
@@ -1089,7 +1095,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         // Don't try to join their match if we have our own waiting match
         // This prevents the race condition where both players try to join each other's match
-        if (waitingMatchId) {
+        if (currentWaitingMatchId) {
           console.log("Ignoring broadcast - we have our own waiting match");
           return;
         }
@@ -1130,15 +1136,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (!isActive || matchJoinedLock) return;
       
       // Check if our match was joined
-      if (waitingMatchId) {
+      const currentWaitingMatchId = waitingMatchIdRef.current;
+      if (currentWaitingMatchId) {
         const { data: ourMatch } = await supabase
           .from("ranked_matches")
           .select("*, player2:profiles!ranked_matches_player2_id_fkey(*)")
-          .eq("id", waitingMatchId)
+          .eq("id", currentWaitingMatchId)
           .single();
         
         if (ourMatch?.status === "in_progress" && ourMatch?.player2_id && isActive && !matchJoinedLock) {
-          console.log("Polling: Opponent joined our match!");
+          console.log("Polling: Opponent joined our match!", currentWaitingMatchId);
           matchJoinedLock = true;
           isActive = false;
           
@@ -1154,7 +1161,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }
       
       // Also try to join any available matches (only if we don't have our own waiting match being joined)
-      if (!waitingMatchId || matchJoinedLock) return;
+      if (!currentWaitingMatchId || matchJoinedLock) return;
       
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: waitingMatches } = await supabase
@@ -1191,7 +1198,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, waitingMatchId, profile, generateOptions, fetchMatchWords]);
+  }, [matchStatus, profile, generateOptions, fetchMatchWords]); // CRITICAL: Use waitingMatchIdRef instead of waitingMatchId to prevent re-runs
 
   // Cancel search
   const cancelSearch = async () => {

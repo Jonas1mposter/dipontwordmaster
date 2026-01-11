@@ -882,15 +882,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         addMatchDebugLog(`已取消 ${cancelledMatches.length} 个旧等待对局`, "info");
       }
 
-      // Also clean up very old in_progress matches (10+ minutes - well after any game should be done)
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      await supabase
-        .from("ranked_matches")
-        .update({ status: "abandoned" })
-        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
-        .eq("status", "in_progress")
-        .lt("created_at", tenMinutesAgo);
-
       // Try to join an existing match first
       addMatchDebugLog("正在搜索可加入的比赛...", "info");
       const joined = await tryJoinExistingMatch();
@@ -901,7 +892,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       }
       addMatchDebugLog("没有找到可加入的比赛，创建新比赛", "info");
 
-      // No match to join, create our own and wait - include player1 ELO
+      // No match to join, create our own
       const { data: newMatch, error: createError } = await supabase
         .from("ranked_matches")
         .insert({
@@ -927,8 +918,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       addMatchDebugLog(`创建新比赛: ${newMatch.id.slice(0, 8)}...`, "success");
       setMatchId(newMatch.id);
       setWaitingMatchId(newMatch.id);
-      
-      // Note: We no longer broadcast here - the polling/realtime will handle it
 
     } catch (error: any) {
       console.error("Match error:", error);
@@ -944,7 +933,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     }
   };
 
-  // Simplified matchmaking: Realtime + Polling only
+  // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
     
@@ -952,13 +941,12 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     const currentProfile = profileRef.current || profile;
     const currentProfileId = currentProfile.id;
     const currentGrade = currentProfile.grade;
-    const currentElo = currentProfile.elo_rating || 1000;
 
     console.log("Setting up matchmaking subscription");
     addMatchDebugLog("设置匹配订阅...", "info");
     
     let isActive = true;
-    let matchJoinedLock = false; // Prevent multiple join attempts
+    let matchJoinedLock = false;
     
     // Function to handle successful match found
     const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
@@ -972,7 +960,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       console.log("Match joined successfully:", matchData.id);
       addMatchDebugLog(`匹配成功: ${matchData.id.slice(0, 8)}...`, "success");
 
-      // Generate quiz types for all 10 questions
       const types = generateQuizTypes();
       setQuizTypes(types);
       
@@ -987,45 +974,6 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setMatchStatus("found");
       sounds.playMatchFound();
       setTimeout(() => setMatchStatus("playing"), 5000);
-    };
-
-    // Try to join an existing match - ONLY called if we don't have our own waiting match
-    const tryJoinMatch = async (matchIdToJoin: string, opponentData: any): Promise<boolean> => {
-      if (!isActive || matchJoinedLock) return false;
-      
-      addMatchDebugLog(`尝试加入比赛: ${matchIdToJoin.slice(0, 8)}...`, "info");
-      
-      const matchWords = await fetchMatchWords();
-      if (matchWords.length === 0) {
-        addMatchDebugLog("获取单词失败", "error");
-        return false;
-      }
-      
-      if (!isActive || matchJoinedLock) return false;
-      
-      const { data: updatedMatch, error } = await supabase
-        .from("ranked_matches")
-        .update({
-          player2_id: currentProfileId,
-          player2_elo: currentElo,
-          status: "in_progress",
-          words: matchWords,
-          started_at: new Date().toISOString(),
-        })
-        .eq("id", matchIdToJoin)
-        .eq("status", "waiting")
-        .is("player2_id", null)
-        .select()
-        .maybeSingle();
-
-      if (!error && updatedMatch && isActive && !matchJoinedLock) {
-        addMatchDebugLog(`成功加入比赛`, "success");
-        await onMatchJoined(updatedMatch, opponentData, matchWords);
-        return true;
-      }
-      
-      addMatchDebugLog(`加入失败: ${error?.message || "对局已被占用"}`, "warn");
-      return false;
     };
 
     // Only listen for realtime updates on our own match
@@ -1079,13 +1027,13 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         addMatchDebugLog(`频道状态: ${status}`, "info");
       });
 
-    // Polling every 3 seconds - simpler and more reliable
+    // Polling every 3 seconds - ONLY checks, NEVER creates
     const pollInterval = setInterval(async () => {
       if (!isActive || matchJoinedLock) return;
       
       const currentWaitingMatchId = waitingMatchIdRef.current;
       
-      // Case 1: We have a waiting match - just check if it was joined
+      // Only check our waiting match status
       if (currentWaitingMatchId) {
         const { data: ourMatch } = await supabase
           .from("ranked_matches")
@@ -1109,53 +1057,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           return;
         }
         
-        // If our match got cancelled somehow, create a new one
+        // If our match got cancelled, stop searching (don't auto-create)
         if (ourMatch?.status === "cancelled" || !ourMatch) {
-          addMatchDebugLog("我们的对局被取消了，创建新对局", "warn");
+          addMatchDebugLog("对局被取消，停止搜索", "warn");
+          isActive = false;
           setWaitingMatchId(null);
-          
-          // Create a new waiting match
-          const { data: newMatch, error: createError } = await supabase
-            .from("ranked_matches")
-            .insert({
-              player1_id: currentProfileId,
-              player1_elo: currentElo,
-              grade: currentGrade,
-              status: "waiting",
-            })
-            .select()
-            .single();
-          
-          if (!createError && newMatch && isActive && !matchJoinedLock) {
-            addMatchDebugLog(`创建新对局: ${newMatch.id.slice(0, 8)}...`, "success");
-            setMatchId(newMatch.id);
-            setWaitingMatchId(newMatch.id);
-          }
-        }
-        
-        return; // Don't try to join others while we have/are creating a waiting match
-      }
-      
-      // Case 2: We don't have a waiting match - try to join one
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data: waitingMatches } = await supabase
-        .from("ranked_matches")
-        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-        .eq("status", "waiting")
-        .eq("grade", currentGrade)
-        .neq("player1_id", currentProfileId)
-        .is("player2_id", null)
-        .gte("created_at", fiveMinutesAgo)
-        .order("created_at", { ascending: true })
-        .limit(5);
-
-      if (waitingMatches && waitingMatches.length > 0 && isActive && !matchJoinedLock) {
-        addMatchDebugLog(`轮询：发现 ${waitingMatches.length} 个等待对局`, "info");
-        
-        for (const matchToJoin of waitingMatches) {
-          if (!isActive || matchJoinedLock) break;
-          const joined = await tryJoinMatch(matchToJoin.id, matchToJoin.player1);
-          if (joined) return;
+          setMatchStatus("idle");
+          toast.error("匹配被取消，请重新搜索");
+          return;
         }
       }
     }, 3000);

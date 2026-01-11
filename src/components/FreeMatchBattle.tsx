@@ -539,14 +539,27 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         }
       }
 
-      // Try to join an existing match first
-      const joined = await tryJoinExistingMatch();
-      if (joined) {
-        addMatchDebugLog("成功加入现有自由比赛，释放锁", "success");
-        searchLockRef.current = false;
-        return;
+      // Try to join an existing match first - with retry to handle race conditions
+      // This is crucial because another player might be creating their match at the same time
+      addMatchDebugLog("正在搜索可加入的自由比赛...", "info");
+      
+      // Try up to 3 times with 500ms delay between attempts
+      let joined = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        joined = await tryJoinExistingMatch();
+        if (joined) {
+          addMatchDebugLog(`第${attempt}次尝试成功加入现有自由比赛，释放锁`, "success");
+          searchLockRef.current = false;
+          return;
+        }
+        
+        // Don't delay after the last attempt
+        if (attempt < 3) {
+          addMatchDebugLog(`第${attempt}次未找到，等待500ms后重试...`, "info");
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
-      addMatchDebugLog("没有找到可加入的自由比赛，创建新比赛", "info");
+      addMatchDebugLog("3次尝试后仍没有找到可加入的自由比赛，创建新比赛", "info");
 
       // No match to join, create our own with grade = 0 (free match) - include player1 ELO
       const { data: newMatch, error: createError } = await supabase

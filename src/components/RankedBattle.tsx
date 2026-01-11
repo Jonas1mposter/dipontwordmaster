@@ -314,6 +314,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   const [opponentReady, setOpponentReady] = useState(false);
   const [readyChannel, setReadyChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
   
+  // Cancel reason for display
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
+  
   const [rankChangeResult, setRankChangeResult] = useState<{
     starsChanged: number;
     promoted: boolean;
@@ -383,6 +386,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     setIsAnswerLocked(false);
     setComboCount(0);
     setShowComboPopup(false);
+    setCancelReason(null);
     friendMatchInitialized.current = false;
   }, []);
 
@@ -867,6 +871,9 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     // Acquire lock IMMEDIATELY and don't release until search ends
     searchLockRef.current = true;
     addMatchDebugLog("获取搜索锁成功", "info");
+    
+    // Clear any previous cancel reason
+    setCancelReason(null);
 
     // Warmup audio system before starting match
     await audioManager.warmup();
@@ -909,6 +916,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       if (createError) {
         if (isActiveMatchError(createError)) {
           handleActiveMatchError();
+          setCancelReason("你已在一场比赛中，请先完成当前比赛后再开始新匹配");
           setMatchStatus("idle");
           searchLockRef.current = false;
           addMatchDebugLog("活跃对局冲突，释放锁", "warn");
@@ -933,8 +941,10 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       addMatchDebugLog(`匹配错误: ${error.message}，释放锁`, "error");
       if (isActiveMatchError(error)) {
         handleActiveMatchError();
+        setCancelReason("你已在一场比赛中，请先完成当前比赛后再开始新匹配");
       } else {
         toast.error("匹配失败，请重试");
+        setCancelReason("匹配出现错误，请重试");
       }
       setMatchStatus("idle");
       searchLockRef.current = false;
@@ -1084,6 +1094,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         addMatchDebugLog("对局被取消，停止搜索", "warn");
         isActive = false;
         setWaitingMatchId(null);
+        setCancelReason("匹配房间已失效，可能因为等待时间过长或系统清理");
         setMatchStatus("idle");
         toast.error("匹配被取消，请重新搜索");
         return;
@@ -1837,6 +1848,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           .eq("id", matchId);
       }
       toast.error("准备超时，比赛已取消");
+      setCancelReason("你未在规定时间内点击「准备好了」，比赛已取消");
       setMatchStatus("idle");
       setMatchId(null);
       setOpponent(null);
@@ -1963,6 +1975,29 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                       放弃比赛
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Cancel reason display */}
+            {cancelReason && (
+              <Card className="mb-6 border-amber-500/50 bg-amber-500/10">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-amber-500 text-sm mb-1">上次匹配取消原因</p>
+                      <p className="text-sm text-muted-foreground">{cancelReason}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="mt-3 w-full text-xs"
+                    onClick={() => setCancelReason(null)}
+                  >
+                    知道了
+                  </Button>
                 </CardContent>
               </Card>
             )}

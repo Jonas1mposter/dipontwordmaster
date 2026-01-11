@@ -8,6 +8,7 @@ class AudioManager {
   private isUnlocked = false;
   private unlockCallbacks: AudioUnlockCallback[] = [];
   private initialized = false;
+  private warmupComplete = false;
 
   // Get or create AudioContext
   getContext(): AudioContext {
@@ -132,6 +133,38 @@ class AudioManager {
     }
   }
 
+  // Warmup audio system - call before starting a battle
+  // Plays a silent buffer to ensure audio is fully ready
+  async warmup(): Promise<boolean> {
+    if (this.warmupComplete) return true;
+
+    try {
+      const ctx = await this.ensureReady();
+      
+      // Play multiple silent buffers to fully warm up
+      for (let i = 0; i < 3; i++) {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      this.warmupComplete = true;
+      console.log('[AudioManager] Warmup complete');
+      return true;
+    } catch (e) {
+      console.warn('[AudioManager] Warmup failed:', e);
+      return false;
+    }
+  }
+
+  // Check if audio is warmed up
+  get isWarmedUp(): boolean {
+    return this.warmupComplete;
+  }
+
   // Cleanup
   destroy(): void {
     if (this.audioContext) {
@@ -140,6 +173,7 @@ class AudioManager {
     }
     this.isUnlocked = false;
     this.initialized = false;
+    this.warmupComplete = false;
   }
 }
 

@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users, Globe, Shield, Star } from "lucide-react";
+import { Trophy, Medal, Award, Crown, Coins, Swords, TrendingUp, Users, Globe, Shield, Star, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import FreeMatchLeaderboard from "./FreeMatchLeaderboard";
-
+import ComboLeaderboard from "./ComboLeaderboard";
 interface LeaderboardEntry {
   rank: number;
   username: string;
@@ -321,17 +321,44 @@ const LeaderboardTabs = ({ grade, currentUser, currentProfileId, currentClass }:
     );
   }
 
+  // Show combo leaderboard
+  if (activeTab === "combo") {
+    return (
+      <div className="space-y-4">
+        <Button 
+          variant="outline" 
+          onClick={() => setActiveTab("coins")}
+          className="gap-2"
+        >
+          <Trophy className="w-4 h-4" />
+          返回荣耀排行榜
+        </Button>
+        <ComboLeaderboard grade={grade} currentProfileId={currentProfileId} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Free Match Leaderboard Button */}
-      <Button
-        variant="outline"
-        onClick={() => setShowFreeMatchLeaderboard(true)}
-        className="w-full gap-2 border-cyan-500/30 hover:bg-cyan-500/10"
-      >
-        <Globe className="w-4 h-4 text-neon-cyan" />
-        查看自由服排行榜
-      </Button>
+      {/* Special Leaderboard Buttons */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setShowFreeMatchLeaderboard(true)}
+          className="flex-1 gap-2 border-cyan-500/30 hover:bg-cyan-500/10"
+        >
+          <Globe className="w-4 h-4 text-neon-cyan" />
+          自由服排行榜
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setActiveTab("combo")}
+          className="flex-1 gap-2 border-orange-500/30 hover:bg-orange-500/10"
+        >
+          <Flame className="w-4 h-4 text-orange-500" />
+          连击排行榜
+        </Button>
+      </div>
       
       <Card variant="gaming" className="overflow-hidden">
         <CardHeader className="border-b border-border/50 bg-gradient-to-r from-primary/5 via-transparent to-accent/5">

@@ -432,6 +432,36 @@ const WordLearning = ({ levelId, levelName, onBack, onComplete }: WordLearningPr
         }
         // 字母关卡的进度已经通过 learning_progress 更新了
 
+        // Save combo record if achieved 3+ combo
+        if (maxCombo >= 3) {
+          // Check if this is a new personal best
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("max_combo")
+            .eq("id", profile.id)
+            .single();
+          
+          const currentMax = profileData?.max_combo || 0;
+          
+          // Insert combo record
+          await supabase
+            .from("combo_records")
+            .insert({
+              profile_id: profile.id,
+              combo_count: maxCombo,
+              mode: "learning",
+              level_name: levelName,
+            });
+          
+          // Update profile max_combo if this is a new record
+          if (maxCombo > currentMax) {
+            await supabase
+              .from("profiles")
+              .update({ max_combo: maxCombo })
+              .eq("id", profile.id);
+          }
+        }
+
         // Update profile with level up logic
         const totalXpGained = baseXp + bonusXp;
         const levelUpResult = await updateProfileWithXp(

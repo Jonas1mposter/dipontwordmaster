@@ -564,33 +564,25 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     return data && data.length > 0;
   };
   
-  // Simplified matchmaking: Realtime + Polling only
+  // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
   useEffect(() => {
     if (matchStatus !== "searching" || !profile) return;
     
     // Capture current profile values at effect start
     const currentProfile = profileRef.current || profile;
     const currentProfileId = currentProfile.id;
-    const currentEloFree = currentProfile.elo_free || 1000;
 
     console.log("Setting up free match subscription");
     addMatchDebugLog("设置自由对战订阅...", "info");
     
     let isActive = true;
-    // DO NOT reset matchJoinedRef here - it should persist across effect runs
     
     const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
-      // CRITICAL: Use global lock to prevent joining multiple matches
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) {
-        console.log("Match join blocked - already joined:", { 
-          isActive, 
-          globalLock: globalMatchLockRef.current, 
-          matchJoined: matchJoinedRef.current 
-        });
+        console.log("Match join blocked - already joined");
         return;
       }
       
-      // Acquire lock immediately
       globalMatchLockRef.current = true;
       matchJoinedRef.current = true;
       isActive = false;
@@ -610,45 +602,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       setMatchStatus("found");
       sounds.playMatchFound();
       setTimeout(() => setMatchStatus("playing"), 5000);
-    };
-
-    // Try to join an existing match - ONLY called if we don't have our own waiting match
-    const tryJoinMatch = async (matchIdToJoin: string, opponentData: any): Promise<boolean> => {
-      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return false;
-      
-      addMatchDebugLog(`尝试加入比赛: ${matchIdToJoin.slice(0, 8)}...`, "info");
-      
-      const matchWords = await fetchMatchWords();
-      if (matchWords.length === 0) {
-        addMatchDebugLog("获取单词失败", "error");
-        return false;
-      }
-      
-      if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return false;
-      
-      const { data: updatedMatch, error } = await supabase
-        .from("ranked_matches")
-        .update({
-          player2_id: currentProfileId,
-          player2_elo: currentEloFree,
-          status: "in_progress",
-          words: matchWords,
-          started_at: new Date().toISOString(),
-        })
-        .eq("id", matchIdToJoin)
-        .eq("status", "waiting")
-        .is("player2_id", null)
-        .select()
-        .maybeSingle();
-
-      if (!error && updatedMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-        addMatchDebugLog(`成功加入比赛`, "success");
-        await onMatchJoined(updatedMatch, opponentData, matchWords);
-        return true;
-      }
-      
-      addMatchDebugLog(`加入失败: ${error?.message || "对局已被占用"}`, "warn");
-      return false;
     };
 
     // Only listen for realtime updates on our own match
@@ -701,13 +654,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         addMatchDebugLog(`频道状态: ${status}`, "info");
       });
 
-    // Polling every 3 seconds - simpler and more reliable
+    // Polling every 3 seconds - ONLY checks, NEVER creates
     const pollInterval = setInterval(async () => {
       if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) return;
       
       const currentWaitingMatchId = waitingMatchIdRef.current;
       
-      // Case 1: We have a waiting match - just check if it was joined
+      // Only check our waiting match status
       if (currentWaitingMatchId) {
         const { data: ourMatch } = await supabase
           .from("ranked_matches")
@@ -730,53 +683,14 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           return;
         }
         
-        // If our match got cancelled somehow, create a new one
+        // If our match got cancelled, stop searching (don't auto-create)
         if (ourMatch?.status === "cancelled" || !ourMatch) {
-          addMatchDebugLog("我们的对局被取消了，创建新对局", "warn");
+          addMatchDebugLog("对局被取消，停止搜索", "warn");
+          isActive = false;
           setWaitingMatchId(null);
-          
-          // Create a new waiting match
-          const { data: newMatch, error: createError } = await supabase
-            .from("ranked_matches")
-            .insert({
-              player1_id: currentProfileId,
-              player1_elo: currentEloFree,
-              grade: 0,
-              status: "waiting",
-            })
-            .select()
-            .single();
-          
-          if (!createError && newMatch && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-            addMatchDebugLog(`创建新对局: ${newMatch.id.slice(0, 8)}...`, "success");
-            setMatchId(newMatch.id);
-            setWaitingMatchId(newMatch.id);
-          }
-        }
-        
-        return; // Don't try to join others while we have/are creating a waiting match
-      }
-      
-      // Case 2: We don't have a waiting match - try to join one
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data: waitingMatches } = await supabase
-        .from("ranked_matches")
-        .select("*, player1:profiles!ranked_matches_player1_id_fkey(*)")
-        .eq("status", "waiting")
-        .eq("grade", 0)
-        .neq("player1_id", currentProfileId)
-        .is("player2_id", null)
-        .gte("created_at", fiveMinutesAgo)
-        .order("created_at", { ascending: true })
-        .limit(5);
-
-      if (waitingMatches && waitingMatches.length > 0 && isActive && !globalMatchLockRef.current && !matchJoinedRef.current) {
-        addMatchDebugLog(`轮询：发现 ${waitingMatches.length} 个等待对局`, "info");
-        
-        for (const matchToJoin of waitingMatches) {
-          if (!isActive || globalMatchLockRef.current || matchJoinedRef.current) break;
-          const joined = await tryJoinMatch(matchToJoin.id, matchToJoin.player1);
-          if (joined) return;
+          setMatchStatus("idle");
+          toast.error("匹配被取消，请重新搜索");
+          return;
         }
       }
     }, 3000);
@@ -792,7 +706,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, profile?.id, profile?.grade, profile?.elo_free]); // Stable dependencies only
+  }, [matchStatus, profile?.id, profile?.grade, profile?.elo_free]);
 
   // Cancel search
   const cancelSearch = async () => {

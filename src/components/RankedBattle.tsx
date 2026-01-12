@@ -1044,82 +1044,107 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
 
     // PURE QUEUE-BASED POLLING - No Realtime subscription needed
     // The match_queue table is the source of truth
+    let pollCount = 0;
     const pollInterval = setInterval(async () => {
-      if (!isActive || matchJoinedLock) return;
+      pollCount++;
+      if (!isActive || matchJoinedLock) {
+        addMatchDebugLog(`轮询#${pollCount}: 跳过 (isActive=${isActive}, locked=${matchJoinedLock})`, "warn");
+        return;
+      }
+      
+      addMatchDebugLog(`轮询#${pollCount}: 检查队列状态...`, "info");
       
       try {
-        const { data: queueStatus } = await supabase.rpc('check_queue_status', {
+        const { data: queueStatus, error: queueError } = await supabase.rpc('check_queue_status', {
           p_profile_id: currentProfileId,
           p_match_type: 'ranked',
         });
 
-        if (queueStatus && queueStatus.length > 0) {
-          const status = queueStatus[0];
-          addMatchDebugLog(`队列状态: ${status.queue_status}, match_id: ${status.match_id?.slice(0, 8) || 'null'}`, "info");
-          
-          if (status.queue_status === 'matched' && status.match_id && !matchJoinedLock) {
-            addMatchDebugLog(`匹配池发现对局! ${status.match_id.slice(0, 8)}...`, "success");
-            matchJoinedLock = true;
-            isActive = false;
-            
-            // Fetch full match data with retry for consistency
-            let matchData = null;
-            for (let retry = 0; retry < 5; retry++) {
-              const { data } = await supabase
-                .from("ranked_matches")
-                .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
-                .eq("id", status.match_id)
-                .single();
-              
-              if (data && data.player1 && data.player2) {
-                matchData = data;
-                break;
-              }
-              
-              addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
-              if (retry < 4) {
-                await new Promise(r => setTimeout(r, 400));
-              }
-            }
+        if (queueError) {
+          addMatchDebugLog(`轮询#${pollCount}: RPC错误 - ${queueError.message}`, "error");
+          return;
+        }
 
-            if (matchData) {
-              const isPlayer1 = matchData.player1_id === currentProfileId;
-              const opponentData = isPlayer1 ? matchData.player2 : matchData.player1;
-              
-              // If words are empty, fetch them
-              let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
-              if (matchWords.length === 0) {
-                addMatchDebugLog("对局没有词汇，正在获取...", "info");
-                matchWords = await fetchMatchWords();
-                if (matchWords.length > 0) {
-                  await supabase
-                    .from("ranked_matches")
-                    .update({ words: matchWords })
-                    .eq("id", status.match_id);
-                }
-              }
-              
-              const formattedWords = matchWords.map((w: any) => ({
-                id: w.id,
-                word: w.word,
-                meaning: w.meaning,
-                phonetic: w.phonetic,
-              }));
-              
-              await onMatchJoined(matchData, opponentData, formattedWords as Word[]);
-              return;
-            } else {
-              addMatchDebugLog("无法获取完整对局数据，继续轮询...", "warn");
-              matchJoinedLock = false;
-              isActive = true;
+        if (!queueStatus || queueStatus.length === 0) {
+          addMatchDebugLog(`轮询#${pollCount}: 队列中无条目`, "warn");
+          return;
+        }
+
+        const status = queueStatus[0];
+        addMatchDebugLog(`轮询#${pollCount}: 状态=${status.queue_status}, match_id=${status.match_id?.slice(0, 8) || 'null'}`, "info");
+        
+        if (status.queue_status === 'matched' && status.match_id && !matchJoinedLock) {
+          addMatchDebugLog(`🎉 轮询#${pollCount}: 匹配池发现对局! ${status.match_id.slice(0, 8)}...`, "success");
+          matchJoinedLock = true;
+          isActive = false;
+          clearInterval(pollInterval); // Stop polling immediately
+          
+          // Fetch full match data with retry for consistency
+          let matchData = null;
+          for (let retry = 0; retry < 5; retry++) {
+            const { data, error: fetchError } = await supabase
+              .from("ranked_matches")
+              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+              .eq("id", status.match_id)
+              .single();
+            
+            if (fetchError) {
+              addMatchDebugLog(`获取对局数据错误: ${fetchError.message}`, "error");
             }
+            
+            if (data && data.player1 && data.player2) {
+              matchData = data;
+              addMatchDebugLog(`对局数据获取成功! p1=${data.player1?.username}, p2=${data.player2?.username}`, "success");
+              break;
+            }
+            
+            addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
+            if (retry < 4) {
+              await new Promise(r => setTimeout(r, 400));
+            }
+          }
+
+          if (matchData) {
+            const isPlayer1 = matchData.player1_id === currentProfileId;
+            const opponentData = isPlayer1 ? matchData.player2 : matchData.player1;
+            addMatchDebugLog(`我是${isPlayer1 ? 'Player1' : 'Player2'}, 对手: ${opponentData?.username}`, "info");
+            
+            // If words are empty, fetch them
+            let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
+            if (matchWords.length === 0) {
+              addMatchDebugLog("对局没有词汇，正在获取...", "info");
+              matchWords = await fetchMatchWords();
+              if (matchWords.length > 0) {
+                await supabase
+                  .from("ranked_matches")
+                  .update({ words: matchWords })
+                  .eq("id", status.match_id);
+                addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
+              }
+            } else {
+              addMatchDebugLog(`对局已有${matchWords.length}个词汇`, "info");
+            }
+            
+            const formattedWords = matchWords.map((w: any) => ({
+              id: w.id,
+              word: w.word,
+              meaning: w.meaning,
+              phonetic: w.phonetic,
+            }));
+            
+            await onMatchJoined(matchData, opponentData, formattedWords as Word[]);
+            return;
+          } else {
+            addMatchDebugLog("❌ 5次重试后仍无法获取完整对局数据", "error");
+            matchJoinedLock = false;
+            isActive = true;
           }
         }
       } catch (err) {
         console.error("Queue status check error:", err);
-        addMatchDebugLog(`队列检查错误: ${err}`, "error");
+        addMatchDebugLog(`轮询#${pollCount}: 异常 - ${err}`, "error");
       }
-    }, 1200); // Faster polling for better responsiveness
+    }, 1000); // Poll every 1 second for better responsiveness
 
     // Show AI option after 15 seconds
     const aiTimeout = setTimeout(() => {

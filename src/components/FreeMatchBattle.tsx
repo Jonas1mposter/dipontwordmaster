@@ -470,9 +470,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     await audioManager.warmup();
     
     addMatchDebugLog(`开始搜索自由对战 (玩家: ${profile.username})`, "info");
-    
-    // CRITICAL: Set waitingMatchId BEFORE matchStatus to ensure useEffect runs with correct state
-    setWaitingMatchId("queue-waiting");
     setMatchStatus("searching");
     setSearchTime(0);
     setShowAIOption(false);
@@ -605,7 +602,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       // Only rely on match_queue - when opponent calls find_match_in_queue,
       // the DB function will create the match and update both queue entries
       addMatchDebugLog("已加入匹配池，等待对手... (纯队列模式)", "info");
-      // waitingMatchId already set at the start of startSearch
+      
+      // Set marker to indicate we're waiting in queue - this triggers the polling useEffect
+      setWaitingMatchId("queue-waiting");
 
     } catch (error: any) {
       console.error("Match error:", error);

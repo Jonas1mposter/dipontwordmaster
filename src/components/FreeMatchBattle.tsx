@@ -561,12 +561,30 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         const result = queueResult[0];
         addMatchDebugLog(`服务器配对成功! 对局ID: ${result.new_match_id.slice(0, 8)}...`, "success");
         
-        // Fetch match details including opponent
-        const { data: matchData } = await supabase
-          .from("ranked_matches")
-          .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
-          .eq("id", result.new_match_id)
-          .single();
+        // Fetch match details with retry to ensure data consistency
+        let matchData = null;
+        for (let retry = 0; retry < 5; retry++) {
+          const { data, error: fetchError } = await supabase
+            .from("ranked_matches")
+            .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+            .eq("id", result.new_match_id)
+            .single();
+          
+          if (fetchError) {
+            addMatchDebugLog(`获取对局数据错误 (尝试${retry + 1}): ${fetchError.message}`, "error");
+          }
+          
+          if (data && data.player1 && data.player2) {
+            matchData = data;
+            addMatchDebugLog(`对局数据获取成功! p1=${data.player1?.username}, p2=${data.player2?.username}`, "success");
+            break;
+          }
+          
+          addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
+          if (retry < 4) {
+            await new Promise(r => setTimeout(r, 400));
+          }
+        }
 
         if (matchData) {
           const matchWords = await fetchMatchWords();
@@ -576,6 +594,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
               .from("ranked_matches")
               .update({ words: matchWords })
               .eq("id", result.new_match_id);
+            addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
           }
 
           const isPlayer1Matched = matchData.player1_id === profile.id;
@@ -593,6 +612,9 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           sounds.playMatchFound();
           searchLockRef.current = false;
           return;
+        } else {
+          addMatchDebugLog("❌ 5次重试后仍无法获取完整对局数据，进入轮询模式", "error");
+          // Fall through to queue waiting mode
         }
       }
 

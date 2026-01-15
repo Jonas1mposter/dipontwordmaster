@@ -985,18 +985,21 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       
       // IMMEDIATE POLLING: Start polling right here instead of waiting for useEffect
       // This ensures we don't miss any matches due to React state timing issues
-      addMatchDebugLog("启动即时轮询检查...", "info");
+      addMatchDebugLog("🚀 启动即时轮询检查...", "success");
       const startImmediatePolling = async () => {
         let pollCount = 0;
         const maxPolls = 120; // 2 minutes max
+        
+        addMatchDebugLog(`即时轮询: profile.id=${profile.id.slice(0, 8)}...`, "info");
         
         while (pollCount < maxPolls) {
           pollCount++;
           await new Promise(r => setTimeout(r, 1000));
           
           // Check if we're still searching
-          if (matchStatusRef.current !== "searching") {
-            addMatchDebugLog(`即时轮询#${pollCount}: 状态变更(${matchStatusRef.current})，停止轮询`, "info");
+          const currentStatus = matchStatusRef.current;
+          if (currentStatus !== "searching") {
+            addMatchDebugLog(`✅ 即时轮询#${pollCount}: 状态变为 ${currentStatus}，停止轮询`, "success");
             return;
           }
           
@@ -1183,14 +1186,16 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     // PURE QUEUE-BASED POLLING - No Realtime subscription needed
     // The match_queue table is the source of truth
     let pollCount = 0;
+    addMatchDebugLog(`🔄 useEffect轮询启动: profile=${currentProfileId.slice(0, 8)}..., waitingId=${currentWaitingId?.slice(0, 8) || 'null'}`, "success");
+    
     const pollInterval = setInterval(async () => {
       pollCount++;
       if (!isActive || matchJoinedLock) {
-        addMatchDebugLog(`轮询#${pollCount}: 跳过 (isActive=${isActive}, locked=${matchJoinedLock})`, "warn");
+        addMatchDebugLog(`[useEffect]轮询#${pollCount}: 跳过 (isActive=${isActive}, locked=${matchJoinedLock})`, "warn");
         return;
       }
       
-      addMatchDebugLog(`轮询#${pollCount}: 检查队列状态...`, "info");
+      addMatchDebugLog(`[useEffect]轮询#${pollCount}: 检查队列状态...`, "info");
       
       try {
         const { data: queueStatus, error: queueError } = await supabase.rpc('check_queue_status', {
@@ -1199,20 +1204,20 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         });
 
         if (queueError) {
-          addMatchDebugLog(`轮询#${pollCount}: RPC错误 - ${queueError.message}`, "error");
+          addMatchDebugLog(`[useEffect]轮询#${pollCount}: RPC错误 - ${queueError.message}`, "error");
           return;
         }
 
         if (!queueStatus || queueStatus.length === 0) {
-          addMatchDebugLog(`轮询#${pollCount}: 队列中无条目`, "warn");
+          addMatchDebugLog(`[useEffect]轮询#${pollCount}: 队列中无条目 (可能被清理或从未加入)`, "warn");
           return;
         }
 
         const status = queueStatus[0];
-        addMatchDebugLog(`轮询#${pollCount}: 状态=${status.queue_status}, match_id=${status.match_id?.slice(0, 8) || 'null'}`, "info");
+        addMatchDebugLog(`[useEffect]轮询#${pollCount}: 状态=${status.queue_status}, match_id=${status.match_id?.slice(0, 8) || 'null'}`, "info");
         
         if (status.queue_status === 'matched' && status.match_id && !matchJoinedLock) {
-          addMatchDebugLog(`🎉 轮询#${pollCount}: 匹配池发现对局! ${status.match_id.slice(0, 8)}...`, "success");
+          addMatchDebugLog(`🎉🎉 [useEffect]轮询#${pollCount}: 发现匹配! ${status.match_id.slice(0, 8)}...`, "success");
           matchJoinedLock = true;
           isActive = false;
           clearInterval(pollInterval); // Stop polling immediately

@@ -1580,6 +1580,25 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         console.log("[FreeReadySync] Opponent ready received:", data);
         setOpponentReady(true);
       })
+      .on('broadcast', { event: 'match_starting' }, (payload) => {
+        if (!isActive) return;
+        const data = payload.payload as any;
+        
+        // Ignore our own messages
+        if (data.playerId === profile.id) return;
+        
+        console.log("[FreeReadySync] Opponent started match, forcing start:", data);
+        // If opponent started match (timeout or both ready), we should also start
+        setMyReady(true);
+        setOpponentReady(true);
+        // Give a small delay then force start
+        setTimeout(() => {
+          if (isActive) {
+            console.log("[FreeReadySync] Force starting match via broadcast");
+            setMatchStatus("playing");
+          }
+        }, 500);
+      })
       .on('presence', { event: 'join' }, ({ key }) => {
         console.log("[FreeReadySync] Player joined presence:", key);
       })
@@ -1657,6 +1676,25 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     sendReady();
   }, [profile, matchId, myReady, readyChannel, sounds]);
   
+  // Broadcast match_starting to notify opponent
+  const broadcastMatchStarting = useCallback(async () => {
+    if (!profile || !readyChannel) return;
+    
+    try {
+      await readyChannel.send({
+        type: 'broadcast',
+        event: 'match_starting',
+        payload: {
+          playerId: profile.id,
+          timestamp: Date.now(),
+        }
+      });
+      console.log("[FreeReadySync] Broadcasted match_starting");
+    } catch (err) {
+      console.error("[FreeReadySync] Failed to broadcast match_starting:", err);
+    }
+  }, [profile, readyChannel]);
+  
   // Start match when both ready or timeout
   useEffect(() => {
     if (matchStatus !== "found") return;
@@ -1665,6 +1703,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     if (myReady && opponentReady) {
       console.log("Both players ready for free match, starting!");
       sounds.playMatchFound();
+      // Broadcast to ensure opponent also knows we're starting
+      broadcastMatchStarting();
       setTimeout(() => setMatchStatus("playing"), 1000);
       return;
     }
@@ -1672,6 +1712,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     // Auto-start on timeout if I'm ready
     if (vsCountdown === 0 && myReady) {
       console.log("Timeout reached, I'm ready - starting free match");
+      // CRITICAL: Broadcast to notify opponent that match is starting
+      broadcastMatchStarting();
       setMatchStatus("playing");
       return;
     }
@@ -1692,7 +1734,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       setOpponent(null);
       setWords([]);
     }
-  }, [matchStatus, myReady, opponentReady, vsCountdown, matchId]);
+  }, [matchStatus, myReady, opponentReady, vsCountdown, matchId, broadcastMatchStarting]);
 
   const speakWord = () => {
     if (words[currentWordIndex]) {

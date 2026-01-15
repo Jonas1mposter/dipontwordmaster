@@ -1981,6 +1981,25 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         console.log("[ReadySync] Opponent ready received:", data);
         setOpponentReady(true);
       })
+      .on('broadcast', { event: 'match_starting' }, (payload) => {
+        if (!isActive) return;
+        const data = payload.payload as any;
+        
+        // Ignore our own messages
+        if (data.playerId === profile.id) return;
+        
+        console.log("[ReadySync] Opponent started match, forcing start:", data);
+        // If opponent started match (timeout or both ready), we should also start
+        setMyReady(true);
+        setOpponentReady(true);
+        // Give a small delay then force start
+        setTimeout(() => {
+          if (isActive) {
+            console.log("[ReadySync] Force starting match via broadcast");
+            setMatchStatus("playing");
+          }
+        }, 500);
+      })
       .on('presence', { event: 'join' }, ({ key }) => {
         console.log("[ReadySync] Player joined presence:", key);
       })
@@ -2060,6 +2079,25 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   }, [profile, matchId, myReady, readyChannel, sounds]);
   
   // Start match when both ready or timeout
+  // Broadcast match_starting to notify opponent
+  const broadcastMatchStarting = useCallback(async () => {
+    if (!profile || !readyChannel) return;
+    
+    try {
+      await readyChannel.send({
+        type: 'broadcast',
+        event: 'match_starting',
+        payload: {
+          playerId: profile.id,
+          timestamp: Date.now(),
+        }
+      });
+      console.log("[ReadySync] Broadcasted match_starting");
+    } catch (err) {
+      console.error("[ReadySync] Failed to broadcast match_starting:", err);
+    }
+  }, [profile, readyChannel]);
+  
   useEffect(() => {
     if (matchStatus !== "found") return;
     
@@ -2067,6 +2105,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     if (myReady && opponentReady) {
       console.log("Both players ready, starting match!");
       sounds.playMatchFound();
+      // Broadcast to ensure opponent also knows we're starting
+      broadcastMatchStarting();
       setTimeout(() => setMatchStatus("playing"), 1000);
       return;
     }
@@ -2074,6 +2114,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     // Auto-start on timeout if I'm ready (opponent didn't confirm)
     if (vsCountdown === 0 && myReady) {
       console.log("Timeout reached, I'm ready - starting match");
+      // CRITICAL: Broadcast to notify opponent that match is starting
+      broadcastMatchStarting();
       setMatchStatus("playing");
       return;
     }
@@ -2094,7 +2136,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
       setOpponent(null);
       setWords([]);
     }
-  }, [matchStatus, myReady, opponentReady, vsCountdown, matchId]);
+  }, [matchStatus, myReady, opponentReady, vsCountdown, matchId, broadcastMatchStarting]);
 
   const speakWord = () => {
     if (words[currentWordIndex]) {

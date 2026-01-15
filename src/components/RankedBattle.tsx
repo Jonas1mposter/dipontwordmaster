@@ -311,6 +311,8 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
   // Cancel reason for display
   const [cancelReason, setCancelReason] = useState<string | null>(null);
   
+  const [vsCountdown, setVsCountdown] = useState(4); // 4-second VS screen countdown
+  
   const [rankChangeResult, setRankChangeResult] = useState<{
     starsChanged: number;
     promoted: boolean;
@@ -347,7 +349,28 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     matchStatusRef.current = matchStatus;
   }, [myFinished, matchFinished, myScore, opponentFinished, waitingMatchId, profile, matchStatus]);
 
-  // Full state reset function for error recovery
+  // VS screen countdown effect - auto-transition from found to playing
+  useEffect(() => {
+    if (matchStatus !== "found") {
+      setVsCountdown(4);
+      return;
+    }
+
+    // Countdown timer
+    const timer = setInterval(() => {
+      setVsCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setMatchStatus("playing");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [matchStatus]);
+
   const resetGameState = useCallback(() => {
     console.log("[RankedBattle] Resetting all game state for recovery");
     setMatchStatus("idle");
@@ -808,7 +831,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         // Setup first question with its quiz type
         setupQuizForWord(matchWords[0], types[0], matchWords);
         
-        setMatchStatus("playing");
+        setMatchStatus("found");
         sounds.playMatchFound();
         return true;
       } else {
@@ -951,7 +974,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
           if (matchWords.length > 0) {
             setupQuizForWord(matchWords[0], types[0], matchWords);
           }
-          setMatchStatus("playing");
+          setMatchStatus("found");
           sounds.playMatchFound();
           searchLockRef.current = false;
           return;
@@ -1068,7 +1091,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
                   setupQuizForWord(formattedWords[0] as Word, types[0], formattedWords as Word[]);
                 }
                 setWaitingMatchId(null);
-                setMatchStatus("playing");
+                setMatchStatus("found");
                 sounds.playMatchFound();
                 searchLockRef.current = false;
                 addMatchDebugLog("即时轮询匹配完成!", "success");
@@ -1164,7 +1187,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         setupQuizForWord(matchWords[0], types[0], matchWords);
       }
       setWaitingMatchId(null);
-      setMatchStatus("playing");
+      setMatchStatus("found");
       sounds.playMatchFound();
     };
 
@@ -2232,6 +2255,76 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         
         {/* Debug Panel */}
         <MatchDebugPanel enabled={debugMode} />
+      </div>
+    );
+  }
+
+  // Match found state - VS screen with 4-second countdown
+  if (matchStatus === "found") {
+    return (
+      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center relative overflow-hidden">
+        {/* VS Spark Effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {SPARK_POSITIONS.map((spark, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-primary rounded-full animate-ping"
+              style={{
+                left: spark.left,
+                top: spark.top,
+                animationDelay: spark.delay,
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="text-center relative z-10 px-4">
+          {/* Player cards */}
+          <div className="flex items-center justify-center gap-4 sm:gap-8 mb-8">
+            {/* Me */}
+            <div className="flex flex-col items-center animate-slide-in-left">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-2xl sm:text-3xl font-gaming text-primary-foreground shadow-2xl mb-3">
+                {profile?.username.charAt(0).toUpperCase()}
+              </div>
+              <p className="font-gaming text-lg sm:text-xl text-primary">{profile?.username}</p>
+              <p className="text-xs text-muted-foreground">Lv.{profile?.level}</p>
+            </div>
+
+            {/* VS */}
+            <div className="flex flex-col items-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl animate-pulse">
+                <span className="font-gaming text-2xl sm:text-3xl text-white">VS</span>
+              </div>
+              <div className="mt-3 px-4 py-2 bg-secondary/50 rounded-xl">
+                <span className="font-gaming text-2xl sm:text-3xl text-primary animate-countdown-pop" key={vsCountdown}>
+                  {vsCountdown}
+                </span>
+              </div>
+            </div>
+
+            {/* Opponent */}
+            <div className="flex flex-col items-center animate-slide-in-right">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-2xl sm:text-3xl font-gaming text-primary-foreground shadow-2xl mb-3">
+                {opponent?.username?.charAt(0).toUpperCase() || "?"}
+              </div>
+              <p className="font-gaming text-lg sm:text-xl text-neon-blue">{opponent?.username || "对手"}</p>
+              <p className="text-xs text-muted-foreground">Lv.{opponent?.level || "?"}</p>
+            </div>
+          </div>
+
+          {/* Match info */}
+          <div className="space-y-2 animate-fade-in">
+            <p className="text-muted-foreground">排位赛 · 准备开始</p>
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {profile?.grade}年级
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                10道题
+              </Badge>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

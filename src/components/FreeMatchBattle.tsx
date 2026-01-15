@@ -100,7 +100,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const [onlineCount, setOnlineCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [answerAnimation, setAnswerAnimation] = useState<'correct' | 'wrong' | null>(null);
-  const [vsCountdown, setVsCountdown] = useState(15); // Increased for ready confirmation
+  const [vsCountdown, setVsCountdown] = useState(15);
   
   // Real-time battle sync state
   const [isRealPlayer, setIsRealPlayer] = useState(false);
@@ -111,11 +111,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const [matchFinished, setMatchFinished] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
   const [battleChannel, setBattleChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
-  
-  // Ready confirmation states
-  const [myReady, setMyReady] = useState(false);
-  const [opponentReady, setOpponentReady] = useState(false);
-  const [readyChannel, setReadyChannel] = useState<ReturnType<typeof supabase.channel> | null>(null);
   
   // Cancel reason for display
   const [cancelReason, setCancelReason] = useState<string | null>(null);
@@ -221,8 +216,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                 const opts = generateOptions(matchWords[0].meaning, matchWords);
                 setOptions(opts);
               }
-              setMatchStatus("found");
-              // Ready confirmation will handle the transition to playing
+              setMatchStatus("playing");
             }
           }
         });
@@ -329,12 +323,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     });
     setWords(matchWords);
     setOptions(generateOptions(matchWords[0].meaning, matchWords));
-    setMatchStatus("found");
+    setMatchStatus("playing");
     sounds.playMatchFound();
-    
-    // AI matches: auto-set both as ready for instant start
-    setMyReady(true);
-    setOpponentReady(true);
   };
 
   // Try to join an existing free match (cross-grade) - with ELO-based matching
@@ -417,10 +407,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
         setIsPlayer1(false); // We joined, so we're player2
         setWords(matchWords);
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
-        setMatchStatus("found");
+        setMatchStatus("playing");
         sounds.playMatchFound();
-        // NOTE: Do NOT auto-transition to playing here!
-        // Both players need to confirm ready via the ready confirmation system
         return true;
       } else {
         console.log("Failed to join free match:", matchToJoin.id, joinError?.message);
@@ -521,10 +509,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
             setIsPlayer1(existingActiveMatch.player1_id === profile.id);
             setWords(matchWords);
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
-            setMatchStatus("found");
+            setMatchStatus("playing");
             sounds.playMatchFound();
-            // NOTE: For reconnection, skip ready confirmation - go straight to playing
-            setTimeout(() => setMatchStatus("playing"), 1000);
             addMatchDebugLog("重新连接到进行中的对局，释放锁", "success");
             searchLockRef.current = false;
             return;
@@ -610,7 +596,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           if (matchWords.length > 0) {
             setOptions(generateOptions(matchWords[0].meaning, matchWords));
           }
-          setMatchStatus("found");
+          setMatchStatus("playing");
           sounds.playMatchFound();
           searchLockRef.current = false;
           return;
@@ -716,7 +702,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
                   setOptions(generateOptions(matchWords[0].meaning, matchWords));
                 }
                 setWaitingMatchId(null);
-                setMatchStatus("found");
+                setMatchStatus("playing");
                 sounds.playMatchFound();
                 searchLockRef.current = false;
                 addMatchDebugLog("即时轮询匹配完成!", "success");
@@ -827,10 +813,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       if (matchWords.length > 0) {
         setOptions(generateOptions(matchWords[0].meaning, matchWords));
       }
-      setMatchStatus("found");
+      setMatchStatus("playing");
       sounds.playMatchFound();
-      // NOTE: Do NOT auto-transition to playing here!
-      // Both players need to confirm ready via the ready confirmation system
     };
 
     // PURE QUEUE-BASED POLLING - No Realtime subscription needed
@@ -1551,190 +1535,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     }
   }, [matchStatus]);
 
-  // Ready confirmation system - setup channel and timer
-  useEffect(() => {
-    if (matchStatus !== "found" || !matchId || !profile) return;
-    
-    // Reset ready states
-    setMyReady(false);
-    setOpponentReady(false);
-    setVsCountdown(15);
-    
-    let isActive = true;
-    
-    console.log("[FreeReadySync] Setting up channel for match:", matchId);
-    
-    // Setup ready channel with presence for better reliability
-    const channel = supabase.channel(`free-ready-sync-${matchId}`, {
-      config: {
-        presence: { key: profile.id },
-      },
-    })
-      .on('broadcast', { event: 'player_ready' }, (payload) => {
-        if (!isActive) return;
-        const data = payload.payload as any;
-        
-        // Ignore our own messages
-        if (data.playerId === profile.id) return;
-        
-        console.log("[FreeReadySync] Opponent ready received:", data);
-        setOpponentReady(true);
-      })
-      .on('broadcast', { event: 'match_starting' }, (payload) => {
-        if (!isActive) return;
-        const data = payload.payload as any;
-        
-        // Ignore our own messages
-        if (data.playerId === profile.id) return;
-        
-        console.log("[FreeReadySync] Opponent started match, forcing start:", data);
-        // If opponent started match (timeout or both ready), we should also start
-        setMyReady(true);
-        setOpponentReady(true);
-        // Give a small delay then force start
-        setTimeout(() => {
-          if (isActive) {
-            console.log("[FreeReadySync] Force starting match via broadcast");
-            setMatchStatus("playing");
-          }
-        }, 500);
-      })
-      .on('presence', { event: 'join' }, ({ key }) => {
-        console.log("[FreeReadySync] Player joined presence:", key);
-      })
-      .subscribe(async (status) => {
-        console.log("[FreeReadySync] Channel status:", status);
-        if (status === 'SUBSCRIBED') {
-          setReadyChannel(channel);
-          
-          // Track presence to ensure both players are connected
-          await channel.track({ 
-            online_at: new Date().toISOString(),
-            player_id: profile.id,
-          });
-          console.log("[FreeReadySync] Channel fully subscribed and tracking presence");
-        }
-      });
-    
-    // Countdown timer
-    const timer = setInterval(() => {
-      setVsCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    return () => {
-      isActive = false;
-      clearInterval(timer);
-      supabase.removeChannel(channel);
-      setReadyChannel(null);
-    };
-  }, [matchStatus, matchId, profile]);
-  
-  // Handle ready confirmation - with retry for channel not ready
-  const handleReady = useCallback(async () => {
-    if (!profile || !matchId || myReady) return;
-    
-    setMyReady(true);
-    sounds.playCorrect();
-    haptics.success();
-    
-    console.log("[FreeReadySync] Sending ready status, channel ready:", !!readyChannel);
-    
-    // Broadcast ready status with retry logic
-    const sendReady = async (retries = 3) => {
-      const channel = readyChannel;
-      if (channel) {
-        try {
-          await channel.send({
-            type: 'broadcast',
-            event: 'player_ready',
-            payload: {
-              playerId: profile.id,
-              ready: true,
-              timestamp: Date.now(),
-            }
-          });
-          console.log("[FreeReadySync] Ready status sent successfully");
-        } catch (err) {
-          console.error("[FreeReadySync] Failed to send ready:", err);
-          if (retries > 0) {
-            setTimeout(() => sendReady(retries - 1), 500);
-          }
-        }
-      } else if (retries > 0) {
-        // Channel not ready yet, retry after delay
-        console.log("[FreeReadySync] Channel not ready, retrying...");
-        setTimeout(() => sendReady(retries - 1), 500);
-      }
-    };
-    
-    sendReady();
-  }, [profile, matchId, myReady, readyChannel, sounds]);
-  
-  // Broadcast match_starting to notify opponent
-  const broadcastMatchStarting = useCallback(async () => {
-    if (!profile || !readyChannel) return;
-    
-    try {
-      await readyChannel.send({
-        type: 'broadcast',
-        event: 'match_starting',
-        payload: {
-          playerId: profile.id,
-          timestamp: Date.now(),
-        }
-      });
-      console.log("[FreeReadySync] Broadcasted match_starting");
-    } catch (err) {
-      console.error("[FreeReadySync] Failed to broadcast match_starting:", err);
-    }
-  }, [profile, readyChannel]);
-  
-  // Start match when both ready or timeout
-  useEffect(() => {
-    if (matchStatus !== "found") return;
-    
-    // Start when both ready (with a small delay so players can see the confirmation)
-    if (myReady && opponentReady) {
-      console.log("Both players ready for free match, starting!");
-      sounds.playMatchFound();
-      // Broadcast to ensure opponent also knows we're starting
-      broadcastMatchStarting();
-      setTimeout(() => setMatchStatus("playing"), 1000);
-      return;
-    }
-    
-    // Auto-start on timeout if I'm ready
-    if (vsCountdown === 0 && myReady) {
-      console.log("Timeout reached, I'm ready - starting free match");
-      // CRITICAL: Broadcast to notify opponent that match is starting
-      broadcastMatchStarting();
-      setMatchStatus("playing");
-      return;
-    }
-    
-    // If timeout and I'm not ready, cancel match
-    if (vsCountdown === 0 && !myReady) {
-      console.log("Timeout reached, I'm not ready - cancelling free match");
-      if (matchId) {
-        supabase
-          .from("ranked_matches")
-          .update({ status: "cancelled" })
-          .eq("id", matchId);
-      }
-      toast.error("准备超时，比赛已取消");
-      setCancelReason("你未在规定时间内点击「准备好了」，比赛已取消");
-      setMatchStatus("idle");
-      setMatchId(null);
-      setOpponent(null);
-      setWords([]);
-    }
-  }, [matchStatus, myReady, opponentReady, vsCountdown, matchId, broadcastMatchStarting]);
 
   const speakWord = () => {
     if (words[currentWordIndex]) {
@@ -2001,153 +1801,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     );
   }
 
-  // Found state
-  if (matchStatus === "found") {
-    return (
-      <div className="min-h-screen bg-background bg-grid-pattern flex items-center justify-center p-4 overflow-hidden relative">
-        {/* Background energy effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          {/* Left side glow */}
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-96 h-96 bg-neon-cyan/20 rounded-full blur-3xl animate-pulse" />
-          {/* Right side glow */}
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-96 h-96 bg-neon-green/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
-          {/* Center explosion */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-accent/10 rounded-full blur-2xl animate-vs-pulse" />
-        </div>
-
-        <div className="w-full max-w-5xl relative z-10">
-          <h2 className="font-gaming text-3xl mb-8 text-glow-cyan text-center animate-slide-up flex items-center justify-center gap-3">
-            <Swords className="w-8 h-8" /> 对手找到！<Swords className="w-8 h-8" />
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center justify-items-center">
-            {/* My Profile Card */}
-            <PlayerBattleCard 
-              profile={profile ? {
-                id: profile.id,
-                username: profile.username,
-                level: profile.level,
-                rank_tier: profile.rank_tier,
-                rank_stars: profile.rank_stars,
-                wins: profile.wins,
-                losses: profile.losses,
-                avatar_url: profile.avatar_url,
-              } : null}
-              variant="left"
-            />
-
-            {/* VS - Dramatic center animation with ready confirmation */}
-            <div className="flex flex-col items-center justify-center py-4 md:py-8 relative">
-              {/* Outer rings */}
-              <div className="absolute w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-accent/30 animate-energy-ring" />
-              <div className="absolute w-32 h-32 md:w-40 md:h-40 rounded-full border border-accent/20 animate-energy-ring" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
-              
-              {/* Sparks - using pre-computed positions, simplified animation */}
-              {FREE_SPARK_POSITIONS.map((spark, i) => (
-                <div
-                  key={i}
-                  className="absolute w-2 h-2 bg-accent rounded-full animate-pulse"
-                  style={{
-                    left: spark.left,
-                    top: spark.top,
-                  }}
-                />
-              ))}
-              
-              {/* VS badge */}
-              <div className="animate-vs-appear">
-                <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-br from-neon-cyan via-neon-green to-accent flex items-center justify-center shadow-2xl animate-vs-pulse">
-                  <span className="font-gaming text-3xl md:text-4xl text-background drop-shadow-lg">VS</span>
-                </div>
-              </div>
-              
-              {/* Ready button or waiting status */}
-              <div className="mt-4 md:mt-6">
-                {!myReady ? (
-                  <Button
-                    variant="hero"
-                    size="lg"
-                    onClick={handleReady}
-                    className="animate-pulse bg-gradient-to-r from-neon-cyan to-neon-green hover:from-neon-cyan/90 hover:to-neon-green/90"
-                  >
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    准备好了！
-                  </Button>
-                ) : (
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <CheckCircle className="w-5 h-5 text-success" />
-                      <span className="text-success font-gaming">已准备</span>
-                    </div>
-                    {!opponentReady && (
-                      <p className="text-sm text-muted-foreground animate-pulse">
-                        等待对手准备...
-                      </p>
-                    )}
-                    {opponentReady && (
-                      <p className="text-sm text-success animate-pulse">
-                        对手已准备！
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {/* Ready status indicators */}
-              <div className="flex items-center justify-center gap-8 mt-3">
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-3 h-3 rounded-full",
-                    myReady ? "bg-success animate-pulse" : "bg-muted"
-                  )} />
-                  <span className="text-xs text-muted-foreground">我</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">对手</span>
-                  <div className={cn(
-                    "w-3 h-3 rounded-full",
-                    opponentReady ? "bg-success animate-pulse" : "bg-muted"
-                  )} />
-                </div>
-              </div>
-              
-              {/* Countdown timer */}
-              <div className="mt-3">
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-background/80 border-2 border-neon-cyan/50 flex items-center justify-center shadow-lg">
-                  <span className={cn(
-                    "font-gaming text-2xl md:text-3xl",
-                    vsCountdown <= 5 ? "text-destructive animate-pulse" : "text-neon-cyan"
-                  )}>
-                    {vsCountdown}
-                  </span>
-                </div>
-              </div>
-              
-              <p className="text-muted-foreground mt-2 text-xs">
-                {myReady && opponentReady ? "即将开始..." : `${vsCountdown}秒后自动开始`}
-              </p>
-            </div>
-
-            {/* Opponent Profile Card */}
-            <PlayerBattleCard 
-              profile={opponent ? {
-                id: opponent.id,
-                username: opponent.username,
-                level: opponent.level,
-                rank_tier: opponent.rank_tier,
-                rank_stars: opponent.rank_stars,
-                wins: opponent.wins || 0,
-                losses: opponent.losses || 0,
-                avatar_url: opponent.avatar_url,
-                isAI: opponent.isAI,
-              } : null}
-              variant="right"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Playing state
   if (matchStatus === "playing") {

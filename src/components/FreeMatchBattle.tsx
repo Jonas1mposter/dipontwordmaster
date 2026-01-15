@@ -136,6 +136,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   const matchFinishedRef = useRef(false);
   const opponentFinishedRef = useRef(false);
   const waitingMatchIdRef = useRef<string | null>(null); // CRITICAL: Use ref to avoid useEffect re-runs
+  const matchStatusRef = useRef(matchStatus); // Ref to access matchStatus in async functions
   
   // CRITICAL: Global lock to prevent joining multiple matches
   const globalMatchLockRef = useRef(false);
@@ -152,6 +153,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
   useEffect(() => { activeMatchIdRef.current = matchId; }, [matchId]);
   useEffect(() => { waitingMatchIdRef.current = waitingMatchId; }, [waitingMatchId]);
   useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => { matchStatusRef.current = matchStatus; }, [matchStatus]);
 
   // Handle reconnect to an existing match
   const reconnectInitialized = useRef(false);
@@ -619,7 +621,6 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       }
 
       // No immediate match - we're in the queue, set up waiting state
-      // No immediate match - we're in the queue, set up waiting state
       // CRITICAL: Do NOT create a ranked_matches record here!
       // Only rely on match_queue - when opponent calls find_match_in_queue,
       // the DB function will create the match and update both queue entries
@@ -627,6 +628,112 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
       
       // Set marker to indicate we're waiting in queue - this triggers the polling useEffect
       setWaitingMatchId("queue-waiting");
+      
+      // IMMEDIATE POLLING: Start polling right here instead of waiting for useEffect
+      // This ensures we don't miss any matches due to React state timing issues
+      addMatchDebugLog("启动即时轮询检查...", "info");
+      const startImmediatePolling = async () => {
+        let pollCount = 0;
+        const maxPolls = 120; // 2 minutes max
+        
+        while (pollCount < maxPolls) {
+          pollCount++;
+          await new Promise(r => setTimeout(r, 1000));
+          
+          // Check if we're still searching
+          if (matchStatusRef.current !== "searching") {
+            addMatchDebugLog(`即时轮询#${pollCount}: 状态变更(${matchStatusRef.current})，停止轮询`, "info");
+            return;
+          }
+          
+          addMatchDebugLog(`即时轮询#${pollCount}: 检查队列状态...`, "info");
+          
+          try {
+            const { data: queueStatus, error: queueError } = await supabase.rpc('check_queue_status', {
+              p_profile_id: profile.id,
+              p_match_type: 'free',
+            });
+            
+            if (queueError) {
+              addMatchDebugLog(`即时轮询#${pollCount}: RPC错误 - ${queueError.message}`, "error");
+              continue;
+            }
+            
+            if (!queueStatus || queueStatus.length === 0) {
+              addMatchDebugLog(`即时轮询#${pollCount}: 队列中无条目`, "warn");
+              continue;
+            }
+            
+            const status = queueStatus[0];
+            addMatchDebugLog(`即时轮询#${pollCount}: 状态=${status.queue_status}, match_id=${status.match_id?.slice(0, 8) || 'null'}`, "info");
+            
+            if (status.queue_status === 'matched' && status.match_id) {
+              addMatchDebugLog(`🎉 即时轮询#${pollCount}: 发现匹配! ${status.match_id.slice(0, 8)}...`, "success");
+              
+              // Fetch full match data with retry
+              let matchData = null;
+              for (let retry = 0; retry < 5; retry++) {
+                const { data, error: fetchError } = await supabase
+                  .from("ranked_matches")
+                  .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
+                  .eq("id", status.match_id)
+                  .single();
+                
+                if (data && data.player1 && data.player2) {
+                  matchData = data;
+                  addMatchDebugLog(`对局数据获取成功! p1=${data.player1?.username}, p2=${data.player2?.username}`, "success");
+                  break;
+                }
+                
+                if (retry < 4) {
+                  addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
+                  await new Promise(r => setTimeout(r, 400));
+                }
+              }
+              
+              if (matchData) {
+                const isPlayer1Matched = matchData.player1_id === profile.id;
+                const opponentData = isPlayer1Matched ? matchData.player2 : matchData.player1;
+                
+                // Get words
+                let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
+                if (matchWords.length === 0) {
+                  matchWords = await fetchMatchWords();
+                  if (matchWords.length > 0) {
+                    await supabase
+                      .from("ranked_matches")
+                      .update({ words: matchWords })
+                      .eq("id", status.match_id);
+                  }
+                }
+                
+                setMatchId(status.match_id);
+                setOpponent(opponentData);
+                setIsRealPlayer(true);
+                setIsPlayer1(isPlayer1Matched);
+                setWords(matchWords);
+                if (matchWords.length > 0) {
+                  setOptions(generateOptions(matchWords[0].meaning, matchWords));
+                }
+                setWaitingMatchId(null);
+                setMatchStatus("found");
+                sounds.playMatchFound();
+                searchLockRef.current = false;
+                addMatchDebugLog("即时轮询匹配完成!", "success");
+                return;
+              }
+            }
+          } catch (err) {
+            addMatchDebugLog(`即时轮询#${pollCount}: 异常 - ${err}`, "error");
+          }
+        }
+        
+        addMatchDebugLog("即时轮询超时，显示AI选项", "warn");
+        setShowAIOption(true);
+      };
+      
+      // Start polling in the background (don't await)
+      startImmediatePolling();
 
     } catch (error: any) {
       console.error("Match error:", error);

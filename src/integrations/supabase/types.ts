@@ -702,6 +702,7 @@ export type Database = {
           free_match_wins: number
           grade: number
           id: string
+          last_energy_restore: string | null
           level: number
           losses: number
           max_combo: number | null
@@ -732,6 +733,7 @@ export type Database = {
           free_match_wins?: number
           grade: number
           id?: string
+          last_energy_restore?: string | null
           level?: number
           losses?: number
           max_combo?: number | null
@@ -762,6 +764,7 @@ export type Database = {
           free_match_wins?: number
           grade?: number
           id?: string
+          last_energy_restore?: string | null
           level?: number
           losses?: number
           max_combo?: number | null

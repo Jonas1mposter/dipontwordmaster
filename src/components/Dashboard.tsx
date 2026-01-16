@@ -9,6 +9,8 @@ import { useNameCardChecker } from "@/hooks/useNameCardChecker";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
+import MathLevelProgress from "./MathLevelProgress";
+import MathWordLearning from "./MathWordLearning";
 import LeaderboardTabs from "./LeaderboardTabs";
 import DailyQuest from "./DailyQuest";
 import ChallengeArena from "./ChallengeArena";
@@ -28,7 +30,7 @@ import SpectateView from "./SpectateView";
 import MatchHistory from "./MatchHistory";
 import { ReconnectDialog } from "./ReconnectDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History } from "lucide-react";
+import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
 
@@ -52,10 +54,15 @@ const Dashboard = ({
     checkAndAwardBadges
   } = useBadgeChecker(profile);
   const checkNameCards = useNameCardChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
+  } | null>(null);
+  const [selectedMathLevel, setSelectedMathLevel] = useState<{
+    id: string;
+    name: string;
+    words: any[];
   } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [friendBattleMatchId, setFriendBattleMatchId] = useState<string | null>(null);
@@ -94,6 +101,19 @@ const Dashboard = ({
       checkAndAwardBadges();
       checkNameCards();
     }, 500);
+  };
+
+  // Handle math level selection
+  const handleSelectMathLevel = (levelId: string, levelName: string, words: any[]) => {
+    setSelectedMathLevel({ id: levelId, name: levelName, words });
+    setActiveView("mathlearn");
+  };
+
+  const handleBackFromMathLearning = () => {
+    setSelectedMathLevel(null);
+    setActiveView("learn");
+    setRefreshKey(prev => prev + 1);
+    refreshProfile();
   };
 
   // Handle friend battle start
@@ -223,6 +243,17 @@ const Dashboard = ({
   }
   if (activeView === "learn" && selectedLevel) {
     return <WordLearning levelId={selectedLevel.id} levelName={selectedLevel.name} onBack={handleBackFromLearning} onComplete={handleBackFromLearning} />;
+  }
+
+  // Math word learning mode
+  if (activeView === "mathlearn" && selectedMathLevel) {
+    return <MathWordLearning 
+      levelId={selectedMathLevel.id} 
+      levelName={selectedMathLevel.name} 
+      words={selectedMathLevel.words}
+      onBack={handleBackFromMathLearning} 
+      onComplete={handleBackFromMathLearning} 
+    />;
   }
 
   // Player data from profile or default
@@ -366,9 +397,18 @@ const Dashboard = ({
             </div>
           </div>}
 
-        {activeView === "learn" && <div className="max-w-3xl mx-auto">
-            <h2 className="font-gaming text-xl mb-6">选择关卡</h2>
-            <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
+        {activeView === "learn" && <div className="max-w-3xl mx-auto space-y-6">
+            {/* Regular vocabulary section */}
+            <div>
+              <h2 className="font-gaming text-xl mb-4">📚 {grade}年级单词</h2>
+              <LevelProgress key={refreshKey} grade={grade} onSelectLevel={handleSelectLevel} />
+            </div>
+            
+            {/* Math vocabulary section */}
+            <div className="pt-4 border-t border-border/50">
+              <h2 className="font-gaming text-xl mb-4">🔢 0580数学词汇</h2>
+              <MathLevelProgress key={`math-${refreshKey}`} onSelectLevel={handleSelectMathLevel} />
+            </div>
           </div>}
 
         {activeView === "leaderboard" && <div className="max-w-2xl mx-auto">

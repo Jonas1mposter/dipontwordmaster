@@ -349,7 +349,7 @@ const Dashboard = ({
         {activeView === "home" && <div className="grid lg:grid-cols-3 gap-6">
             {/* Left Column - Player Stats & Rank & Quests */}
             <div className="space-y-6">
-              <PlayerStats {...playerData} />
+              <PlayerStats {...playerData} profileId={profile?.id} onEnergyPurchased={refreshProfile} />
               {profile && <RankDisplay tier={profile.rank_tier as "bronze" | "silver" | "gold" | "platinum" | "diamond" | "champion"} stars={profile.rank_stars} wins={profile.wins} losses={profile.losses} />}
               <DailyQuest key={refreshKey} onQuestUpdate={() => refreshProfile()} />
             </div>

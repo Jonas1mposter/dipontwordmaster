@@ -1,7 +1,9 @@
+import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, Star, Trophy, Flame } from "lucide-react";
+import { Zap, Star, Trophy, Flame, Clock } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PlayerStatsProps {
   username: string;
@@ -15,6 +17,23 @@ interface PlayerStatsProps {
   rank: string;
 }
 
+// Calculate time until midnight (next energy restore)
+const getTimeUntilMidnight = () => {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return midnight.getTime() - now.getTime();
+};
+
+// Format milliseconds to HH:MM:SS
+const formatCountdown = (ms: number) => {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
 const PlayerStats = ({
   username,
   level,
@@ -26,8 +45,19 @@ const PlayerStats = ({
   streak,
   rank,
 }: PlayerStatsProps) => {
+  const [countdown, setCountdown] = useState(getTimeUntilMidnight());
   const xpProgress = (xp / xpToNextLevel) * 100;
   const energyProgress = (energy / maxEnergy) * 100;
+  const isEnergyFull = energy >= maxEnergy;
+
+  // Update countdown every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown(getTimeUntilMidnight());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const getRankVariant = (rank: string) => {
     switch (rank.toLowerCase()) {
@@ -93,16 +123,31 @@ const PlayerStats = ({
           <Progress value={xpProgress} variant="xp" className="h-2" />
         </div>
 
-        {/* Energy Bar */}
+        {/* Energy Bar with Countdown */}
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Zap className="w-3 h-3 text-neon-cyan" />
               能量值
             </span>
-            <span className="text-xs font-gaming text-neon-cyan">
-              {energy} / {maxEnergy}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-gaming text-neon-cyan">
+                {energy} / {maxEnergy}
+              </span>
+              {!isEnergyFull && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5 cursor-help">
+                      <Clock className="w-3 h-3" />
+                      <span className="font-mono text-[10px]">{formatCountdown(countdown)}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>每天0点能量自动恢复满</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
           <Progress value={energyProgress} className="h-2 [&>div]:bg-neon-cyan" />
         </div>

@@ -1877,7 +1877,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         }
       }
       
-      // Also check if match was marked completed
+      // Check if match was marked completed
       if (matchData.status === "completed" && !matchFinishedRef.current) {
         console.log("Polling: Match completed, syncing final state");
         setOpponentFinished(true);
@@ -1886,6 +1886,38 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         if (myFinishedRef.current) {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
+      }
+      
+      // Check if opponent abandoned/cancelled - immediately end match with win
+      if (matchData.status === "cancelled" && !matchFinishedRef.current) {
+        console.log("Polling: Opponent abandoned match, awarding win");
+        matchFinishedRef.current = true;
+        setMatchFinished(true);
+        setMatchStatus("finished");
+        setIsWinner(true);
+        setOpponentScore(actualOpponentScore);
+        
+        // Award rewards for win by abandonment using updateProfileWithXp
+        if (profile) {
+          const currentTier = (profile.rank_tier || "bronze") as RankTier;
+          const tierIndex = TIER_ORDER.indexOf(currentTier);
+          const tierMultiplier = tierIndex + 1;
+          const xpGain = 30 * tierMultiplier;
+          const coinGain = 20 * tierMultiplier;
+          
+          await updateProfileWithXp(
+            profile.id,
+            profile.level,
+            profile.xp,
+            profile.xp_to_next_level,
+            xpGain,
+            {
+              coins: profile.coins + coinGain,
+              wins: profile.wins + 1,
+            }
+          );
+        }
+        return;
       }
     }, 4000); // Poll every 4 seconds (optimized for server capacity)
 

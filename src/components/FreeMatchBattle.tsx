@@ -1509,6 +1509,35 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
           finishMatchWithRealPlayer(myScoreRef.current, actualOpponentScore);
         }
       }
+      
+      // Check if opponent abandoned/cancelled - immediately end match with win
+      if (matchData.status === "cancelled" && !matchFinishedRef.current) {
+        console.log("Polling: Opponent abandoned free match, awarding win");
+        matchFinishedRef.current = true;
+        setMatchFinished(true);
+        setMatchStatus("finished");
+        setIsWinner(true);
+        setOpponentScore(actualOpponentScore);
+        
+        // Award rewards for win by abandonment using updateProfileWithXp
+        if (profile) {
+          const xpGain = 6; // Win reward for free match
+          const coinGain = 3;
+          
+          await updateProfileWithXp(
+            profile.id,
+            profile.level,
+            profile.xp,
+            profile.xp_to_next_level,
+            xpGain,
+            {
+              coins: profile.coins + coinGain,
+              free_match_wins: profile.free_match_wins + 1,
+            }
+          );
+        }
+        return;
+      }
     }, 2000); // Reduced from 4s to 2s for faster sync
 
     return () => {

@@ -25,6 +25,7 @@ interface Profile {
   elo_free: number;
   free_match_wins: number;
   free_match_losses: number;
+  last_energy_restore: string | null;
 }
 
 interface AuthContextType {
@@ -43,6 +44,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if energy should be restored (new day)
+  const checkAndRestoreEnergy = async (profileData: Profile) => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const lastRestore = profileData.last_energy_restore;
+    
+    // If last restore was before today, restore energy to max
+    if (!lastRestore || lastRestore < today) {
+      console.log("[Auth] New day detected, restoring energy to max");
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          energy: profileData.max_energy,
+          last_energy_restore: today
+        })
+        .eq("id", profileData.id);
+      
+      if (error) {
+        console.error("[Auth] Error restoring energy:", error);
+        return profileData;
+      }
+      
+      return {
+        ...profileData,
+        energy: profileData.max_energy,
+        last_energy_restore: today
+      };
+    }
+    
+    return profileData;
+  };
 
   const fetchProfile = async (userId: string, userEmail?: string) => {
     console.log("[Auth] Fetching profile for user:", userId);
@@ -79,6 +111,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       console.log("[Auth] Created new profile:", newProfile);
       return newProfile as Profile;
+    }
+    
+    // Check and restore energy if new day
+    if (data) {
+      return await checkAndRestoreEnergy(data as Profile);
     }
     
     return data as Profile;

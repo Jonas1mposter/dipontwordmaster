@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, Star, Trophy, Flame, Clock } from "lucide-react";
+import { Zap, Star, Trophy, Flame, Clock, Plus } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import EnergyPurchaseDialog from "./EnergyPurchaseDialog";
 
 interface PlayerStatsProps {
   username: string;
@@ -15,6 +17,8 @@ interface PlayerStatsProps {
   coins: number;
   streak: number;
   rank: string;
+  profileId?: string;
+  onEnergyPurchased?: () => void;
 }
 
 // Calculate time until midnight (next energy restore)
@@ -44,8 +48,11 @@ const PlayerStats = ({
   coins,
   streak,
   rank,
+  profileId,
+  onEnergyPurchased,
 }: PlayerStatsProps) => {
   const [countdown, setCountdown] = useState(getTimeUntilMidnight());
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const xpProgress = (xp / xpToNextLevel) * 100;
   const energyProgress = (energy / maxEnergy) * 100;
   const isEnergyFull = energy >= maxEnergy;
@@ -123,7 +130,7 @@ const PlayerStats = ({
           <Progress value={xpProgress} variant="xp" className="h-2" />
         </div>
 
-        {/* Energy Bar with Countdown */}
+        {/* Energy Bar with Countdown and Purchase */}
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -147,10 +154,40 @@ const PlayerStats = ({
                   </TooltipContent>
                 </Tooltip>
               )}
+              {profileId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 rounded-full bg-neon-cyan/10 hover:bg-neon-cyan/20 border border-neon-cyan/30"
+                      onClick={() => setShowPurchaseDialog(true)}
+                    >
+                      <Plus className="w-3 h-3 text-neon-cyan" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>购买能量</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </div>
           <Progress value={energyProgress} className="h-2 [&>div]:bg-neon-cyan" />
         </div>
+
+        {/* Energy Purchase Dialog */}
+        {profileId && (
+          <EnergyPurchaseDialog
+            open={showPurchaseDialog}
+            onOpenChange={setShowPurchaseDialog}
+            currentEnergy={energy}
+            maxEnergy={maxEnergy}
+            coins={coins}
+            profileId={profileId}
+            onPurchaseSuccess={onEnergyPurchased || (() => {})}
+          />
+        )}
 
         {/* Coins */}
         <div className="flex items-center justify-between bg-accent/10 rounded-lg px-4 py-3 border border-accent/20">

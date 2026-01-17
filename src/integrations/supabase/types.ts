@@ -982,6 +982,93 @@ export type Database = {
         }
         Relationships: []
       }
+      science_learning_progress: {
+        Row: {
+          correct_count: number | null
+          created_at: string
+          id: string
+          incorrect_count: number | null
+          last_reviewed_at: string | null
+          mastery_level: number | null
+          profile_id: string
+          updated_at: string
+          word_id: string
+        }
+        Insert: {
+          correct_count?: number | null
+          created_at?: string
+          id?: string
+          incorrect_count?: number | null
+          last_reviewed_at?: string | null
+          mastery_level?: number | null
+          profile_id: string
+          updated_at?: string
+          word_id: string
+        }
+        Update: {
+          correct_count?: number | null
+          created_at?: string
+          id?: string
+          incorrect_count?: number | null
+          last_reviewed_at?: string | null
+          mastery_level?: number | null
+          profile_id?: string
+          updated_at?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "science_learning_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "science_learning_progress_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: false
+            referencedRelation: "science_words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      science_words: {
+        Row: {
+          created_at: string
+          definition: string | null
+          id: string
+          meaning: string
+          phonetic: string | null
+          subject: string
+          tier: number | null
+          topic: string | null
+          word: string
+        }
+        Insert: {
+          created_at?: string
+          definition?: string | null
+          id?: string
+          meaning: string
+          phonetic?: string | null
+          subject?: string
+          tier?: number | null
+          topic?: string | null
+          word: string
+        }
+        Update: {
+          created_at?: string
+          definition?: string | null
+          id?: string
+          meaning?: string
+          phonetic?: string | null
+          subject?: string
+          tier?: number | null
+          topic?: string | null
+          word?: string
+        }
+        Relationships: []
+      }
       season_pass_items: {
         Row: {
           created_at: string

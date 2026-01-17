@@ -11,6 +11,8 @@ import PlayerStats from "./PlayerStats";
 import LevelProgress from "./LevelProgress";
 import MathLevelProgress from "./MathLevelProgress";
 import MathWordLearning from "./MathWordLearning";
+import ScienceLevelProgress from "./ScienceLevelProgress";
+import ScienceWordLearning from "./ScienceWordLearning";
 import LeaderboardTabs from "./LeaderboardTabs";
 import DailyQuest from "./DailyQuest";
 import ChallengeArena from "./ChallengeArena";
@@ -30,7 +32,7 @@ import SpectateView from "./SpectateView";
 import MatchHistory from "./MatchHistory";
 import { ReconnectDialog } from "./ReconnectDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator } from "lucide-react";
+import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
 
@@ -54,12 +56,17 @@ const Dashboard = ({
     checkAndAwardBadges
   } = useBadgeChecker(profile);
   const checkNameCards = useNameCardChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "sciencelearn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [selectedMathLevel, setSelectedMathLevel] = useState<{
+    id: string;
+    name: string;
+    words: any[];
+  } | null>(null);
+  const [selectedScienceLevel, setSelectedScienceLevel] = useState<{
     id: string;
     name: string;
     words: any[];
@@ -111,6 +118,19 @@ const Dashboard = ({
 
   const handleBackFromMathLearning = () => {
     setSelectedMathLevel(null);
+    setActiveView("learn");
+    setRefreshKey(prev => prev + 1);
+    refreshProfile();
+  };
+
+  // Handle science level selection
+  const handleSelectScienceLevel = (levelId: string, levelName: string, words: any[]) => {
+    setSelectedScienceLevel({ id: levelId, name: levelName, words });
+    setActiveView("sciencelearn");
+  };
+
+  const handleBackFromScienceLearning = () => {
+    setSelectedScienceLevel(null);
     setActiveView("learn");
     setRefreshKey(prev => prev + 1);
     refreshProfile();
@@ -253,6 +273,17 @@ const Dashboard = ({
       words={selectedMathLevel.words}
       onBack={handleBackFromMathLearning} 
       onComplete={handleBackFromMathLearning} 
+    />;
+  }
+
+  // Science word learning mode
+  if (activeView === "sciencelearn" && selectedScienceLevel) {
+    return <ScienceWordLearning 
+      levelId={selectedScienceLevel.id} 
+      levelName={selectedScienceLevel.name} 
+      words={selectedScienceLevel.words}
+      onBack={handleBackFromScienceLearning} 
+      onComplete={handleBackFromScienceLearning} 
     />;
   }
 
@@ -408,6 +439,12 @@ const Dashboard = ({
             <div className="pt-4 border-t border-border/50">
               <h2 className="font-gaming text-xl mb-4">🔢 0580数学词汇</h2>
               <MathLevelProgress key={`math-${refreshKey}`} onSelectLevel={handleSelectMathLevel} />
+            </div>
+
+            {/* Science vocabulary section */}
+            <div className="pt-4 border-t border-border/50">
+              <h2 className="font-gaming text-xl mb-4">🧪 IGCSE科学词汇</h2>
+              <ScienceLevelProgress key={`science-${refreshKey}`} onSelectLevel={handleSelectScienceLevel} />
             </div>
           </div>}
 

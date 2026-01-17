@@ -443,7 +443,7 @@ const Dashboard = ({
 
             {/* Science vocabulary section */}
             <div className="pt-4 border-t border-border/50">
-              <h2 className="font-gaming text-xl mb-4">🧪 IGCSE科学词汇</h2>
+              <h2 className="font-gaming text-xl mb-4">🧪 科学词汇</h2>
               <ScienceLevelProgress key={`science-${refreshKey}`} onSelectLevel={handleSelectScienceLevel} />
             </div>
           </div>}

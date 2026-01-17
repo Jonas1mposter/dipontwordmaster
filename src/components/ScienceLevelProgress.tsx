@@ -41,7 +41,7 @@ const SUBJECT_CONFIG: Record<string, { name: string; color: string }> = {
 
 const ScienceLevelProgress = ({ onSelectLevel }: ScienceLevelProgressProps) => {
   const { profile } = useAuth();
-  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set(["Biology"]));
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set(["Biology", "Chemistry", "Physics"]));
 
   // Fetch science words
   const { data: allWords = [], isLoading: wordsLoading } = useQuery({
@@ -80,7 +80,7 @@ const ScienceLevelProgress = ({ onSelectLevel }: ScienceLevelProgressProps) => {
 
   const loading = wordsLoading || progressLoading;
 
-  // Group words by subject
+  // Group words by subject - all subjects are unlocked
   const subjectUnits = useMemo(() => {
     const subjectGroups: Record<string, ScienceWord[]> = {};
     
@@ -92,9 +92,8 @@ const ScienceLevelProgress = ({ onSelectLevel }: ScienceLevelProgressProps) => {
     });
 
     const units: SubjectUnit[] = [];
-    let previousUnlocked = true;
 
-    // Define subject order
+    // Define subject order - all unlocked
     const subjectOrder = ["Biology", "Chemistry", "Physics"];
     
     subjectOrder.forEach((subject) => {
@@ -102,16 +101,13 @@ const ScienceLevelProgress = ({ onSelectLevel }: ScienceLevelProgressProps) => {
       
       const words = subjectGroups[subject];
       const completedCount = words.filter(w => userProgress[w.id]?.mastery_level >= 1).length;
-      const isUnlocked = previousUnlocked;
 
       units.push({
         subject,
         words,
-        isUnlocked,
+        isUnlocked: true, // All subjects are unlocked
         completedCount,
       });
-
-      previousUnlocked = completedCount === words.length;
     });
 
     return units;
@@ -188,7 +184,7 @@ const ScienceLevelProgress = ({ onSelectLevel }: ScienceLevelProgressProps) => {
       <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-sm">
         <FlaskConical className="w-4 h-4 text-green-500 flex-shrink-0" />
         <span className="text-muted-foreground">
-          <span className="text-foreground font-medium">IGCSE 科学词汇</span> - Biology, Chemistry, Physics
+          <span className="text-foreground font-medium">科学词汇</span> - 生物、化学、物理可同时学习
         </span>
       </div>
 

@@ -16,7 +16,8 @@ import {
   Target,
   BookOpen,
   Sparkles,
-  Gift
+  Gift,
+  RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,7 @@ const ChallengeArena = ({ grade, currentClass, profileId }: ChallengeArenaProps)
   const [gradeChallenges, setGradeChallenges] = useState<GradeChallengeData[]>([]);
   const [activeSeason, setActiveSeason] = useState<SeasonData | null>(null);
   const [rewards, setRewards] = useState<ChallengeReward[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -135,6 +137,25 @@ const ChallengeArena = ({ grade, currentClass, profileId }: ChallengeArenaProps)
       console.error("Error fetching challenge data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefreshStats = async () => {
+    setRefreshing(true);
+    try {
+      const response = await supabase.functions.invoke('update-challenge-stats');
+      
+      if (response.error) {
+        throw response.error;
+      }
+      
+      toast.success("排名数据已更新！");
+      await fetchChallengeData();
+    } catch (error) {
+      console.error("Error refreshing stats:", error);
+      toast.error("更新排名失败，请稍后重试");
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -551,10 +572,22 @@ const ChallengeArena = ({ grade, currentClass, profileId }: ChallengeArenaProps)
       {/* Challenge Tabs */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="w-6 h-6 text-amber-500" />
-            挑战赛
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="w-6 h-6 text-amber-500" />
+              挑战赛
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshStats}
+              disabled={refreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+              {refreshing ? "更新中..." : "刷新排名"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

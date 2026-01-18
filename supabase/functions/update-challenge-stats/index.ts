@@ -60,9 +60,19 @@ serve(async (req) => {
         continue;
       }
 
-      // Get learning progress for accuracy calculation
+      // Get English learning progress
       const { data: learningProgress } = await supabase
         .from("learning_progress")
+        .select("profile_id, correct_count, incorrect_count");
+
+      // Get Math learning progress
+      const { data: mathLearningProgress } = await supabase
+        .from("math_learning_progress")
+        .select("profile_id, correct_count, incorrect_count");
+
+      // Get Science learning progress
+      const { data: scienceLearningProgress } = await supabase
+        .from("science_learning_progress")
         .select("profile_id, correct_count, incorrect_count");
 
       // Get level progress for completed levels
@@ -71,19 +81,62 @@ serve(async (req) => {
         .select("profile_id, status")
         .eq("status", "completed");
 
-      // Create maps for quick lookup
+      // Create maps for quick lookup - combining all three subjects
       const learningMap = new Map<string, { correct: number; total: number }>();
+      
+      // Process English learning progress
       learningProgress?.forEach((lp) => {
         const existing = learningMap.get(lp.profile_id) || { correct: 0, total: 0 };
         learningMap.set(lp.profile_id, {
-          correct: existing.correct + lp.correct_count,
-          total: existing.total + lp.correct_count + lp.incorrect_count,
+          correct: existing.correct + (lp.correct_count || 0),
+          total: existing.total + (lp.correct_count || 0) + (lp.incorrect_count || 0),
         });
       });
 
+      // Process Math learning progress
+      mathLearningProgress?.forEach((lp) => {
+        const existing = learningMap.get(lp.profile_id) || { correct: 0, total: 0 };
+        learningMap.set(lp.profile_id, {
+          correct: existing.correct + (lp.correct_count || 0),
+          total: existing.total + (lp.correct_count || 0) + (lp.incorrect_count || 0),
+        });
+      });
+
+      // Process Science learning progress
+      scienceLearningProgress?.forEach((lp) => {
+        const existing = learningMap.get(lp.profile_id) || { correct: 0, total: 0 };
+        learningMap.set(lp.profile_id, {
+          correct: existing.correct + (lp.correct_count || 0),
+          total: existing.total + (lp.correct_count || 0) + (lp.incorrect_count || 0),
+        });
+      });
+
+      // Count completed levels per user (for English vocab levels)
       const levelMap = new Map<string, number>();
       levelProgress?.forEach((lp) => {
         levelMap.set(lp.profile_id, (levelMap.get(lp.profile_id) || 0) + 1);
+      });
+
+      // Count math words mastered (mastery_level >= 1) as "levels"
+      const { data: mathMastered } = await supabase
+        .from("math_learning_progress")
+        .select("profile_id")
+        .gte("mastery_level", 1);
+
+      const mathMasteredMap = new Map<string, number>();
+      mathMastered?.forEach((m) => {
+        mathMasteredMap.set(m.profile_id, (mathMasteredMap.get(m.profile_id) || 0) + 1);
+      });
+
+      // Count science words mastered (mastery_level >= 1) as "levels"
+      const { data: scienceMastered } = await supabase
+        .from("science_learning_progress")
+        .select("profile_id")
+        .gte("mastery_level", 1);
+
+      const scienceMasteredMap = new Map<string, number>();
+      scienceMastered?.forEach((m) => {
+        scienceMasteredMap.set(m.profile_id, (scienceMasteredMap.get(m.profile_id) || 0) + 1);
       });
 
       // Aggregate by class
@@ -106,13 +159,17 @@ serve(async (req) => {
 
       profiles?.forEach((profile) => {
         const learning = learningMap.get(profile.id) || { correct: 0, total: 0 };
-        const levelsCompleted = levelMap.get(profile.id) || 0;
+        const englishLevelsCompleted = levelMap.get(profile.id) || 0;
+        // Count 10 mastered words as 1 "level" for math and science
+        const mathLevelsCompleted = Math.floor((mathMasteredMap.get(profile.id) || 0) / 10);
+        const scienceLevelsCompleted = Math.floor((scienceMasteredMap.get(profile.id) || 0) / 10);
+        const totalLevelsCompleted = englishLevelsCompleted + mathLevelsCompleted + scienceLevelsCompleted;
 
         // Update grade stats
         gradeStats.total_xp += profile.xp || 0;
         gradeStats.total_correct += learning.correct;
         gradeStats.total_answered += learning.total;
-        gradeStats.total_levels_completed += levelsCompleted;
+        gradeStats.total_levels_completed += totalLevelsCompleted;
         gradeStats.member_count++;
 
         // Update class stats if profile has a class
@@ -129,7 +186,7 @@ serve(async (req) => {
             total_xp: existing.total_xp + (profile.xp || 0),
             total_correct: existing.total_correct + learning.correct,
             total_answered: existing.total_answered + learning.total,
-            total_levels_completed: existing.total_levels_completed + levelsCompleted,
+            total_levels_completed: existing.total_levels_completed + totalLevelsCompleted,
             member_count: existing.member_count + 1,
           });
         }
@@ -240,7 +297,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Updated ${totalUpdated} challenge stats` 
+        message: `Updated ${totalUpdated} challenge stats (including English, Math, and Science vocabulary)` 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

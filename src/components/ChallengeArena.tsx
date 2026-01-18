@@ -17,11 +17,15 @@ import {
   BookOpen,
   Sparkles,
   Gift,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import SeasonThemeCard from "./SeasonThemeCard";
+import SeasonMilestones from "./SeasonMilestones";
+import SeasonEvents from "./SeasonEvents";
 
 interface ClassChallengeData {
   id: string;
@@ -53,6 +57,12 @@ interface SeasonData {
   start_date: string;
   end_date: string;
   is_active: boolean;
+  theme?: string;
+  bonus_multiplier?: number;
+  description?: string;
+  icon?: string;
+  primary_color?: string;
+  secondary_color?: string;
 }
 
 interface ChallengeReward {
@@ -550,23 +560,18 @@ const ChallengeArena = ({ grade, currentClass, profileId }: ChallengeArenaProps)
 
   return (
     <div className="space-y-4">
-      {/* Season Info */}
+      {/* Season Theme Card */}
+      {activeSeason && <SeasonThemeCard season={activeSeason} />}
+
+      {/* Season Events */}
+      {activeSeason && <SeasonEvents seasonId={activeSeason.id} />}
+
+      {/* Season Milestones */}
       {activeSeason && (
-        <Card className="bg-gradient-to-r from-primary/10 via-background to-secondary/10">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-primary" />
-                <span className="font-semibold">{activeSeason.name}</span>
-              </div>
-              <Badge variant="secondary">{getDaysRemaining()}天后结束</Badge>
-            </div>
-            <Progress value={getSeasonProgress()} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-1 text-center">
-              赛季进度 {getSeasonProgress().toFixed(0)}%
-            </p>
-          </CardContent>
-        </Card>
+        <SeasonMilestones 
+          seasonId={activeSeason.id} 
+          profileId={profileId} 
+        />
       )}
 
       {/* Challenge Tabs */}

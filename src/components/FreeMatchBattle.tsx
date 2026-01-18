@@ -56,7 +56,9 @@ interface Word {
   word: string;
   meaning: string;
   phonetic: string | null;
-  grade: number;
+  grade?: number;
+  source?: 'english' | 'math' | 'science'; // Track word source
+  [key: string]: string | number | null | undefined; // Index signature for Json compatibility
 }
 
 interface FreeMatchBattleProps {
@@ -281,28 +283,79 @@ const FreeMatchBattle = ({ onBack, initialMatchId }: FreeMatchBattleProps) => {
     };
   }, [profile, matchStatus]);
 
-  // Fetch random words for the match (from all grades)
+  // Fetch random words for the match (from all grades + Math + Science)
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
-    // Get all words from both grades (7 and 8)
-    const { data: allWords, error } = await supabase
+    const allWords: Word[] = [];
+    
+    // Get English words from both grades (7 and 8)
+    const { data: englishWords, error: englishError } = await supabase
       .from("words")
       .select("id, word, meaning, phonetic, grade")
       .in("grade", [7, 8]);
 
-    if (error) {
-      console.error("Error fetching words:", error);
-      return [];
+    if (!englishError && englishWords) {
+      allWords.push(...englishWords.map(w => ({ ...w, source: 'english' as const })));
     }
 
-    if (!allWords || allWords.length === 0) {
-      return [];
+    // Fetch Math words (0580 curriculum)
+    const { data: mathWords, error: mathError } = await supabase
+      .from("math_words")
+      .select("id, word, meaning, phonetic");
+    
+    if (!mathError && mathWords) {
+      allWords.push(...mathWords.map(w => ({ ...w, source: 'math' as const })));
     }
 
-    // Shuffle all words and pick 10 random ones
-    const shuffled = allWords.sort(() => Math.random() - 0.5).slice(0, 10);
-    return shuffled;
+    // Fetch Science words
+    const { data: scienceWords, error: scienceError } = await supabase
+      .from("science_words")
+      .select("id, word, meaning, phonetic");
+    
+    if (!scienceError && scienceWords) {
+      allWords.push(...scienceWords.map(w => ({ ...w, source: 'science' as const })));
+    }
+
+    console.log(`Free match: Fetched ${allWords.length} total words`);
+
+    if (allWords.length === 0) return [];
+
+    // Weight distribution for free match: ~50% English, ~25% Math, ~25% Science
+    const englishWordsFiltered = allWords.filter(w => w.source === 'english');
+    const mathWordsFiltered = allWords.filter(w => w.source === 'math');
+    const scienceWordsFiltered = allWords.filter(w => w.source === 'science');
+    
+    const selectedWords: Word[] = [];
+    
+    // Pick ~5 English words
+    const shuffledEnglish = [...englishWordsFiltered].sort(() => Math.random() - 0.5);
+    selectedWords.push(...shuffledEnglish.slice(0, 5));
+    
+    // Pick ~2-3 Math words (if available)
+    if (mathWordsFiltered.length > 0) {
+      const shuffledMath = [...mathWordsFiltered].sort(() => Math.random() - 0.5);
+      selectedWords.push(...shuffledMath.slice(0, 3));
+    }
+    
+    // Pick ~2 Science words (if available)
+    if (scienceWordsFiltered.length > 0) {
+      const shuffledScience = [...scienceWordsFiltered].sort(() => Math.random() - 0.5);
+      selectedWords.push(...shuffledScience.slice(0, 2));
+    }
+    
+    // If we don't have enough, fill with more English words
+    while (selectedWords.length < 10 && shuffledEnglish.length > selectedWords.filter(w => w.source === 'english').length) {
+      const remaining = shuffledEnglish.filter(w => !selectedWords.includes(w));
+      if (remaining.length > 0) {
+        selectedWords.push(remaining[0]);
+      } else {
+        break;
+      }
+    }
+    
+    // Final shuffle to mix the order
+    return selectedWords.sort(() => Math.random() - 0.5).slice(0, 10);
   }, [profile]);
 
   // Generate quiz options

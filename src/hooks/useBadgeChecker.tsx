@@ -10,6 +10,16 @@ interface BadgeCondition {
 
 interface UserStats {
   wordsLearned: number;
+  mathWordsLearned: number;
+  scienceWordsLearned: number;
+  biologyWordsLearned: number;
+  chemistryWordsLearned: number;
+  physicsWordsLearned: number;
+  totalMathWords: number;
+  totalScienceWords: number;
+  totalBiologyWords: number;
+  totalChemistryWords: number;
+  totalPhysicsWords: number;
   totalWins: number;
   totalLosses: number;
   winStreak: number;
@@ -30,7 +40,7 @@ interface Profile {
 
 // Badge IDs from database
 const BADGE_CONDITIONS: BadgeCondition[] = [
-  // Learning badges
+  // Learning badges (English)
   {
     badgeId: "86f05eb3-51f4-484d-a5d0-50995795ccec", // 初出茅庐
     name: "初出茅庐",
@@ -56,6 +66,73 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
     name: "学海无涯",
     check: (data) => data.wordsLearned >= 100,
   },
+
+  // Math Vocabulary badges
+  {
+    badgeId: "504d6eda-4b66-4da0-bd14-2d16981286af", // 数学启蒙
+    name: "数学启蒙",
+    check: (data) => data.mathWordsLearned >= 1,
+  },
+  {
+    badgeId: "34d705c8-f92a-4bdd-9a11-16e38a4bc321", // 数学新手
+    name: "数学新手",
+    check: (data) => data.mathWordsLearned >= 50,
+  },
+  {
+    badgeId: "65479192-5953-4d42-9045-9139ccada4d7", // 数学达人
+    name: "数学达人",
+    check: (data) => data.mathWordsLearned >= 100,
+  },
+  {
+    badgeId: "f46ceedc-400f-46e3-b00f-314249bb1361", // 数学大师
+    name: "数学大师",
+    check: (data) => data.totalMathWords > 0 && data.mathWordsLearned >= data.totalMathWords,
+  },
+
+  // Science Vocabulary badges
+  {
+    badgeId: "55d48c0c-3a7c-4561-bc5c-360f162a2a0a", // 科学启蒙
+    name: "科学启蒙",
+    check: (data) => data.scienceWordsLearned >= 1,
+  },
+  {
+    badgeId: "761682ca-b864-40da-be62-2938d7d8ed14", // 科学新手
+    name: "科学新手",
+    check: (data) => data.scienceWordsLearned >= 100,
+  },
+  {
+    badgeId: "1ab104fb-c7eb-47e2-9f7e-fb926957aa26", // 科学探索者
+    name: "科学探索者",
+    check: (data) => data.scienceWordsLearned >= 300,
+  },
+  {
+    badgeId: "c6910711-a338-4cb0-a9cf-665bfa7c75ca", // 科学先锋
+    name: "科学先锋",
+    check: (data) => data.scienceWordsLearned >= 500,
+  },
+  {
+    badgeId: "173eecc0-f8c3-41ec-971f-7f361d3c9603", // 科学大师
+    name: "科学大师",
+    check: (data) => data.totalScienceWords > 0 && data.scienceWordsLearned >= data.totalScienceWords,
+  },
+
+  // Subject-specific Science badges
+  {
+    badgeId: "6dda4dc7-55e7-415b-a56a-968cfcc3dde5", // 生物学家
+    name: "生物学家",
+    check: (data) => data.totalBiologyWords > 0 && data.biologyWordsLearned >= data.totalBiologyWords,
+  },
+  {
+    badgeId: "48407767-b517-4b12-b2c4-a5bbe8cc3632", // 化学家
+    name: "化学家",
+    check: (data) => data.totalChemistryWords > 0 && data.chemistryWordsLearned >= data.totalChemistryWords,
+  },
+  {
+    badgeId: "14025371-1ede-4da2-8f93-af7316c5733d", // 物理学家
+    name: "物理学家",
+    check: (data) => data.totalPhysicsWords > 0 && data.physicsWordsLearned >= data.totalPhysicsWords,
+  },
+
   // Battle badges
   {
     badgeId: "4e992412-e0cd-47df-aa01-0a510f22dd37", // 首战告捷
@@ -77,6 +154,7 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
     name: "完美主义者",
     check: (data) => data.perfectMatches >= 1,
   },
+
   // Streak badges
   {
     badgeId: "0d1e512e-2a69-407a-b4fa-e3f8cfc6998d", // 坚持不懈
@@ -88,12 +166,14 @@ const BADGE_CONDITIONS: BadgeCondition[] = [
     name: "学霸之路",
     check: (data) => data.dailyStreak >= 30,
   },
+
   // Wealth badges
   {
     badgeId: "1f96d78a-ffcd-445d-8241-bd793077f877", // 财富新贵
     name: "财富新贵",
     check: (data) => data.coins >= 1000,
   },
+
   // Rank badges
   {
     badgeId: "e0f0195a-b4c6-4b25-a87a-84db464b9c8c", // 王者荣耀
@@ -113,14 +193,34 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
     // Fetch user stats and all badges
     const [
       { data: learningProgress },
+      { data: mathLearningProgress },
+      { data: scienceLearningProgress },
       { data: userBadges },
       { data: rankedMatches },
       { data: allBadges },
+      { count: totalMathWordsCount },
+      { count: totalScienceWordsCount },
+      { count: biologyWordsCount },
+      { count: chemistryWordsCount },
+      { count: physicsWordsCount },
     ] = await Promise.all([
+      // English learning progress
       supabase
         .from("learning_progress")
         .select("id")
         .eq("profile_id", profile.id),
+      // Math learning progress
+      supabase
+        .from("math_learning_progress")
+        .select("id, word_id")
+        .eq("profile_id", profile.id)
+        .gte("mastery_level", 1),
+      // Science learning progress with word details
+      supabase
+        .from("science_learning_progress")
+        .select("id, word_id, science_words(subject)")
+        .eq("profile_id", profile.id)
+        .gte("mastery_level", 1),
       supabase
         .from("user_badges")
         .select("badge_id")
@@ -134,10 +234,43 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
       supabase
         .from("badges")
         .select("id"),
+      // Total word counts
+      supabase
+        .from("math_words")
+        .select("*", { count: "exact", head: true }),
+      supabase
+        .from("science_words")
+        .select("*", { count: "exact", head: true }),
+      supabase
+        .from("science_words")
+        .select("*", { count: "exact", head: true })
+        .eq("subject", "Biology"),
+      supabase
+        .from("science_words")
+        .select("*", { count: "exact", head: true })
+        .eq("subject", "Chemistry"),
+      supabase
+        .from("science_words")
+        .select("*", { count: "exact", head: true })
+        .eq("subject", "Physics"),
     ]);
 
     const earnedBadgeIds = userBadges?.map((ub) => ub.badge_id) || [];
     const wordsLearned = learningProgress?.length || 0;
+    const mathWordsLearned = mathLearningProgress?.length || 0;
+    const scienceWordsLearned = scienceLearningProgress?.length || 0;
+
+    // Count science words by subject
+    let biologyWordsLearned = 0;
+    let chemistryWordsLearned = 0;
+    let physicsWordsLearned = 0;
+
+    scienceLearningProgress?.forEach((progress: any) => {
+      const subject = progress.science_words?.subject;
+      if (subject === "Biology") biologyWordsLearned++;
+      else if (subject === "Chemistry") chemistryWordsLearned++;
+      else if (subject === "Physics") physicsWordsLearned++;
+    });
 
     // Calculate battle stats including win streak
     let totalWins = 0;
@@ -163,6 +296,16 @@ export const checkAndAwardBadges = async (profile: Profile | null) => {
 
     const userStats: UserStats = {
       wordsLearned,
+      mathWordsLearned,
+      scienceWordsLearned,
+      biologyWordsLearned,
+      chemistryWordsLearned,
+      physicsWordsLearned,
+      totalMathWords: totalMathWordsCount || 0,
+      totalScienceWords: totalScienceWordsCount || 0,
+      totalBiologyWords: biologyWordsCount || 0,
+      totalChemistryWords: chemistryWordsCount || 0,
+      totalPhysicsWords: physicsWordsCount || 0,
       totalWins: profile.wins || 0,
       totalLosses: profile.losses || 0,
       winStreak: currentWinStreak,

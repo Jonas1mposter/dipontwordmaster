@@ -83,7 +83,8 @@ interface Word {
   word: string;
   meaning: string;
   phonetic: string | null;
-  [key: string]: string | null; // Index signature for Json compatibility
+  source?: 'english' | 'math' | 'science'; // Track word source for display
+  [key: string]: string | null | undefined; // Index signature for Json compatibility
 }
 
 interface RankedBattleProps {
@@ -616,13 +617,14 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
   }, [profile]);
 
-  // Fetch random words for the match - 获取所有词汇
+  // Fetch random words for the match - 获取英语、数学、科学词汇
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
-    // Fetch ALL words for the grade (handle pagination for large datasets)
-    let allWords: Word[] = [];
-    let from = 0;
+    const allWords: Word[] = [];
+    
+    // Fetch English words (main vocabulary)
+    let englishFrom = 0;
     const pageSize = 1000;
     
     while (true) {
@@ -630,26 +632,79 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
         .from("words")
         .select("id, word, meaning, phonetic")
         .eq("grade", profile.grade)
-        .range(from, from + pageSize - 1);
+        .range(englishFrom, englishFrom + pageSize - 1);
 
       if (error) {
-        console.error("Error fetching words:", error);
+        console.error("Error fetching English words:", error);
         break;
       }
 
       if (!data || data.length === 0) break;
       
-      allWords = [...allWords, ...data];
+      allWords.push(...data.map(w => ({ ...w, source: 'english' as const })));
       
       if (data.length < pageSize) break;
-      from += pageSize;
+      englishFrom += pageSize;
     }
+
+    // Fetch Math words (0580 curriculum)
+    const { data: mathWords, error: mathError } = await supabase
+      .from("math_words")
+      .select("id, word, meaning, phonetic");
+    
+    if (!mathError && mathWords) {
+      allWords.push(...mathWords.map(w => ({ ...w, source: 'math' as const })));
+    }
+
+    // Fetch Science words
+    const { data: scienceWords, error: scienceError } = await supabase
+      .from("science_words")
+      .select("id, word, meaning, phonetic");
+    
+    if (!scienceError && scienceWords) {
+      allWords.push(...scienceWords.map(w => ({ ...w, source: 'science' as const })));
+    }
+
+    console.log(`Fetched ${allWords.length} total words (English + Math + Science)`);
 
     if (allWords.length === 0) return [];
     
     // Shuffle and pick 10 random words from ALL vocabulary
-    const shuffled = [...allWords].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 10);
+    // Weight distribution: ~60% English, ~20% Math, ~20% Science
+    const englishWords = allWords.filter(w => w.source === 'english');
+    const mathWordsFiltered = allWords.filter(w => w.source === 'math');
+    const scienceWordsFiltered = allWords.filter(w => w.source === 'science');
+    
+    const selectedWords: Word[] = [];
+    
+    // Pick ~6 English words
+    const shuffledEnglish = [...englishWords].sort(() => Math.random() - 0.5);
+    selectedWords.push(...shuffledEnglish.slice(0, 6));
+    
+    // Pick ~2 Math words (if available)
+    if (mathWordsFiltered.length > 0) {
+      const shuffledMath = [...mathWordsFiltered].sort(() => Math.random() - 0.5);
+      selectedWords.push(...shuffledMath.slice(0, 2));
+    }
+    
+    // Pick ~2 Science words (if available)
+    if (scienceWordsFiltered.length > 0) {
+      const shuffledScience = [...scienceWordsFiltered].sort(() => Math.random() - 0.5);
+      selectedWords.push(...shuffledScience.slice(0, 2));
+    }
+    
+    // If we don't have enough, fill with more English words
+    while (selectedWords.length < 10 && shuffledEnglish.length > selectedWords.filter(w => w.source === 'english').length) {
+      const remaining = shuffledEnglish.filter(w => !selectedWords.includes(w));
+      if (remaining.length > 0) {
+        selectedWords.push(remaining[0]);
+      } else {
+        break;
+      }
+    }
+    
+    // Final shuffle to mix the order
+    return selectedWords.sort(() => Math.random() - 0.5).slice(0, 10);
   }, [profile]);
 
   // Generate meaning options (for "meaning" quiz type)

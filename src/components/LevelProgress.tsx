@@ -37,14 +37,28 @@ const LevelProgress = ({ grade, onSelectLevel }: LevelProgressProps) => {
   const { data: allWords = [], isLoading: wordsLoading } = useQuery({
     queryKey: ["words", grade],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("words")
-        .select("id, word, meaning")
-        .eq("grade", grade)
-        .order("word", { ascending: true })
-        .limit(2000);
-      if (error) throw error;
-      return data || [];
+      // 分页获取所有单词以避免默认1000条限制
+      const allData: { id: string; word: string; meaning: string }[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("words")
+          .select("id, word, meaning")
+          .eq("grade", grade)
+          .order("word", { ascending: true })
+          .range(from, from + pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allData.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      
+      return allData;
     },
     staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
     gcTime: 30 * 60 * 1000, // 缓存保留30分钟

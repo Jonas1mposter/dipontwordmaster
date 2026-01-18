@@ -1069,6 +1069,112 @@ export type Database = {
         }
         Relationships: []
       }
+      season_events: {
+        Row: {
+          bonus_value: number | null
+          created_at: string
+          description: string | null
+          end_time: string
+          event_type: string
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          season_id: string
+          start_time: string
+        }
+        Insert: {
+          bonus_value?: number | null
+          created_at?: string
+          description?: string | null
+          end_time: string
+          event_type: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          season_id: string
+          start_time: string
+        }
+        Update: {
+          bonus_value?: number | null
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          event_type?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          season_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      season_milestones: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_global: boolean | null
+          name: string
+          order_index: number | null
+          reward_item_id: string | null
+          reward_type: string
+          reward_value: number | null
+          season_id: string
+          target_type: string
+          target_value: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_global?: boolean | null
+          name: string
+          order_index?: number | null
+          reward_item_id?: string | null
+          reward_type: string
+          reward_value?: number | null
+          season_id: string
+          target_type: string
+          target_value: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_global?: boolean | null
+          name?: string
+          order_index?: number | null
+          reward_item_id?: string | null
+          reward_type?: string
+          reward_value?: number | null
+          season_id?: string
+          target_type?: string
+          target_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "season_milestones_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       season_pass_items: {
         Row: {
           created_at: string
@@ -1121,31 +1227,49 @@ export type Database = {
       }
       seasons: {
         Row: {
+          bonus_multiplier: number | null
           created_at: string
+          description: string | null
           end_date: string
           grade: number
+          icon: string | null
           id: string
           is_active: boolean
           name: string
+          primary_color: string | null
+          secondary_color: string | null
           start_date: string
+          theme: string | null
         }
         Insert: {
+          bonus_multiplier?: number | null
           created_at?: string
+          description?: string | null
           end_date: string
           grade: number
+          icon?: string | null
           id?: string
           is_active?: boolean
           name: string
+          primary_color?: string | null
+          secondary_color?: string | null
           start_date: string
+          theme?: string | null
         }
         Update: {
+          bonus_multiplier?: number | null
           created_at?: string
+          description?: string | null
           end_date?: string
           grade?: number
+          icon?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          primary_color?: string | null
+          secondary_color?: string | null
           start_date?: string
+          theme?: string | null
         }
         Relationships: []
       }
@@ -1330,6 +1454,57 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_season_milestones: {
+        Row: {
+          claimed: boolean | null
+          claimed_at: string | null
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          milestone_id: string
+          profile_id: string
+          progress: number | null
+        }
+        Insert: {
+          claimed?: boolean | null
+          claimed_at?: string | null
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          milestone_id: string
+          profile_id: string
+          progress?: number | null
+        }
+        Update: {
+          claimed?: boolean | null
+          claimed_at?: string | null
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          milestone_id?: string
+          profile_id?: string
+          progress?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_season_milestones_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "season_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_season_milestones_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_season_pass: {
         Row: {

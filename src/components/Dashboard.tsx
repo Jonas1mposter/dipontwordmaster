@@ -33,6 +33,7 @@ import MatchHistory from "./MatchHistory";
 import { ReconnectDialog } from "./ReconnectDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator, FlaskConical } from "lucide-react";
+import SubjectBattleSelector, { BattleSubject } from "./SubjectBattleSelector";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
 
@@ -56,7 +57,7 @@ const Dashboard = ({
     checkAndAwardBadges
   } = useBadgeChecker(profile);
   const checkNameCards = useNameCardChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "sciencelearn" | "battle" | "freematch" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "sciencelearn" | "battle" | "battle-select" | "freematch" | "freematch-select" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
@@ -77,6 +78,7 @@ const Dashboard = ({
   const [spectateMatchId, setSpectateMatchId] = useState<string | null>(null);
   const [reconnectMatchId, setReconnectMatchId] = useState<string | null>(null);
   const [reconnectMatchType, setReconnectMatchType] = useState<"ranked" | "free">("ranked");
+  const [battleSubject, setBattleSubject] = useState<BattleSubject>("mixed");
 
   // Check for active matches to reconnect
   const { activeMatch, dismissMatch, clearActiveMatch } = useMatchReconnect({
@@ -177,6 +179,30 @@ const Dashboard = ({
     }} />;
   }
 
+  // Show subject selector for ranked battle
+  if (activeView === "battle-select") {
+    return <SubjectBattleSelector 
+      battleType="ranked"
+      onSelectSubject={(selectedSubject) => {
+        setBattleSubject(selectedSubject);
+        setActiveView("battle");
+      }}
+      onBack={() => setActiveView("home")}
+    />;
+  }
+
+  // Show subject selector for free match
+  if (activeView === "freematch-select") {
+    return <SubjectBattleSelector 
+      battleType="free"
+      onSelectSubject={(selectedSubject) => {
+        setBattleSubject(selectedSubject);
+        setActiveView("freematch");
+      }}
+      onBack={() => setActiveView("home")}
+    />;
+  }
+
   // Show ranked battle
   if (activeView === "battle") {
     if (!user) {
@@ -206,11 +232,12 @@ const Dashboard = ({
       refreshProfile();
       setFriendBattleMatchId(null);
       setReconnectMatchId(null);
+      setBattleSubject("mixed");
       setTimeout(() => {
         checkAndAwardBadges();
         checkNameCards();
       }, 500);
-    }} initialMatchId={matchIdToUse} />;
+    }} initialMatchId={matchIdToUse} subject={battleSubject} />;
   }
 
   // Show free match battle
@@ -239,11 +266,12 @@ const Dashboard = ({
       setRefreshKey(prev => prev + 1);
       refreshProfile();
       setReconnectMatchId(null);
+      setBattleSubject("mixed");
       setTimeout(() => {
         checkAndAwardBadges();
         checkNameCards();
       }, 500);
-    }} initialMatchId={reconnectMatchType === "free" ? reconnectMatchId : null} />;
+    }} initialMatchId={reconnectMatchType === "free" ? reconnectMatchId : null} subject={battleSubject} />;
   }
 
   // Show match history
@@ -367,11 +395,11 @@ const Dashboard = ({
             label: "错题本",
             icon: BookX
           }, {
-            id: "battle",
+            id: "battle-select",
             label: "排位赛",
             icon: Swords
           }, {
-            id: "freematch",
+            id: "freematch-select",
             label: "自由服",
             icon: Globe
           }, {
@@ -398,10 +426,17 @@ const Dashboard = ({
             id: "profile",
             label: "个人",
             icon: User
-          }].map(tab => <Button key={tab.id} variant={activeView === tab.id ? "default" : "ghost"} size="sm" onClick={() => setActiveView(tab.id as typeof activeView)} className="px-2 py-1 h-8 text-xs whitespace-nowrap">
+          }].map(tab => {
+            const isActive = activeView === tab.id || 
+              (tab.id === "battle-select" && (activeView as string) === "battle") || 
+              (tab.id === "freematch-select" && (activeView as string) === "freematch");
+            return (
+              <Button key={tab.id} variant={isActive ? "default" : "ghost"} size="sm" onClick={() => setActiveView(tab.id as typeof activeView)} className="px-2 py-1 h-8 text-xs whitespace-nowrap">
                 <tab.icon className="w-3.5 h-3.5 mr-1" />
                 {tab.label}
-              </Button>)}
+              </Button>
+            );
+          })}
           </div>
         </div>
       </nav>

@@ -87,9 +87,12 @@ interface Word {
   [key: string]: string | null | undefined; // Index signature for Json compatibility
 }
 
+export type BattleSubject = "mixed" | "english" | "math" | "science";
+
 interface RankedBattleProps {
   onBack: () => void;
   initialMatchId?: string | null;
+  subject?: BattleSubject;
 }
 
 type MatchStatus = "idle" | "searching" | "found" | "playing" | "finished";
@@ -261,7 +264,7 @@ interface EquippedNameCard {
   rank_position: number | null;
 }
 
-const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
+const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattleProps) => {
   const { profile, refreshProfile } = useAuth();
   const sounds = useMatchSounds();
   const { updateEloAfterMatch, findMatchesWithinEloRange } = useEloSystem();
@@ -617,60 +620,75 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     };
   }, [profile]);
 
-  // Fetch random words for the match - 获取英语、数学、科学词汇
+  // Fetch random words for the match - 获取英语、数学、科学词汇 (based on subject)
   const fetchMatchWords = useCallback(async () => {
     if (!profile) return [];
     
     const allWords: Word[] = [];
     
-    // Fetch English words (main vocabulary)
-    let englishFrom = 0;
-    const pageSize = 1000;
+    // Only fetch words for selected subject(s)
+    const shouldFetchEnglish = subject === "mixed" || subject === "english";
+    const shouldFetchMath = subject === "mixed" || subject === "math";
+    const shouldFetchScience = subject === "mixed" || subject === "science";
     
-    while (true) {
-      const { data, error } = await supabase
-        .from("words")
-        .select("id, word, meaning, phonetic")
-        .eq("grade", profile.grade)
-        .range(englishFrom, englishFrom + pageSize - 1);
+    // Fetch English words (main vocabulary)
+    if (shouldFetchEnglish) {
+      let englishFrom = 0;
+      const pageSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("words")
+          .select("id, word, meaning, phonetic")
+          .eq("grade", profile.grade)
+          .range(englishFrom, englishFrom + pageSize - 1);
 
-      if (error) {
-        console.error("Error fetching English words:", error);
-        break;
+        if (error) {
+          console.error("Error fetching English words:", error);
+          break;
+        }
+
+        if (!data || data.length === 0) break;
+        
+        allWords.push(...data.map(w => ({ ...w, source: 'english' as const })));
+        
+        if (data.length < pageSize) break;
+        englishFrom += pageSize;
       }
-
-      if (!data || data.length === 0) break;
-      
-      allWords.push(...data.map(w => ({ ...w, source: 'english' as const })));
-      
-      if (data.length < pageSize) break;
-      englishFrom += pageSize;
     }
 
     // Fetch Math words (0580 curriculum)
-    const { data: mathWords, error: mathError } = await supabase
-      .from("math_words")
-      .select("id, word, meaning, phonetic");
-    
-    if (!mathError && mathWords) {
-      allWords.push(...mathWords.map(w => ({ ...w, source: 'math' as const })));
+    if (shouldFetchMath) {
+      const { data: mathWords, error: mathError } = await supabase
+        .from("math_words")
+        .select("id, word, meaning, phonetic");
+      
+      if (!mathError && mathWords) {
+        allWords.push(...mathWords.map(w => ({ ...w, source: 'math' as const })));
+      }
     }
 
     // Fetch Science words
-    const { data: scienceWords, error: scienceError } = await supabase
-      .from("science_words")
-      .select("id, word, meaning, phonetic");
-    
-    if (!scienceError && scienceWords) {
-      allWords.push(...scienceWords.map(w => ({ ...w, source: 'science' as const })));
+    if (shouldFetchScience) {
+      const { data: scienceWords, error: scienceError } = await supabase
+        .from("science_words")
+        .select("id, word, meaning, phonetic");
+      
+      if (!scienceError && scienceWords) {
+        allWords.push(...scienceWords.map(w => ({ ...w, source: 'science' as const })));
+      }
     }
 
-    console.log(`Fetched ${allWords.length} total words (English + Math + Science)`);
+    console.log(`Fetched ${allWords.length} total words for subject: ${subject}`);
 
     if (allWords.length === 0) return [];
     
-    // Shuffle and pick 10 random words from ALL vocabulary
-    // Weight distribution: ~60% English, ~20% Math, ~20% Science
+    // For single subject mode, just shuffle and pick 10
+    if (subject !== "mixed") {
+      return [...allWords].sort(() => Math.random() - 0.5).slice(0, 10);
+    }
+    
+    // For mixed mode: Weight distribution: ~60% English, ~20% Math, ~20% Science
     const englishWords = allWords.filter(w => w.source === 'english');
     const mathWordsFiltered = allWords.filter(w => w.source === 'math');
     const scienceWordsFiltered = allWords.filter(w => w.source === 'science');
@@ -705,7 +723,7 @@ const RankedBattle = ({ onBack, initialMatchId }: RankedBattleProps) => {
     
     // Final shuffle to mix the order
     return selectedWords.sort(() => Math.random() - 0.5).slice(0, 10);
-  }, [profile]);
+  }, [profile, subject]);
 
   // Generate meaning options (for "meaning" quiz type)
   const generateOptions = useCallback((correctMeaning: string, allWords: Word[]) => {

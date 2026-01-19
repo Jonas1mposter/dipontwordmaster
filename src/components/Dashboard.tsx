@@ -31,8 +31,9 @@ import RankDisplay from "./RankDisplay";
 import SpectateView from "./SpectateView";
 import MatchHistory from "./MatchHistory";
 import { ReconnectDialog } from "./ReconnectDialog";
+import { TeamPanel } from "./team/TeamPanel";
 import { supabase } from "@/integrations/supabase/client";
-import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator, FlaskConical } from "lucide-react";
+import { Swords, BookOpen, Trophy, LogOut, ChevronLeft, Sparkles, User, Crown, Users, BookX, GraduationCap, Target, Globe, Book, History, Calculator, FlaskConical, Shield } from "lucide-react";
 import SubjectBattleSelector, { BattleSubject } from "./SubjectBattleSelector";
 import { toast } from "sonner";
 import logoDashboard from "@/assets/logo-dashboard.jpg";
@@ -57,7 +58,7 @@ const Dashboard = ({
     checkAndAwardBadges
   } = useBadgeChecker(profile);
   const checkNameCards = useNameCardChecker(profile);
-  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "sciencelearn" | "battle" | "battle-select" | "freematch" | "freematch-select" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history">("home");
+  const [activeView, setActiveView] = useState<"home" | "learn" | "mathlearn" | "sciencelearn" | "battle" | "battle-select" | "freematch" | "freematch-select" | "leaderboard" | "profile" | "friends" | "wrongbook" | "challenge" | "seasonpass" | "spectate" | "history" | "team">("home");
   const [selectedLevel, setSelectedLevel] = useState<{
     id: string;
     name: string;
@@ -170,6 +171,11 @@ const Dashboard = ({
     await dismissMatch();
     toast.info("已放弃比赛");
   };
+
+  // Show team panel
+  if (activeView === "team") {
+    return <TeamPanel onBack={() => setActiveView("home")} />;
+  }
 
   // Show spectate view
   if (activeView === "spectate" && spectateMatchId) {
@@ -414,6 +420,10 @@ const Dashboard = ({
             id: "friends",
             label: "好友",
             icon: Users
+          }, {
+            id: "team",
+            label: "战队",
+            icon: Shield
           }, {
             id: "history",
             label: "战绩",

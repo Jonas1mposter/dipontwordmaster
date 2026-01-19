@@ -798,6 +798,7 @@ export type Database = {
           rank_stars: number
           rank_tier: Database["public"]["Enums"]["rank_tier"]
           streak: number
+          team_id: string | null
           total_xp: number
           updated_at: string
           user_id: string
@@ -829,6 +830,7 @@ export type Database = {
           rank_stars?: number
           rank_tier?: Database["public"]["Enums"]["rank_tier"]
           streak?: number
+          team_id?: string | null
           total_xp?: number
           updated_at?: string
           user_id: string
@@ -860,6 +862,7 @@ export type Database = {
           rank_stars?: number
           rank_tier?: Database["public"]["Enums"]["rank_tier"]
           streak?: number
+          team_id?: string | null
           total_xp?: number
           updated_at?: string
           user_id?: string
@@ -868,7 +871,15 @@ export type Database = {
           xp?: number
           xp_to_next_level?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ranked_matches: {
         Row: {
@@ -1272,6 +1283,254 @@ export type Database = {
           theme?: string | null
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          contributed_wins: number
+          contributed_xp: number
+          id: string
+          joined_at: string
+          profile_id: string
+          role: string
+          team_id: string
+        }
+        Insert: {
+          contributed_wins?: number
+          contributed_xp?: number
+          id?: string
+          joined_at?: string
+          profile_id: string
+          role?: string
+          team_id: string
+        }
+        Update: {
+          contributed_wins?: number
+          contributed_xp?: number
+          id?: string
+          joined_at?: string
+          profile_id?: string
+          role?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_milestone_claims: {
+        Row: {
+          claimed_at: string
+          claimed_by: string
+          id: string
+          milestone_id: string
+          team_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          claimed_by: string
+          id?: string
+          milestone_id: string
+          team_id: string
+        }
+        Update: {
+          claimed_at?: string
+          claimed_by?: string
+          id?: string
+          milestone_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_milestone_claims_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_milestone_claims_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "team_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_milestone_claims_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_milestones: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          reward_item_id: string | null
+          reward_type: string
+          reward_value: number
+          season_id: string
+          target_type: string
+          target_value: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          reward_item_id?: string | null
+          reward_type: string
+          reward_value?: number
+          season_id: string
+          target_type: string
+          target_value: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          reward_item_id?: string | null
+          reward_type?: string
+          reward_value?: number
+          season_id?: string
+          target_type?: string
+          target_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_milestones_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_season_stats: {
+        Row: {
+          accuracy_rate: number | null
+          created_at: string
+          id: string
+          milestone_progress: Json | null
+          rank_position: number | null
+          season_id: string
+          team_id: string
+          total_battles: number
+          total_wins: number
+          total_xp: number
+          updated_at: string
+        }
+        Insert: {
+          accuracy_rate?: number | null
+          created_at?: string
+          id?: string
+          milestone_progress?: Json | null
+          rank_position?: number | null
+          season_id: string
+          team_id: string
+          total_battles?: number
+          total_wins?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Update: {
+          accuracy_rate?: number | null
+          created_at?: string
+          id?: string
+          milestone_progress?: Json | null
+          rank_position?: number | null
+          season_id?: string
+          team_id?: string
+          total_battles?: number
+          total_wins?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_season_stats_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_season_stats_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          leader_id: string | null
+          logo_url: string | null
+          member_count: number
+          name: string
+          rank_position: number | null
+          total_wins: number
+          total_xp: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          leader_id?: string | null
+          logo_url?: string | null
+          member_count?: number
+          name: string
+          rank_position?: number | null
+          total_wins?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          leader_id?: string | null
+          logo_url?: string | null
+          member_count?: number
+          name?: string
+          rank_position?: number | null
+          total_wins?: number
+          total_xp?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_badges: {
         Row: {

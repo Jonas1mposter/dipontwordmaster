@@ -17,7 +17,8 @@ import {
   Shield, Coins, Zap, Target, Gift,
   ChevronLeft, Loader2, UserPlus, Medal, Swords,
   TrendingUp, Award, Sparkles, MessageCircle, Send,
-  UserCog, ArrowRightLeft, MoreVertical
+  UserCog, ArrowRightLeft, MoreVertical, Megaphone,
+  Pin, Check, X, Clock, Calendar, Star
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -99,11 +100,60 @@ interface TeamMessage {
   };
 }
 
+interface TeamAnnouncement {
+  id: string;
+  team_id: string;
+  author_id: string;
+  title: string;
+  content: string;
+  is_pinned: boolean;
+  created_at: string;
+  author?: {
+    username: string;
+    avatar_url: string | null;
+  };
+}
+
+interface TeamApplication {
+  id: string;
+  team_id: string;
+  applicant_id: string;
+  message: string | null;
+  status: string;
+  created_at: string;
+  applicant?: {
+    username: string;
+    avatar_url: string | null;
+    level: number;
+  };
+}
+
+interface WeeklyReward {
+  id: string;
+  team_id: string;
+  profile_id: string;
+  week_start: string;
+  weekly_xp: number;
+  weekly_wins: number;
+  reward_coins: number;
+  reward_xp: number;
+  claimed: boolean;
+}
+
 interface TeamPanelProps {
   onBack: () => void;
 }
 
 const CREATE_TEAM_COST = 1000;
+
+// Helper to get the Monday of current week in YYYY-MM-DD format
+const getWeekStart = (): string => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(now.setDate(diff));
+  return monday.toISOString().split('T')[0];
+};
 
 export function TeamPanel({ onBack }: TeamPanelProps) {
   const { profile, refreshProfile } = useAuth();
@@ -124,6 +174,23 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<TeamAnnouncement[]>([]);
+  const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
+  const [newAnnouncementTitle, setNewAnnouncementTitle] = useState("");
+  const [newAnnouncementContent, setNewAnnouncementContent] = useState("");
+  const [isPostingAnnouncement, setIsPostingAnnouncement] = useState(false);
+  
+  // Applications state
+  const [applications, setApplications] = useState<TeamApplication[]>([]);
+  const [myApplications, setMyApplications] = useState<TeamApplication[]>([]);
+  const [applicationMessage, setApplicationMessage] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+  
+  // Weekly rewards state
+  const [weeklyReward, setWeeklyReward] = useState<WeeklyReward | null>(null);
+  const [isClaimingWeekly, setIsClaimingWeekly] = useState(false);
   
   // Create team dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -252,6 +319,54 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
             setMessages(messagesData as any);
           }
           
+          // Fetch team announcements
+          const { data: announcementsData } = await supabase
+            .from("team_announcements")
+            .select(`
+              id, team_id, author_id, title, content, is_pinned, created_at,
+              author:profiles(username, avatar_url)
+            `)
+            .eq("team_id", teamData.id)
+            .order("is_pinned", { ascending: false })
+            .order("created_at", { ascending: false })
+            .limit(20);
+          
+          if (announcementsData) {
+            setAnnouncements(announcementsData as any);
+          }
+          
+          // Fetch pending applications (for leaders/officers)
+          const currentMemberRole = members?.find(m => m.profile_id === profile.id)?.role;
+          if (currentMemberRole === "leader" || currentMemberRole === "officer") {
+            const { data: applicationsData } = await supabase
+              .from("team_applications")
+              .select(`
+                id, team_id, applicant_id, message, status, created_at,
+                applicant:profiles(username, avatar_url, level)
+              `)
+              .eq("team_id", teamData.id)
+              .eq("status", "pending")
+              .order("created_at", { ascending: false });
+            
+            if (applicationsData) {
+              setApplications(applicationsData as any);
+            }
+          }
+          
+          // Fetch weekly reward for current user
+          const weekStart = getWeekStart();
+          const { data: weeklyData } = await supabase
+            .from("team_weekly_rewards")
+            .select("*")
+            .eq("team_id", teamData.id)
+            .eq("profile_id", profile.id)
+            .eq("week_start", weekStart)
+            .single();
+          
+          if (weeklyData) {
+            setWeeklyReward(weeklyData);
+          }
+          
           // Check if team is rank 1 and user has champion card
           if (teamData.rank_position === 1) {
             const { data: championCard } = await supabase
@@ -325,6 +440,19 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
               setTeamBattles(battles);
             }
           }
+        }
+      } else {
+        // User not in team - fetch their pending applications
+        const { data: myApps } = await supabase
+          .from("team_applications")
+          .select(`
+            id, team_id, applicant_id, message, status, created_at
+          `)
+          .eq("applicant_id", profile.id)
+          .eq("status", "pending");
+        
+        if (myApps) {
+          setMyApplications(myApps as any);
         }
       }
       
@@ -437,34 +565,219 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
     }
   };
 
-  const handleJoinTeam = async () => {
+  // Submit application to join team (instead of direct join)
+  const handleApplyToTeam = async () => {
     if (!profile || !selectedTeam) return;
     
-    setIsJoining(true);
+    setIsApplying(true);
     try {
       const { error } = await supabase
-        .from("team_members")
+        .from("team_applications")
         .insert({
           team_id: selectedTeam.id,
-          profile_id: profile.id,
-          role: "member"
+          applicant_id: profile.id,
+          message: applicationMessage.trim() || null
         });
       
       if (error) throw error;
       
-      toast.success(`成功加入 ${selectedTeam.name}！`);
+      toast.success(`已向「${selectedTeam.name}」提交入队申请！`);
       setShowJoinDialog(false);
       setSelectedTeam(null);
+      setApplicationMessage("");
       fetchData();
     } catch (error: any) {
-      console.error("Error joining team:", error);
+      console.error("Error applying to team:", error);
       if (error.code === "23505") {
-        toast.error("你已经在其他战队中");
+        toast.error("你已提交过申请或已在其他战队中");
       } else {
-        toast.error("加入战队失败");
+        toast.error("提交申请失败");
       }
     } finally {
-      setIsJoining(false);
+      setIsApplying(false);
+    }
+  };
+
+  // Approve application (for leaders/officers)
+  const handleApproveApplication = async (application: TeamApplication) => {
+    if (!profile || !myTeam) return;
+    
+    try {
+      // Update application status
+      const { error: updateError } = await supabase
+        .from("team_applications")
+        .update({
+          status: "approved",
+          reviewed_by: profile.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq("id", application.id);
+      
+      if (updateError) throw updateError;
+      
+      // Add member to team
+      const { error: memberError } = await supabase
+        .from("team_members")
+        .insert({
+          team_id: myTeam.id,
+          profile_id: application.applicant_id,
+          role: "member"
+        });
+      
+      if (memberError) throw memberError;
+      
+      toast.success(`已批准 ${application.applicant?.username} 加入战队！`);
+      setApplications(prev => prev.filter(a => a.id !== application.id));
+      fetchData();
+    } catch (error) {
+      console.error("Error approving application:", error);
+      toast.error("批准申请失败");
+    }
+  };
+
+  // Reject application
+  const handleRejectApplication = async (application: TeamApplication) => {
+    if (!profile || !myTeam) return;
+    
+    try {
+      const { error } = await supabase
+        .from("team_applications")
+        .update({
+          status: "rejected",
+          reviewed_by: profile.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq("id", application.id);
+      
+      if (error) throw error;
+      
+      toast.success("已拒绝申请");
+      setApplications(prev => prev.filter(a => a.id !== application.id));
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      toast.error("拒绝申请失败");
+    }
+  };
+
+  // Post announcement
+  const handlePostAnnouncement = async () => {
+    if (!profile || !myTeam || !newAnnouncementTitle.trim() || !newAnnouncementContent.trim()) return;
+    
+    setIsPostingAnnouncement(true);
+    try {
+      const { data: newAnnouncement, error } = await supabase
+        .from("team_announcements")
+        .insert({
+          team_id: myTeam.id,
+          author_id: profile.id,
+          title: newAnnouncementTitle.trim(),
+          content: newAnnouncementContent.trim()
+        })
+        .select(`
+          id, team_id, author_id, title, content, is_pinned, created_at,
+          author:profiles(username, avatar_url)
+        `)
+        .single();
+      
+      if (error) throw error;
+      
+      toast.success("公告发布成功！");
+      setAnnouncements(prev => [newAnnouncement as any, ...prev]);
+      setShowAnnouncementDialog(false);
+      setNewAnnouncementTitle("");
+      setNewAnnouncementContent("");
+    } catch (error) {
+      console.error("Error posting announcement:", error);
+      toast.error("发布公告失败");
+    } finally {
+      setIsPostingAnnouncement(false);
+    }
+  };
+
+  // Toggle announcement pin
+  const handleTogglePin = async (announcement: TeamAnnouncement) => {
+    if (!profile || !myTeam) return;
+    
+    try {
+      const { error } = await supabase
+        .from("team_announcements")
+        .update({ is_pinned: !announcement.is_pinned })
+        .eq("id", announcement.id);
+      
+      if (error) throw error;
+      
+      setAnnouncements(prev => 
+        prev.map(a => 
+          a.id === announcement.id ? { ...a, is_pinned: !a.is_pinned } : a
+        ).sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        })
+      );
+      
+      toast.success(announcement.is_pinned ? "已取消置顶" : "已置顶公告");
+    } catch (error) {
+      console.error("Error toggling pin:", error);
+      toast.error("操作失败");
+    }
+  };
+
+  // Delete announcement
+  const handleDeleteAnnouncement = async (announcement: TeamAnnouncement) => {
+    if (!profile || !myTeam) return;
+    
+    try {
+      const { error } = await supabase
+        .from("team_announcements")
+        .delete()
+        .eq("id", announcement.id);
+      
+      if (error) throw error;
+      
+      setAnnouncements(prev => prev.filter(a => a.id !== announcement.id));
+      toast.success("公告已删除");
+    } catch (error) {
+      console.error("Error deleting announcement:", error);
+      toast.error("删除失败");
+    }
+  };
+
+  // Claim weekly reward
+  const handleClaimWeeklyReward = async () => {
+    if (!profile || !myTeam || !weeklyReward || weeklyReward.claimed) return;
+    
+    setIsClaimingWeekly(true);
+    try {
+      // Update reward as claimed
+      const { error: claimError } = await supabase
+        .from("team_weekly_rewards")
+        .update({
+          claimed: true,
+          claimed_at: new Date().toISOString()
+        })
+        .eq("id", weeklyReward.id);
+      
+      if (claimError) throw claimError;
+      
+      // Award coins and xp
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          coins: (profile.coins || 0) + weeklyReward.reward_coins,
+          xp: (profile.xp || 0) + weeklyReward.reward_xp
+        })
+        .eq("id", profile.id);
+      
+      if (profileError) throw profileError;
+      
+      toast.success(`领取成功！获得 ${weeklyReward.reward_coins} 狄邦豆 和 ${weeklyReward.reward_xp} 经验值`);
+      setWeeklyReward({ ...weeklyReward, claimed: true });
+      refreshProfile();
+    } catch (error) {
+      console.error("Error claiming weekly reward:", error);
+      toast.error("领取失败");
+    } finally {
+      setIsClaimingWeekly(false);
     }
   };
 
@@ -962,13 +1275,13 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           </DialogContent>
         </Dialog>
         
-        {/* Join Team Dialog */}
+        {/* Apply to Team Dialog */}
         <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>加入战队</DialogTitle>
+              <DialogTitle>申请加入战队</DialogTitle>
               <DialogDescription>
-                确定要加入「{selectedTeam?.name}」吗？
+                提交申请后需要等待队长或副队长审批
               </DialogDescription>
             </DialogHeader>
             {selectedTeam && (
@@ -993,15 +1306,34 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
                     </span>
                   </div>
                 </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">申请留言（可选）</label>
+                  <Textarea
+                    placeholder="介绍一下自己..."
+                    value={applicationMessage}
+                    onChange={(e) => setApplicationMessage(e.target.value)}
+                    maxLength={200}
+                    rows={3}
+                  />
+                </div>
+                {myApplications.some(a => a.team_id === selectedTeam.id) && (
+                  <p className="text-sm text-amber-500 flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    你已经提交过申请，请等待审批
+                  </p>
+                )}
               </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowJoinDialog(false)}>
                 取消
               </Button>
-              <Button onClick={handleJoinTeam} disabled={isJoining}>
-                {isJoining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                确认加入
+              <Button 
+                onClick={handleApplyToTeam} 
+                disabled={isApplying || myApplications.some(a => a.team_id === selectedTeam?.id)}
+              >
+                {isApplying ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                提交申请
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1091,8 +1423,12 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full flex-wrap">
+        <TabsList className="w-full flex-wrap h-auto">
           <TabsTrigger value="team" className="flex-1">成员</TabsTrigger>
+          <TabsTrigger value="announcements" className="flex-1">
+            <Megaphone className="w-4 h-4 mr-1" />
+            公告
+          </TabsTrigger>
           <TabsTrigger value="chat" className="flex-1">
             <MessageCircle className="w-4 h-4 mr-1" />
             聊天
@@ -1101,6 +1437,16 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           <TabsTrigger value="battles" className="flex-1">战队战</TabsTrigger>
           <TabsTrigger value="milestones" className="flex-1">目标</TabsTrigger>
           <TabsTrigger value="leaderboard" className="flex-1">排行</TabsTrigger>
+          {(myTeam.leader_id === profile?.id || teamMembers.find(m => m.profile_id === profile?.id)?.role === "officer") && (
+            <TabsTrigger value="applications" className="flex-1 relative">
+              申请
+              {applications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
+                  {applications.length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="team" className="mt-4">
@@ -1212,6 +1558,135 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
                     );
                   })}
                 </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Announcements Tab */}
+        <TabsContent value="announcements" className="mt-4 space-y-4">
+          {/* Weekly Reward Banner */}
+          {weeklyReward && !weeklyReward.claimed && (weeklyReward.reward_coins > 0 || weeklyReward.reward_xp > 0) && (
+            <Card className="gaming-card bg-gradient-to-r from-primary/20 to-accent/20 border-primary/30">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <Star className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-gaming text-lg">🎉 本周贡献奖励</h4>
+                    <p className="text-sm text-muted-foreground">
+                      贡献 {weeklyReward.weekly_xp.toLocaleString()} XP，{weeklyReward.weekly_wins} 胜场
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <Badge variant="coin" className="gap-1">
+                      <Coins className="w-3 h-3" />
+                      +{weeklyReward.reward_coins}
+                    </Badge>
+                    <Badge variant="outline" className="gap-1 ml-2">
+                      <Zap className="w-3 h-3" />
+                      +{weeklyReward.reward_xp}
+                    </Badge>
+                  </div>
+                  <Button onClick={handleClaimWeeklyReward} disabled={isClaimingWeekly}>
+                    {isClaimingWeekly ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Gift className="w-4 h-4 mr-2" />}
+                    领取
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          <Card className="gaming-card">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Megaphone className="w-5 h-5" />
+                  战队公告
+                </CardTitle>
+                {(myTeam.leader_id === profile?.id || teamMembers.find(m => m.profile_id === profile?.id)?.role === "officer") && (
+                  <Button size="sm" onClick={() => setShowAnnouncementDialog(true)}>
+                    <Plus className="w-4 h-4 mr-1" />
+                    发布公告
+                  </Button>
+                )}
+              </div>
+              <CardDescription>队长和副队长可以发布公告</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                {announcements.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Megaphone className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">暂无公告</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {announcements.map((announcement) => {
+                      const isLeaderOrOfficer = myTeam.leader_id === profile?.id || 
+                        teamMembers.find(m => m.profile_id === profile?.id)?.role === "officer";
+                      
+                      return (
+                        <div
+                          key={announcement.id}
+                          className={`p-4 rounded-lg border ${
+                            announcement.is_pinned 
+                              ? "bg-primary/10 border-primary/30" 
+                              : "bg-background/50 border-border/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                {announcement.is_pinned && (
+                                  <Pin className="w-4 h-4 text-primary" />
+                                )}
+                                <h4 className="font-medium">{announcement.title}</h4>
+                              </div>
+                              <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-3">
+                                {announcement.content}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Avatar className="w-5 h-5">
+                                  <AvatarImage src={announcement.author?.avatar_url || undefined} />
+                                  <AvatarFallback>{announcement.author?.username?.slice(0, 1)}</AvatarFallback>
+                                </Avatar>
+                                <span>{announcement.author?.username}</span>
+                                <span>·</span>
+                                <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            {isLeaderOrOfficer && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleTogglePin(announcement)}>
+                                    <Pin className="w-4 h-4 mr-2" />
+                                    {announcement.is_pinned ? "取消置顶" : "置顶公告"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    className="text-destructive"
+                                    onClick={() => handleDeleteAnnouncement(announcement)}
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    删除公告
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1689,7 +2164,106 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        {/* Applications Tab (for leaders/officers) */}
+        <TabsContent value="applications" className="mt-4">
+          <Card className="gaming-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5" />
+                入队申请 ({applications.length})
+              </CardTitle>
+              <CardDescription>审批成员的入队申请</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                {applications.length === 0 ? (
+                  <div className="text-center py-12">
+                    <UserPlus className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">暂无待审批的申请</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {applications.map((app) => (
+                      <div key={app.id} className="flex items-center gap-3 p-4 rounded-lg bg-background/50 border">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={app.applicant?.avatar_url || undefined} />
+                          <AvatarFallback>{app.applicant?.username?.slice(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{app.applicant?.username}</span>
+                            <Badge variant="outline" className="text-xs">Lv.{app.applicant?.level}</Badge>
+                          </div>
+                          {app.message && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{app.message}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            <Clock className="w-3 h-3 inline mr-1" />
+                            {new Date(app.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleRejectApplication(app)}>
+                            <X className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" onClick={() => handleApproveApplication(app)}>
+                            <Check className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+      
+      {/* Announcement Dialog */}
+      <Dialog open={showAnnouncementDialog} onOpenChange={setShowAnnouncementDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="w-5 h-5" />
+              发布公告
+            </DialogTitle>
+            <DialogDescription>公告将显示给所有战队成员</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">公告标题</label>
+              <Input
+                placeholder="输入公告标题"
+                value={newAnnouncementTitle}
+                onChange={(e) => setNewAnnouncementTitle(e.target.value)}
+                maxLength={50}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">公告内容</label>
+              <Textarea
+                placeholder="输入公告内容..."
+                value={newAnnouncementContent}
+                onChange={(e) => setNewAnnouncementContent(e.target.value)}
+                maxLength={500}
+                rows={5}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAnnouncementDialog(false)}>取消</Button>
+            <Button 
+              onClick={handlePostAnnouncement} 
+              disabled={!newAnnouncementTitle.trim() || !newAnnouncementContent.trim() || isPostingAnnouncement}
+            >
+              {isPostingAnnouncement ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              发布公告
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Challenge Team Dialog */}
       <Dialog open={showChallengeDialog} onOpenChange={setShowChallengeDialog}>

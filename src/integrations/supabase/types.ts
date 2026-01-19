@@ -1284,6 +1284,138 @@ export type Database = {
         }
         Relationships: []
       }
+      team_battle_participants: {
+        Row: {
+          id: string
+          joined_at: string
+          losses: number | null
+          profile_id: string
+          score: number | null
+          team_battle_id: string
+          team_id: string
+          wins: number | null
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          losses?: number | null
+          profile_id: string
+          score?: number | null
+          team_battle_id: string
+          team_id: string
+          wins?: number | null
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          losses?: number | null
+          profile_id?: string
+          score?: number | null
+          team_battle_id?: string
+          team_id?: string
+          wins?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_battle_participants_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_battle_participants_team_battle_id_fkey"
+            columns: ["team_battle_id"]
+            isOneToOne: false
+            referencedRelation: "team_battles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_battle_participants_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_battles: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          id: string
+          season_id: string
+          started_at: string | null
+          status: string | null
+          team1_id: string
+          team1_score: number | null
+          team1_wins: number | null
+          team2_id: string
+          team2_score: number | null
+          team2_wins: number | null
+          winner_team_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          season_id: string
+          started_at?: string | null
+          status?: string | null
+          team1_id: string
+          team1_score?: number | null
+          team1_wins?: number | null
+          team2_id: string
+          team2_score?: number | null
+          team2_wins?: number | null
+          winner_team_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          season_id?: string
+          started_at?: string | null
+          status?: string | null
+          team1_id?: string
+          team1_score?: number | null
+          team1_wins?: number | null
+          team2_id?: string
+          team2_score?: number | null
+          team2_wins?: number | null
+          winner_team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_battles_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_battles_team1_id_fkey"
+            columns: ["team1_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_battles_team2_id_fkey"
+            columns: ["team2_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_battles_winner_team_id_fkey"
+            columns: ["winner_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           contributed_wins: number

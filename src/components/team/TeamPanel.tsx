@@ -15,7 +15,8 @@ import { toast } from "sonner";
 import { 
   Users, Crown, Trophy, Plus, Search, LogOut, 
   Shield, Star, Coins, Zap, Target, Gift,
-  ChevronLeft, Loader2, UserPlus, Medal
+  ChevronLeft, Loader2, UserPlus, Medal, Swords,
+  TrendingUp, Award, Sparkles
 } from "lucide-react";
 
 interface Team {
@@ -63,6 +64,21 @@ interface TeamSeasonStats {
   rank_position: number | null;
 }
 
+interface TeamBattle {
+  id: string;
+  team1_id: string;
+  team2_id: string;
+  team1_score: number;
+  team2_score: number;
+  team1_wins: number;
+  team2_wins: number;
+  status: string;
+  winner_team_id: string | null;
+  created_at: string;
+  team1?: Team;
+  team2?: Team;
+}
+
 interface TeamPanelProps {
   onBack: () => void;
 }
@@ -77,9 +93,11 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const [milestones, setMilestones] = useState<TeamMilestone[]>([]);
   const [claimedMilestones, setClaimedMilestones] = useState<string[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [teamBattles, setTeamBattles] = useState<TeamBattle[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("team");
+  const [hasChampionCard, setHasChampionCard] = useState(false);
   
   // Create team dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -91,6 +109,11 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  
+  // Challenge team dialog
+  const [showChallengeDialog, setShowChallengeDialog] = useState(false);
+  const [challengeTeam, setChallengeTeam] = useState<Team | null>(null);
+  const [isChallenging, setIsChallenging] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -121,7 +144,7 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
         if (teamData) {
           setMyTeam(teamData);
           
-          // Fetch team members
+          // Fetch team members with contributions
           const { data: members } = await supabase
             .from("team_members")
             .select(`
@@ -134,6 +157,26 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           
           if (members) {
             setTeamMembers(members as any);
+          }
+          
+          // Check if team is rank 1 and user has champion card
+          if (teamData.rank_position === 1) {
+            const { data: championCard } = await supabase
+              .from("name_cards")
+              .select("id")
+              .eq("name", "冠军战队")
+              .single();
+            
+            if (championCard) {
+              const { data: userCard } = await supabase
+                .from("user_name_cards")
+                .select("id")
+                .eq("profile_id", profile.id)
+                .eq("name_card_id", championCard.id)
+                .single();
+              
+              setHasChampionCard(!!userCard);
+            }
           }
           
           // Fetch season stats
@@ -175,6 +218,19 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
             if (claims) {
               setClaimedMilestones(claims.map(c => c.milestone_id));
             }
+            
+            // Fetch team battles
+            const { data: battles } = await supabase
+              .from("team_battles")
+              .select("*")
+              .or(`team1_id.eq.${teamData.id},team2_id.eq.${teamData.id}`)
+              .eq("season_id", activeSeason.id)
+              .order("created_at", { ascending: false })
+              .limit(20);
+            
+            if (battles) {
+              setTeamBattles(battles);
+            }
           }
         }
       }
@@ -207,15 +263,7 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
     
     setIsCreating(true);
     try {
-      // Deduct coins
-      const { error: coinsError } = await supabase
-        .from("profiles")
-        .update({ coins: (profile.coins || 0) - CREATE_TEAM_COST })
-        .eq("id", profile.id);
-      
-      if (coinsError) throw coinsError;
-      
-      // Create team
+      // Create team first
       const { data: newTeam, error: teamError } = await supabase
         .from("teams")
         .insert({
@@ -227,14 +275,7 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
         .select()
         .single();
       
-      if (teamError) {
-        // Refund coins if team creation fails
-        await supabase
-          .from("profiles")
-          .update({ coins: profile.coins || 0 })
-          .eq("id", profile.id);
-        throw teamError;
-      }
+      if (teamError) throw teamError;
       
       // Add self as leader
       const { error: memberError } = await supabase
@@ -245,7 +286,21 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           role: "leader"
         });
       
-      if (memberError) throw memberError;
+      if (memberError) {
+        // Rollback team creation
+        await supabase.from("teams").delete().eq("id", newTeam.id);
+        throw memberError;
+      }
+      
+      // Deduct coins after successful creation
+      const { error: coinsError } = await supabase
+        .from("profiles")
+        .update({ coins: (profile.coins || 0) - CREATE_TEAM_COST })
+        .eq("id", profile.id);
+      
+      if (coinsError) {
+        console.error("Failed to deduct coins:", coinsError);
+      }
       
       toast.success("战队创建成功！");
       setShowCreateDialog(false);
@@ -391,6 +446,91 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
     }
   };
 
+  const handleChallengeTeam = async () => {
+    if (!profile || !myTeam || !challengeTeam) return;
+    
+    // Check if user is leader
+    if (myTeam.leader_id !== profile.id) {
+      toast.error("只有队长可以发起战队挑战");
+      return;
+    }
+    
+    setIsChallenging(true);
+    try {
+      const { data: activeSeason } = await supabase
+        .from("seasons")
+        .select("id")
+        .eq("is_active", true)
+        .single();
+      
+      if (!activeSeason) {
+        toast.error("当前没有活跃赛季");
+        return;
+      }
+      
+      const { error } = await supabase
+        .from("team_battles")
+        .insert({
+          season_id: activeSeason.id,
+          team1_id: myTeam.id,
+          team2_id: challengeTeam.id,
+          status: "pending"
+        });
+      
+      if (error) throw error;
+      
+      toast.success(`已向「${challengeTeam.name}」发起挑战！`);
+      setShowChallengeDialog(false);
+      setChallengeTeam(null);
+      fetchData();
+    } catch (error) {
+      console.error("Error challenging team:", error);
+      toast.error("发起挑战失败");
+    } finally {
+      setIsChallenging(false);
+    }
+  };
+
+  const handleClaimChampionCard = async () => {
+    if (!profile || !myTeam || myTeam.rank_position !== 1) return;
+    
+    try {
+      const { data: championCard } = await supabase
+        .from("name_cards")
+        .select("id")
+        .eq("name", "冠军战队")
+        .single();
+      
+      if (!championCard) {
+        toast.error("名片不存在");
+        return;
+      }
+      
+      const { error } = await supabase
+        .from("user_name_cards")
+        .insert({
+          profile_id: profile.id,
+          name_card_id: championCard.id,
+          rank_position: 1
+        });
+      
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("你已经拥有此名片");
+        } else {
+          throw error;
+        }
+        return;
+      }
+      
+      toast.success("恭喜获得「冠军战队」专属名片！");
+      setHasChampionCard(true);
+    } catch (error) {
+      console.error("Error claiming champion card:", error);
+      toast.error("领取名片失败");
+    }
+  };
+
   const getMilestoneProgress = (milestone: TeamMilestone): number => {
     if (!seasonStats) return 0;
     
@@ -416,6 +556,10 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const filteredTeams = allTeams.filter(team => 
     team.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Sort members by contributions for leaderboard
+  const sortedByXP = [...teamMembers].sort((a, b) => b.contributed_xp - a.contributed_xp);
+  const sortedByWins = [...teamMembers].sort((a, b) => b.contributed_wins - a.contributed_wins);
 
   if (isLoading) {
     return (
@@ -659,6 +803,27 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
         </Button>
       </div>
       
+      {/* Champion Card Claim Banner */}
+      {myTeam.rank_position === 1 && !hasChampionCard && (
+        <Card className="gaming-card bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-yellow-500/50">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center">
+                <Crown className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h4 className="font-gaming text-lg">🏆 恭喜！你的战队排名第一</h4>
+                <p className="text-sm text-muted-foreground">领取专属「冠军战队」名片</p>
+              </div>
+            </div>
+            <Button onClick={handleClaimChampionCard} className="bg-gradient-to-r from-yellow-500 to-orange-500">
+              <Sparkles className="w-4 h-4 mr-2" />
+              领取名片
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* Team Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="gaming-card">
@@ -694,8 +859,10 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full">
           <TabsTrigger value="team" className="flex-1">成员</TabsTrigger>
-          <TabsTrigger value="milestones" className="flex-1">赛季目标</TabsTrigger>
-          <TabsTrigger value="leaderboard" className="flex-1">排行榜</TabsTrigger>
+          <TabsTrigger value="contributions" className="flex-1">贡献榜</TabsTrigger>
+          <TabsTrigger value="battles" className="flex-1">战队战</TabsTrigger>
+          <TabsTrigger value="milestones" className="flex-1">目标</TabsTrigger>
+          <TabsTrigger value="leaderboard" className="flex-1">排行</TabsTrigger>
         </TabsList>
         
         <TabsContent value="team" className="mt-4">
@@ -740,13 +907,234 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
                           <span>Lv.{member.profile?.level}</span>
                           <span className="flex items-center gap-1">
                             <Zap className="w-3 h-3" />
-                            贡献 {member.contributed_xp.toLocaleString()} XP
+                            {member.contributed_xp.toLocaleString()} XP
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Trophy className="w-3 h-3" />
+                            {member.contributed_wins}胜
                           </span>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Contribution Leaderboard Tab */}
+        <TabsContent value="contributions" className="mt-4 space-y-4">
+          {/* XP Contribution Leaderboard */}
+          <Card className="gaming-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-accent" />
+                经验贡献榜
+              </CardTitle>
+              <CardDescription>成员对战队经验的贡献排名</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {sortedByXP.slice(0, 10).map((member, index) => (
+                  <div
+                    key={member.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      index === 0 
+                        ? "bg-yellow-500/20 border border-yellow-500/30" 
+                        : index === 1 
+                          ? "bg-gray-400/20 border border-gray-400/30"
+                          : index === 2
+                            ? "bg-amber-600/20 border border-amber-600/30"
+                            : "bg-background/50"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      index === 0 
+                        ? "bg-gradient-to-br from-yellow-400 to-yellow-600 text-white" 
+                        : index === 1 
+                          ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white"
+                          : index === 2
+                            ? "bg-gradient-to-br from-amber-500 to-amber-700 text-white"
+                            : "bg-muted text-muted-foreground"
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={member.profile?.avatar_url || undefined} />
+                      <AvatarFallback>{member.profile?.username?.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium truncate">{member.profile?.username}</span>
+                    </div>
+                    <Badge variant="outline" className="gap-1">
+                      <Zap className="w-3 h-3 text-accent" />
+                      {member.contributed_xp.toLocaleString()}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Wins Contribution Leaderboard */}
+          <Card className="gaming-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                胜场贡献榜
+              </CardTitle>
+              <CardDescription>成员对战队胜场的贡献排名</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {sortedByWins.slice(0, 10).map((member, index) => (
+                  <div
+                    key={member.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      index === 0 
+                        ? "bg-yellow-500/20 border border-yellow-500/30" 
+                        : index === 1 
+                          ? "bg-gray-400/20 border border-gray-400/30"
+                          : index === 2
+                            ? "bg-amber-600/20 border border-amber-600/30"
+                            : "bg-background/50"
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      index === 0 
+                        ? "bg-gradient-to-br from-yellow-400 to-yellow-600 text-white" 
+                        : index === 1 
+                          ? "bg-gradient-to-br from-gray-300 to-gray-500 text-white"
+                          : index === 2
+                            ? "bg-gradient-to-br from-amber-500 to-amber-700 text-white"
+                            : "bg-muted text-muted-foreground"
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={member.profile?.avatar_url || undefined} />
+                      <AvatarFallback>{member.profile?.username?.slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium truncate">{member.profile?.username}</span>
+                    </div>
+                    <Badge variant="outline" className="gap-1">
+                      <Trophy className="w-3 h-3 text-yellow-500" />
+                      {member.contributed_wins}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Team Battles Tab */}
+        <TabsContent value="battles" className="mt-4 space-y-4">
+          {myTeam.leader_id === profile?.id && (
+            <Card className="gaming-card bg-gradient-to-r from-primary/20 to-accent/20">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Swords className="w-8 h-8 text-primary" />
+                    <div>
+                      <h4 className="font-gaming">发起战队挑战</h4>
+                      <p className="text-sm text-muted-foreground">选择一个战队进行团队赛</p>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      const otherTeams = allTeams.filter(t => t.id !== myTeam.id);
+                      if (otherTeams.length > 0) {
+                        setChallengeTeam(otherTeams[0]);
+                        setShowChallengeDialog(true);
+                      } else {
+                        toast.error("没有其他战队可以挑战");
+                      }
+                    }}
+                  >
+                    <Swords className="w-4 h-4 mr-2" />
+                    发起挑战
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          <Card className="gaming-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Swords className="w-5 h-5" />
+                战队对战记录
+              </CardTitle>
+              <CardDescription>团队赛记录，所有成员战绩累计计入战队积分</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px]">
+                {teamBattles.length > 0 ? (
+                  <div className="space-y-3">
+                    {teamBattles.map((battle) => {
+                      const isTeam1 = battle.team1_id === myTeam.id;
+                      const opponentId = isTeam1 ? battle.team2_id : battle.team1_id;
+                      const opponent = allTeams.find(t => t.id === opponentId);
+                      const myScore = isTeam1 ? battle.team1_score : battle.team2_score;
+                      const opponentScore = isTeam1 ? battle.team2_score : battle.team1_score;
+                      const isWinner = battle.winner_team_id === myTeam.id;
+                      
+                      return (
+                        <div
+                          key={battle.id}
+                          className={`p-4 rounded-lg border ${
+                            battle.status === "completed"
+                              ? isWinner
+                                ? "bg-green-500/10 border-green-500/30"
+                                : "bg-red-500/10 border-red-500/30"
+                              : "bg-muted border-border"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="text-center">
+                                <p className="font-gaming text-lg">{myTeam.name}</p>
+                                <p className="text-2xl font-bold text-primary">{myScore}</p>
+                              </div>
+                              <div className="px-4">
+                                <span className="text-muted-foreground font-gaming">VS</span>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-gaming text-lg">{opponent?.name || "未知战队"}</p>
+                                <p className="text-2xl font-bold text-muted-foreground">{opponentScore}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              {battle.status === "pending" && (
+                                <Badge variant="secondary">等待接受</Badge>
+                              )}
+                              {battle.status === "in_progress" && (
+                                <Badge variant="outline" className="animate-pulse">进行中</Badge>
+                              )}
+                              {battle.status === "completed" && (
+                                <Badge variant={isWinner ? "default" : "destructive"}>
+                                  {isWinner ? "胜利" : "失败"}
+                                </Badge>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(battle.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Swords className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">暂无战队对战记录</p>
+                    <p className="text-sm text-muted-foreground">队长可以发起战队挑战</p>
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -840,7 +1228,7 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
                 战队排行榜
               </CardTitle>
               <CardDescription>
-                排名第一的战队将获得专属名片
+                排名第一的战队成员将获得专属名片
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -895,6 +1283,20 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
                             </span>
                           </div>
                         </div>
+                        {!isMyTeam && myTeam.leader_id === profile?.id && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setChallengeTeam(team);
+                              setShowChallengeDialog(true);
+                            }}
+                          >
+                            <Swords className="w-3 h-3 mr-1" />
+                            挑战
+                          </Button>
+                        )}
                       </div>
                     );
                   })}
@@ -904,6 +1306,81 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Challenge Team Dialog */}
+      <Dialog open={showChallengeDialog} onOpenChange={setShowChallengeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Swords className="w-5 h-5" />
+              发起战队挑战
+            </DialogTitle>
+            <DialogDescription>
+              向其他战队发起团队赛挑战，所有成员的战绩将累计计入战队积分
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">选择对手战队</label>
+              <ScrollArea className="h-[200px] border rounded-lg p-2">
+                <div className="space-y-2">
+                  {allTeams.filter(t => t.id !== myTeam.id).map((team) => (
+                    <div
+                      key={team.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        challengeTeam?.id === team.id 
+                          ? "bg-primary/20 border border-primary" 
+                          : "bg-background/50 hover:bg-background/80"
+                      }`}
+                      onClick={() => setChallengeTeam(team)}
+                    >
+                      <div className="flex-1">
+                        <span className="font-medium">{team.name}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{team.member_count}人</span>
+                          <span>{team.total_xp.toLocaleString()} XP</span>
+                        </div>
+                      </div>
+                      {challengeTeam?.id === team.id && (
+                        <Award className="w-5 h-5 text-primary" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+            
+            {challengeTeam && (
+              <div className="p-4 rounded-lg bg-muted">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-gaming">{myTeam.name}</p>
+                    <p className="text-sm text-muted-foreground">{myTeam.member_count}人</p>
+                  </div>
+                  <div className="px-4">
+                    <Swords className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="text-right">
+                    <p className="font-gaming">{challengeTeam.name}</p>
+                    <p className="text-sm text-muted-foreground">{challengeTeam.member_count}人</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowChallengeDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleChallengeTeam} disabled={!challengeTeam || isChallenging}>
+              {isChallenging ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              发起挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

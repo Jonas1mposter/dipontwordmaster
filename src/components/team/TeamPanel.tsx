@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +14,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
   Users, Crown, Trophy, Plus, Search, LogOut, 
-  Shield, Star, Coins, Zap, Target, Gift,
+  Shield, Coins, Zap, Target, Gift,
   ChevronLeft, Loader2, UserPlus, Medal, Swords,
-  TrendingUp, Award, Sparkles
+  TrendingUp, Award, Sparkles, MessageCircle, Send,
+  UserCog, ArrowRightLeft, MoreVertical
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Team {
   id: string;
@@ -79,6 +87,18 @@ interface TeamBattle {
   team2?: Team;
 }
 
+interface TeamMessage {
+  id: string;
+  team_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  sender?: {
+    username: string;
+    avatar_url: string | null;
+  };
+}
+
 interface TeamPanelProps {
   onBack: () => void;
 }
@@ -99,6 +119,12 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const [activeTab, setActiveTab] = useState("team");
   const [hasChampionCard, setHasChampionCard] = useState(false);
   
+  // Chat state
+  const [messages, setMessages] = useState<TeamMessage[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
   // Create team dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
@@ -114,12 +140,64 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
   const [showChallengeDialog, setShowChallengeDialog] = useState(false);
   const [challengeTeam, setChallengeTeam] = useState<Team | null>(null);
   const [isChallenging, setIsChallenging] = useState(false);
+  
+  // Management dialogs
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<TeamMember | null>(null);
+  const [showPromoteDialog, setShowPromoteDialog] = useState(false);
+  const [promoteTarget, setPromoteTarget] = useState<TeamMember | null>(null);
 
   useEffect(() => {
     if (profile) {
       fetchData();
     }
   }, [profile]);
+
+  // Subscribe to realtime chat messages
+  useEffect(() => {
+    if (!myTeam) return;
+    
+    const channel = supabase
+      .channel(`team-chat-${myTeam.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'team_messages',
+          filter: `team_id=eq.${myTeam.id}`
+        },
+        async (payload) => {
+          // Fetch sender info for the new message
+          const { data: senderData } = await supabase
+            .from("profiles")
+            .select("username, avatar_url")
+            .eq("id", payload.new.sender_id)
+            .single();
+          
+          const newMsg: TeamMessage = {
+            id: payload.new.id,
+            team_id: payload.new.team_id,
+            sender_id: payload.new.sender_id,
+            content: payload.new.content,
+            created_at: payload.new.created_at,
+            sender: senderData || undefined
+          };
+          
+          setMessages(prev => [...prev, newMsg]);
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [myTeam?.id]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const fetchData = async () => {
     if (!profile) return;
@@ -157,6 +235,21 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
           
           if (members) {
             setTeamMembers(members as any);
+          }
+          
+          // Fetch team messages
+          const { data: messagesData } = await supabase
+            .from("team_messages")
+            .select(`
+              id, team_id, sender_id, content, created_at,
+              sender:profiles(username, avatar_url)
+            `)
+            .eq("team_id", teamData.id)
+            .order("created_at", { ascending: true })
+            .limit(100);
+          
+          if (messagesData) {
+            setMessages(messagesData as any);
           }
           
           // Check if team is rank 1 and user has champion card
@@ -250,6 +343,30 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
       console.error("Error fetching team data:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!profile || !myTeam || !newMessage.trim()) return;
+    
+    setIsSendingMessage(true);
+    try {
+      const { error } = await supabase
+        .from("team_messages")
+        .insert({
+          team_id: myTeam.id,
+          sender_id: profile.id,
+          content: newMessage.trim()
+        });
+      
+      if (error) throw error;
+      
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("发送消息失败");
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -528,6 +645,123 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
     } catch (error) {
       console.error("Error claiming champion card:", error);
       toast.error("领取名片失败");
+    }
+  };
+
+  // Transfer leadership to another member
+  const handleTransferLeadership = async () => {
+    if (!profile || !myTeam || !transferTarget) return;
+    
+    if (myTeam.leader_id !== profile.id) {
+      toast.error("只有队长可以转让职位");
+      return;
+    }
+    
+    try {
+      // Update team's leader_id
+      const { error: teamError } = await supabase
+        .from("teams")
+        .update({ leader_id: transferTarget.profile_id })
+        .eq("id", myTeam.id);
+      
+      if (teamError) throw teamError;
+      
+      // Update member roles
+      const { error: newLeaderError } = await supabase
+        .from("team_members")
+        .update({ role: "leader" })
+        .eq("profile_id", transferTarget.profile_id)
+        .eq("team_id", myTeam.id);
+      
+      if (newLeaderError) throw newLeaderError;
+      
+      const { error: oldLeaderError } = await supabase
+        .from("team_members")
+        .update({ role: "member" })
+        .eq("profile_id", profile.id)
+        .eq("team_id", myTeam.id);
+      
+      if (oldLeaderError) throw oldLeaderError;
+      
+      toast.success(`已将队长职位转让给 ${transferTarget.profile?.username}`);
+      setShowTransferDialog(false);
+      setTransferTarget(null);
+      fetchData();
+    } catch (error) {
+      console.error("Error transferring leadership:", error);
+      toast.error("转让队长失败");
+    }
+  };
+
+  // Promote member to vice-leader (officer)
+  const handlePromoteMember = async (toRole: "officer" | "member") => {
+    if (!profile || !myTeam || !promoteTarget) return;
+    
+    // Only leader can promote/demote
+    if (myTeam.leader_id !== profile.id) {
+      toast.error("只有队长可以管理职位");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("team_members")
+        .update({ role: toRole })
+        .eq("profile_id", promoteTarget.profile_id)
+        .eq("team_id", myTeam.id);
+      
+      if (error) throw error;
+      
+      const actionText = toRole === "officer" ? "任命为副队长" : "取消副队长";
+      toast.success(`已将 ${promoteTarget.profile?.username} ${actionText}`);
+      setShowPromoteDialog(false);
+      setPromoteTarget(null);
+      fetchData();
+    } catch (error) {
+      console.error("Error promoting member:", error);
+      toast.error("操作失败");
+    }
+  };
+
+  // Kick member from team (leader/officer only)
+  const handleKickMember = async (member: TeamMember) => {
+    if (!profile || !myTeam) return;
+    
+    const currentMember = teamMembers.find(m => m.profile_id === profile.id);
+    const isLeader = myTeam.leader_id === profile.id;
+    const isOfficer = currentMember?.role === "officer";
+    
+    if (!isLeader && !isOfficer) {
+      toast.error("只有队长或副队长可以踢出成员");
+      return;
+    }
+    
+    // Officers cannot kick other officers or the leader
+    if (isOfficer && (member.role === "officer" || member.role === "leader")) {
+      toast.error("副队长不能踢出其他管理人员");
+      return;
+    }
+    
+    // Cannot kick leader
+    if (member.role === "leader") {
+      toast.error("不能踢出队长");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("profile_id", member.profile_id)
+        .eq("team_id", myTeam.id);
+      
+      if (error) throw error;
+      
+      toast.success(`已将 ${member.profile?.username} 踢出战队`);
+      fetchData();
+    } catch (error) {
+      console.error("Error kicking member:", error);
+      toast.error("踢出成员失败");
     }
   };
 
@@ -857,8 +1091,12 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full">
+        <TabsList className="w-full flex-wrap">
           <TabsTrigger value="team" className="flex-1">成员</TabsTrigger>
+          <TabsTrigger value="chat" className="flex-1">
+            <MessageCircle className="w-4 h-4 mr-1" />
+            聊天
+          </TabsTrigger>
           <TabsTrigger value="contributions" className="flex-1">贡献榜</TabsTrigger>
           <TabsTrigger value="battles" className="flex-1">战队战</TabsTrigger>
           <TabsTrigger value="milestones" className="flex-1">目标</TabsTrigger>
@@ -876,49 +1114,195 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
             <CardContent>
               <ScrollArea className="h-[300px]">
                 <div className="space-y-2">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50"
-                    >
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={member.profile?.avatar_url || undefined} />
-                        <AvatarFallback>
-                          {member.profile?.username?.slice(0, 2) || "??"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{member.profile?.username}</span>
-                          {member.role === "leader" && (
-                            <Badge variant="champion" className="gap-1 text-xs">
-                              <Crown className="w-3 h-3" />
-                              队长
-                            </Badge>
-                          )}
-                          {member.role === "officer" && (
-                            <Badge variant="secondary" className="gap-1 text-xs">
-                              <Shield className="w-3 h-3" />
-                              副队长
-                            </Badge>
-                          )}
+                  {teamMembers.map((member) => {
+                    const isLeader = myTeam.leader_id === profile?.id;
+                    const isCurrentUser = member.profile_id === profile?.id;
+                    
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center gap-3 p-3 rounded-lg bg-background/50"
+                      >
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={member.profile?.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {member.profile?.username?.slice(0, 2) || "??"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium truncate">{member.profile?.username}</span>
+                            {member.role === "leader" && (
+                              <Badge variant="champion" className="gap-1 text-xs">
+                                <Crown className="w-3 h-3" />
+                                队长
+                              </Badge>
+                            )}
+                            {member.role === "officer" && (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Shield className="w-3 h-3" />
+                                副队长
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>Lv.{member.profile?.level}</span>
+                            <span className="flex items-center gap-1">
+                              <Zap className="w-3 h-3" />
+                              {member.contributed_xp.toLocaleString()} XP
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Trophy className="w-3 h-3" />
+                              {member.contributed_wins}胜
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>Lv.{member.profile?.level}</span>
-                          <span className="flex items-center gap-1">
-                            <Zap className="w-3 h-3" />
-                            {member.contributed_xp.toLocaleString()} XP
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Trophy className="w-3 h-3" />
-                            {member.contributed_wins}胜
-                          </span>
-                        </div>
+                        
+                        {/* Management dropdown for leader */}
+                        {isLeader && !isCurrentUser && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setTransferTarget(member);
+                                  setShowTransferDialog(true);
+                                }}
+                              >
+                                <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                转让队长
+                              </DropdownMenuItem>
+                              {member.role !== "officer" ? (
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setPromoteTarget(member);
+                                    setShowPromoteDialog(true);
+                                  }}
+                                >
+                                  <Shield className="w-4 h-4 mr-2" />
+                                  任命副队长
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    setPromoteTarget(member);
+                                    handlePromoteMember("member");
+                                  }}
+                                >
+                                  <UserCog className="w-4 h-4 mr-2" />
+                                  取消副队长
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => handleKickMember(member)}
+                              >
+                                <LogOut className="w-4 h-4 mr-2" />
+                                踢出战队
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Chat Tab */}
+        <TabsContent value="chat" className="mt-4">
+          <Card className="gaming-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                战队聊天
+              </CardTitle>
+              <CardDescription>与战队成员交流协作</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="flex flex-col h-[400px]">
+                {/* Messages Area */}
+                <ScrollArea className="flex-1 p-4">
+                  <div className="space-y-4">
+                    {messages.length === 0 ? (
+                      <div className="text-center py-12">
+                        <MessageCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">暂无消息</p>
+                        <p className="text-sm text-muted-foreground">发送第一条消息开始聊天吧！</p>
+                      </div>
+                    ) : (
+                      messages.map((msg) => {
+                        const isOwn = msg.sender_id === profile?.id;
+                        return (
+                          <div
+                            key={msg.id}
+                            className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                          >
+                            <Avatar className="w-8 h-8 flex-shrink-0">
+                              <AvatarImage src={msg.sender?.avatar_url || undefined} />
+                              <AvatarFallback>
+                                {msg.sender?.username?.slice(0, 2) || "??"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className={`max-w-[70%] ${isOwn ? "text-right" : ""}`}>
+                              <div className={`flex items-center gap-2 mb-1 ${isOwn ? "justify-end" : ""}`}>
+                                <span className="text-xs font-medium">{msg.sender?.username}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className={`inline-block p-3 rounded-lg ${
+                                isOwn 
+                                  ? "bg-primary text-primary-foreground" 
+                                  : "bg-muted"
+                              }`}>
+                                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                </ScrollArea>
+                
+                {/* Message Input */}
+                <div className="p-4 border-t">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="输入消息..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      maxLength={500}
+                    />
+                    <Button 
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim() || isSendingMessage}
+                    >
+                      {isSendingMessage ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1377,6 +1761,100 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
             <Button onClick={handleChallengeTeam} disabled={!challengeTeam || isChallenging}>
               {isChallenging ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               发起挑战
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Transfer Leadership Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5" />
+              转让队长职位
+            </DialogTitle>
+            <DialogDescription>
+              确定要将队长职位转让给 {transferTarget?.profile?.username} 吗？转让后你将成为普通成员。
+            </DialogDescription>
+          </DialogHeader>
+          
+          {transferTarget && (
+            <div className="p-4 rounded-lg bg-muted">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-12 h-12">
+                  <AvatarImage src={transferTarget.profile?.avatar_url || undefined} />
+                  <AvatarFallback>
+                    {transferTarget.profile?.username?.slice(0, 2) || "??"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{transferTarget.profile?.username}</p>
+                  <p className="text-sm text-muted-foreground">Lv.{transferTarget.profile?.level}</p>
+                </div>
+                <div className="ml-auto">
+                  <Badge variant="champion" className="gap-1">
+                    <Crown className="w-3 h-3" />
+                    新队长
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTransferDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleTransferLeadership} variant="destructive">
+              确认转让
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Promote to Vice-Leader Dialog */}
+      <Dialog open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              任命副队长
+            </DialogTitle>
+            <DialogDescription>
+              确定要将 {promoteTarget?.profile?.username} 任命为副队长吗？副队长可以帮助管理战队成员。
+            </DialogDescription>
+          </DialogHeader>
+          
+          {promoteTarget && (
+            <div className="p-4 rounded-lg bg-muted">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-12 h-12">
+                  <AvatarImage src={promoteTarget.profile?.avatar_url || undefined} />
+                  <AvatarFallback>
+                    {promoteTarget.profile?.username?.slice(0, 2) || "??"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{promoteTarget.profile?.username}</p>
+                  <p className="text-sm text-muted-foreground">Lv.{promoteTarget.profile?.level}</p>
+                </div>
+                <div className="ml-auto">
+                  <Badge variant="secondary" className="gap-1">
+                    <Shield className="w-3 h-3" />
+                    副队长
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPromoteDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={() => handlePromoteMember("officer")}>
+              确认任命
             </Button>
           </DialogFooter>
         </DialogContent>

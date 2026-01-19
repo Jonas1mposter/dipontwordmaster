@@ -21,6 +21,7 @@ const badgeVariants = cva(
         champion: "border-transparent bg-gradient-to-r from-primary to-neon-pink text-primary-foreground font-gaming shadow-lg shadow-primary/30",
         xp: "border-primary/30 bg-primary/10 text-primary font-gaming",
         energy: "border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan font-gaming",
+        coin: "border-amber-500/30 bg-amber-500/10 text-amber-500 font-gaming",
       },
     },
     defaultVariants: {

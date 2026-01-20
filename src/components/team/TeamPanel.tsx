@@ -547,11 +547,28 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
         console.error("Failed to deduct coins:", coinsError);
       }
       
-      toast.success("战队创建成功！");
+      // Immediately set the team state to avoid showing "join" UI
+      setMyTeam(newTeam);
+      setTeamMembers([{
+        id: crypto.randomUUID(),
+        profile_id: profile.id,
+        role: "leader",
+        joined_at: new Date().toISOString(),
+        contributed_xp: 0,
+        contributed_wins: 0,
+        profile: {
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+          level: profile.level
+        }
+      }] as any);
+      
+      toast.success("战队创建成功！你已成为队长");
       setShowCreateDialog(false);
       setNewTeamName("");
       setNewTeamDescription("");
       refreshProfile();
+      // Refresh to get complete data
       fetchData();
     } catch (error: any) {
       console.error("Error creating team:", error);

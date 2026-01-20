@@ -261,6 +261,55 @@ export function TeamPanel({ onBack }: TeamPanelProps) {
     };
   }, [myTeam?.id]);
 
+  // Subscribe to realtime applications (for leaders/officers)
+  useEffect(() => {
+    if (!myTeam) return;
+    
+    const myRole = teamMembers.find(m => m.profile_id === profile?.id)?.role;
+    if (myRole !== "leader" && myRole !== "officer") return;
+    
+    const channel = supabase
+      .channel(`team-applications-${myTeam.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'team_applications',
+          filter: `team_id=eq.${myTeam.id}`
+        },
+        async (payload) => {
+          // Fetch applicant info
+          const { data: applicantData } = await supabase
+            .from("profiles")
+            .select("username, avatar_url, level")
+            .eq("id", payload.new.applicant_id)
+            .single();
+          
+          const newApp: TeamApplication = {
+            id: payload.new.id,
+            team_id: payload.new.team_id,
+            applicant_id: payload.new.applicant_id,
+            message: payload.new.message,
+            status: payload.new.status,
+            created_at: payload.new.created_at,
+            applicant: applicantData || undefined
+          };
+          
+          // Only add if pending
+          if (payload.new.status === "pending") {
+            setApplications(prev => [newApp, ...prev]);
+            toast.info(`📩 收到新的入队申请：${applicantData?.username || '未知用户'}`);
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [myTeam?.id, teamMembers, profile?.id]);
+
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

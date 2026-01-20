@@ -1848,6 +1848,13 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
         }
       }
 
+      // CRITICAL: Clean up match_queue entry to allow future matches
+      await supabase
+        .from("match_queue")
+        .delete()
+        .eq("profile_id", profile.id)
+        .eq("match_type", "ranked");
+
       refreshProfile();
     }
   };

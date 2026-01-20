@@ -1277,6 +1277,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
         }
       }
 
+      // CRITICAL: Clean up match_queue entry to allow future matches
+      await supabase
+        .from("match_queue")
+        .delete()
+        .eq("profile_id", profile.id)
+        .eq("match_type", "free");
+
       refreshProfile();
     }
   };
@@ -1474,6 +1481,13 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
             .eq("id", profile.id);
         }
       }
+
+      // CRITICAL: Clean up match_queue entry to allow future matches
+      await supabase
+        .from("match_queue")
+        .delete()
+        .eq("profile_id", profile.id)
+        .eq("match_type", "free");
 
       refreshProfile();
     }

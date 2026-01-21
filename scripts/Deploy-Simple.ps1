@@ -60,23 +60,64 @@ $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $dockerCmd) {
     Log "安装 Docker..."
     
-    # 安装 NuGet 提供程序
-    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-        Install-PackageProvider -Name NuGet -Force -Scope CurrentUser | Out-Null
+    # 方法1: 使用官方安装脚本
+    Log "下载 Docker 安装脚本..."
+    $dockerUrl = "https://get.docker.com/builds/Windows/x86_64/docker-latest.zip"
+    $dockerZip = "$env:TEMP\docker.zip"
+    $dockerPath = "$env:ProgramFiles\Docker"
+    
+    try {
+        # 尝试使用 Chocolatey 安装
+        $choco = Get-Command choco -ErrorAction SilentlyContinue
+        if ($choco) {
+            Log "使用 Chocolatey 安装 Docker Desktop..."
+            choco install docker-desktop -y
+            Ok "Docker Desktop 已通过 Chocolatey 安装"
+        } else {
+            # 直接下载 Docker CE
+            Log "下载 Docker CE..."
+            $dockerCeUrl = "https://download.docker.com/win/static/stable/x86_64/docker-24.0.7.zip"
+            Invoke-WebRequest -Uri $dockerCeUrl -OutFile $dockerZip -UseBasicParsing
+            
+            # 解压
+            Log "解压 Docker..."
+            if (-not (Test-Path $dockerPath)) {
+                New-Item -ItemType Directory -Path $dockerPath -Force | Out-Null
+            }
+            Expand-Archive -Path $dockerZip -DestinationPath $dockerPath -Force
+            
+            # 移动文件到正确位置
+            if (Test-Path "$dockerPath\docker") {
+                Get-ChildItem "$dockerPath\docker\*" | Move-Item -Destination $dockerPath -Force
+                Remove-Item "$dockerPath\docker" -Force -Recurse
+            }
+            
+            # 添加到 PATH
+            $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            if ($path -notlike "*$dockerPath*") {
+                [Environment]::SetEnvironmentVariable("Path", "$path;$dockerPath", "Machine")
+                $env:Path = "$env:Path;$dockerPath"
+            }
+            
+            # 注册 Docker 服务
+            Log "注册 Docker 服务..."
+            & "$dockerPath\dockerd.exe" --register-service
+            
+            # 清理
+            Remove-Item $dockerZip -Force -ErrorAction SilentlyContinue
+            
+            Ok "Docker CE 已安装"
+        }
+    } catch {
+        Err "Docker 安装失败: $_"
+        Write-Host ""
+        Write-Host "请手动安装 Docker Desktop:" -ForegroundColor Yellow
+        Write-Host "  1. 下载: https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe" -ForegroundColor Cyan
+        Write-Host "  2. 安装完成后重新运行此脚本" -ForegroundColor Cyan
+        Write-Host ""
+        exit 1
     }
     
-    # 安装 Docker 模块
-    if (-not (Get-Module -ListAvailable -Name DockerMsftProvider)) {
-        Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
-    }
-    
-    # 安装 Docker
-    $pkg = Get-Package -Name docker -ProviderName DockerMsftProvider -ErrorAction SilentlyContinue
-    if (-not $pkg) {
-        Install-Package -Name docker -ProviderName DockerMsftProvider -Force
-    }
-    
-    Ok "Docker 已安装"
     Warn "请重启系统后再次运行此脚本"
     exit 0
 } else {

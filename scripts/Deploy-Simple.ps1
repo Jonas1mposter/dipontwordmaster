@@ -1,0 +1,260 @@
+# Dipont Word Master 简化部署脚本
+# 使用方法: powershell -ExecutionPolicy Bypass -File Deploy-Simple.ps1
+
+param(
+    [string]$ServerIP = "10.20.2.20",
+    [string]$PostgresPassword = "",
+    [string]$JwtSecret = "",
+    [string]$WorkDir = "C:\Supabase"
+)
+
+$ErrorActionPreference = "Stop"
+
+# ========== 辅助函数 ==========
+function Log { param($Msg) Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $Msg" -ForegroundColor Cyan }
+function Ok { param($Msg) Write-Host "  [OK] $Msg" -ForegroundColor Green }
+function Warn { param($Msg) Write-Host "  [WARN] $Msg" -ForegroundColor Yellow }
+function Err { param($Msg) Write-Host "  [ERR] $Msg" -ForegroundColor Red }
+
+function New-Password {
+    param([int]$Len = 24)
+    $c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    return -join ((1..$Len) | ForEach-Object { $c[(Get-Random -Maximum $c.Length)] })
+}
+
+# ========== 检查管理员权限 ==========
+Log "检查管理员权限..."
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Err "请以管理员身份运行此脚本"
+    exit 1
+}
+Ok "管理员权限已确认"
+
+# ========== 步骤1: 安装 Containers 功能 ==========
+Log "步骤 1/8: 检查 Containers 功能..."
+$containers = Get-WindowsFeature -Name Containers -ErrorAction SilentlyContinue
+if ($containers -and -not $containers.Installed) {
+    Log "安装 Containers 功能..."
+    Install-WindowsFeature -Name Containers -IncludeManagementTools
+    Ok "Containers 功能已安装"
+} else {
+    Ok "Containers 功能已存在"
+}
+
+# ========== 步骤2: 安装 Hyper-V ==========
+Log "步骤 2/8: 检查 Hyper-V..."
+$hyperv = Get-WindowsFeature -Name Hyper-V -ErrorAction SilentlyContinue
+if ($hyperv -and -not $hyperv.Installed) {
+    Log "安装 Hyper-V..."
+    Install-WindowsFeature -Name Hyper-V -IncludeManagementTools
+    Ok "Hyper-V 已安装"
+    Warn "可能需要重启系统"
+} else {
+    Ok "Hyper-V 已存在"
+}
+
+# ========== 步骤3: 安装 Docker ==========
+Log "步骤 3/8: 检查 Docker..."
+$dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+if (-not $dockerCmd) {
+    Log "安装 Docker..."
+    
+    # 安装 NuGet 提供程序
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -Force -Scope CurrentUser | Out-Null
+    }
+    
+    # 安装 Docker 模块
+    if (-not (Get-Module -ListAvailable -Name DockerMsftProvider)) {
+        Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
+    }
+    
+    # 安装 Docker
+    $pkg = Get-Package -Name docker -ProviderName DockerMsftProvider -ErrorAction SilentlyContinue
+    if (-not $pkg) {
+        Install-Package -Name docker -ProviderName DockerMsftProvider -Force
+    }
+    
+    Ok "Docker 已安装"
+    Warn "请重启系统后再次运行此脚本"
+    exit 0
+} else {
+    Ok "Docker 已安装: $(docker --version)"
+}
+
+# ========== 步骤4: 安装 Docker Compose ==========
+Log "步骤 4/8: 检查 Docker Compose..."
+$composePath = "$env:ProgramFiles\Docker\docker-compose.exe"
+if (-not (Test-Path $composePath)) {
+    Log "下载 Docker Compose..."
+    $url = "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-windows-x86_64.exe"
+    
+    $dockerDir = "$env:ProgramFiles\Docker"
+    if (-not (Test-Path $dockerDir)) {
+        New-Item -ItemType Directory -Path $dockerDir -Force | Out-Null
+    }
+    
+    Invoke-WebRequest -Uri $url -OutFile $composePath -UseBasicParsing
+    
+    # 添加到 PATH
+    $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    if ($path -notlike "*$dockerDir*") {
+        [Environment]::SetEnvironmentVariable("Path", "$path;$dockerDir", "Machine")
+        $env:Path = "$env:Path;$dockerDir"
+    }
+    
+    Ok "Docker Compose 已安装"
+} else {
+    Ok "Docker Compose 已存在"
+}
+
+# ========== 步骤5: 启动 Docker 服务 ==========
+Log "步骤 5/8: 启动 Docker 服务..."
+$svc = Get-Service -Name Docker -ErrorAction SilentlyContinue
+if ($svc) {
+    if ($svc.Status -ne "Running") {
+        Start-Service Docker
+        Start-Sleep -Seconds 5
+    }
+    Set-Service -Name Docker -StartupType Automatic
+    Ok "Docker 服务运行中"
+} else {
+    Warn "Docker 服务未找到，请重启系统"
+    exit 0
+}
+
+# ========== 步骤6: 安装 Supabase ==========
+Log "步骤 6/8: 安装 Supabase..."
+
+# 创建工作目录
+if (-not (Test-Path $WorkDir)) {
+    New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
+}
+
+# 生成密码
+if ([string]::IsNullOrEmpty($PostgresPassword)) {
+    $PostgresPassword = New-Password -Len 24
+    Log "已生成 PostgreSQL 密码"
+}
+if ([string]::IsNullOrEmpty($JwtSecret)) {
+    $JwtSecret = New-Password -Len 40
+    Log "已生成 JWT 密钥"
+}
+
+# 克隆 Supabase
+$supabaseDir = Join-Path $WorkDir "supabase"
+if (-not (Test-Path $supabaseDir)) {
+    Log "克隆 Supabase 仓库..."
+    Push-Location $WorkDir
+    git clone --depth 1 https://github.com/supabase/supabase.git
+    Pop-Location
+    Ok "Supabase 已克隆"
+} else {
+    Ok "Supabase 目录已存在"
+}
+
+# 配置环境变量
+$dockerPath = Join-Path $supabaseDir "docker"
+Push-Location $dockerPath
+
+$envFile = @"
+POSTGRES_PASSWORD=$PostgresPassword
+JWT_SECRET=$JwtSecret
+ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+POSTGRES_HOST=db
+POSTGRES_DB=postgres
+POSTGRES_PORT=5432
+SITE_URL=http://${ServerIP}:3000
+API_EXTERNAL_URL=http://${ServerIP}:8000
+SUPABASE_PUBLIC_URL=http://${ServerIP}:8000
+STUDIO_PORT=3000
+STUDIO_DEFAULT_ORGANIZATION=Dipont
+STUDIO_DEFAULT_PROJECT=WordMaster
+GOTRUE_SITE_URL=http://${ServerIP}:3000
+GOTRUE_EXTERNAL_EMAIL_ENABLED=true
+GOTRUE_MAILER_AUTOCONFIRM=true
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_EMAIL_AUTOCONFIRM=true
+"@
+
+$envFile | Out-File -FilePath ".env" -Encoding ASCII -Force
+Ok "环境配置已创建"
+
+# 启动服务
+Log "拉取 Docker 镜像（可能需要几分钟）..."
+docker-compose pull
+
+Log "启动 Supabase 服务..."
+docker-compose up -d
+
+Pop-Location
+
+Start-Sleep -Seconds 10
+Ok "Supabase 服务已启动"
+
+# ========== 步骤7: 配置防火墙 ==========
+Log "步骤 7/8: 配置防火墙..."
+
+$ports = @(
+    @{N="API"; P=8000},
+    @{N="Studio"; P=3000},
+    @{N="PostgreSQL"; P=5432},
+    @{N="HTTP"; P=80},
+    @{N="HTTPS"; P=443}
+)
+
+foreach ($r in $ports) {
+    $name = "Dipont-$($r.N)"
+    $existing = Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue
+    if (-not $existing) {
+        New-NetFirewallRule -DisplayName $name -Direction Inbound -Protocol TCP -LocalPort $r.P -Action Allow -Profile Any | Out-Null
+        Ok "$($r.N) (端口 $($r.P))"
+    } else {
+        Ok "$($r.N) 规则已存在"
+    }
+}
+
+# ========== 步骤8: 启用 Realtime ==========
+Log "步骤 8/8: 启用 Realtime..."
+$tables = @("ranked_matches", "match_queue", "team_messages", "messages")
+foreach ($t in $tables) {
+    docker exec supabase-db psql -U postgres -d postgres -c "ALTER PUBLICATION supabase_realtime ADD TABLE public.$t;" 2>$null
+    Ok $t
+}
+
+# ========== 完成 ==========
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  部署完成!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Supabase Studio: http://${ServerIP}:3000"
+Write-Host "  Supabase API:    http://${ServerIP}:8000"
+Write-Host ""
+Write-Host "  PostgreSQL:"
+Write-Host "    主机: $ServerIP"
+Write-Host "    端口: 5432"
+Write-Host "    用户: postgres"
+Write-Host "    密码: $PostgresPassword"
+Write-Host ""
+Write-Host "  JWT Secret: $JwtSecret"
+Write-Host ""
+
+# 保存凭据
+$credFile = Join-Path $WorkDir "credentials.txt"
+@"
+Dipont Word Master 凭据
+生成时间: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+服务器: $ServerIP
+PostgreSQL 密码: $PostgresPassword
+JWT Secret: $JwtSecret
+
+Studio: http://${ServerIP}:3000
+API: http://${ServerIP}:8000
+"@ | Out-File -FilePath $credFile -Encoding ASCII
+
+Write-Host "  凭据已保存: $credFile" -ForegroundColor Yellow
+Write-Host ""

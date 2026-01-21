@@ -5,7 +5,7 @@
 ## 📋 目录
 
 1. [服务器要求](#1-服务器要求)
-2. [安装 Docker Desktop](#2-安装-docker-desktop)
+2. [安装 Docker Engine](#2-安装-docker-engine)
 3. [安装 Supabase 自托管版](#3-安装-supabase-自托管版)
 4. [数据库迁移](#4-数据库迁移)
 5. [数据导入](#5-数据导入)
@@ -28,7 +28,7 @@
 
 ### 软件要求
 - **操作系统**: Windows Server 2019 / 2022
-- **Docker Desktop**: 4.x+ (需要启用 WSL2 或 Hyper-V)
+- **Docker Engine**: Windows Server 容器功能 + Hyper-V
 - **Git for Windows**: 2.30+
 - **PowerShell**: 5.1+ (推荐 PowerShell 7)
 - **Node.js**: 18+ LTS (用于构建前端)
@@ -44,45 +44,119 @@
 
 ---
 
-## 2. 安装 Docker Desktop
+## 2. 安装 Docker Engine
 
-### 2.1 启用 Windows 功能
+> **注意**: Docker Desktop 仅支持 Windows 10/11。Windows Server 需要使用 Docker Engine。
+
+### 2.1 安装 Docker Engine
 
 以管理员身份打开 PowerShell：
 
 ```powershell
-# 启用 Hyper-V (Windows Server)
-Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+# 安装 Containers 功能
+Install-WindowsFeature -Name Containers
 
-# 或者启用 WSL2 (推荐)
-wsl --install
-wsl --set-default-version 2
+# 安装 Hyper-V（用于运行 Linux 容器）
+Install-WindowsFeature -Name Hyper-V -IncludeManagementTools
 
 # 重启服务器
 Restart-Computer
 ```
 
-### 2.2 安装 Docker Desktop
-
-1. 下载 Docker Desktop: https://www.docker.com/products/docker-desktop/
-2. 运行安装程序
-3. 选择 "Use WSL 2 instead of Hyper-V" (如果可用)
-4. 完成安装后重启
-
-### 2.3 配置 Docker Desktop
+重启后继续：
 
 ```powershell
+# 安装 Docker 提供程序
+Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
+
+# 安装 Docker
+Install-Package -Name docker -ProviderName DockerMsftProvider -Force
+
+# 启动 Docker 服务
+Start-Service Docker
+
+# 设置 Docker 开机自启
+Set-Service -Name Docker -StartupType Automatic
+
 # 验证 Docker 安装
 docker --version
-docker-compose --version
-
-# 测试 Docker
-docker run hello-world
+docker info
 ```
 
-在 Docker Desktop 设置中：
-- **Resources** → **Advanced**: 分配至少 4GB 内存
-- **General**: 勾选 "Start Docker Desktop when you log in"
+### 2.2 安装 Docker Compose
+
+```powershell
+# 下载 Docker Compose
+$composeVersion = "v2.24.0"
+$composeUrl = "https://github.com/docker/compose/releases/download/$composeVersion/docker-compose-windows-x86_64.exe"
+$composePath = "$env:ProgramFiles\Docker\docker-compose.exe"
+
+Invoke-WebRequest -Uri $composeUrl -OutFile $composePath
+
+# 添加到 PATH
+$env:Path += ";$env:ProgramFiles\Docker"
+[Environment]::SetEnvironmentVariable("Path", $env:Path, [EnvironmentVariableTarget]::Machine)
+
+# 验证安装
+docker-compose --version
+```
+
+### 2.3 配置 Linux 容器支持
+
+Supabase 需要 Linux 容器。Windows Server 有两种方式支持：
+
+**方法 1: 使用 WSL2（推荐）**
+
+```powershell
+# 安装 WSL
+wsl --install
+
+# 设置 WSL2 为默认
+wsl --set-default-version 2
+
+# 安装 Ubuntu
+wsl --install -d Ubuntu
+
+# 重启计算机
+Restart-Computer
+```
+
+重启后配置 Docker 使用 WSL2：
+
+```powershell
+# 创建 Docker 配置目录
+New-Item -ItemType Directory -Path "$env:ProgramData\docker\config" -Force
+
+# 配置 Docker daemon
+@"
+{
+    "hosts": ["npipe:////./pipe/docker_engine"],
+    "experimental": true
+}
+"@ | Out-File -FilePath "$env:ProgramData\docker\config\daemon.json" -Encoding UTF8
+
+# 重启 Docker
+Restart-Service Docker
+```
+
+**方法 2: 使用 Linux VM（备选）**
+
+如果 WSL2 不可用，可以在 Hyper-V 中创建 Ubuntu VM 来运行 Supabase：
+
+1. 在 Hyper-V 管理器中创建新虚拟机
+2. 安装 Ubuntu Server 22.04 LTS
+3. 在 Ubuntu 中安装 Docker 和 Docker Compose
+4. 在 Ubuntu 中运行 Supabase
+
+### 2.4 验证 Docker 安装
+
+```powershell
+# 测试 Docker
+docker run hello-world
+
+# 测试 Linux 容器（如果使用 WSL2）
+docker run --rm alpine echo "Linux containers working!"
+```
 
 ---
 

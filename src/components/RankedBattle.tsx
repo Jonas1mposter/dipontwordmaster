@@ -2033,6 +2033,50 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     }
   }, [myFinished, opponentFinished, opponentFinalScore, matchFinished, myScore]);
 
+  // CRITICAL: Auto-finish match if waiting for opponent too long (15 seconds)
+  // This prevents getting stuck when opponent disconnects or has issues
+  useEffect(() => {
+    if (!waitingForOpponent || matchFinished || !isRealPlayer) return;
+    
+    console.log("[RankedBattle] Starting waiting timeout - will auto-finish in 15s");
+    
+    const waitingTimeout = setTimeout(async () => {
+      if (matchFinishedRef.current) return;
+      
+      console.log("[RankedBattle] Waiting timeout reached - auto-finishing match");
+      
+      // Fetch latest opponent score from database
+      if (matchId) {
+        const { data: matchData } = await supabase
+          .from("ranked_matches")
+          .select("player1_id, player2_id, player1_score, player2_score")
+          .eq("id", matchId)
+          .single();
+        
+        if (matchData && profile) {
+          const isPlayer1 = matchData.player1_id === profile.id;
+          const rawOpponentScore = isPlayer1 ? matchData.player2_score : matchData.player1_score;
+          
+          // Decode opponent score
+          let finalOpponentScore = 0;
+          if (rawOpponentScore >= 10000) {
+            finalOpponentScore = (rawOpponentScore - 10000) % 100;
+          } else if (rawOpponentScore >= 100) {
+            finalOpponentScore = rawOpponentScore % 100;
+          } else {
+            finalOpponentScore = rawOpponentScore || 0;
+          }
+          
+          console.log("[RankedBattle] Auto-finish with opponent score:", finalOpponentScore);
+          toast.info("等待超时，已自动结算比赛");
+          finishMatchWithRealPlayer(myScoreRef.current, finalOpponentScore);
+        }
+      }
+    }, 15000); // 15 seconds timeout
+    
+    return () => clearTimeout(waitingTimeout);
+  }, [waitingForOpponent, matchFinished, isRealPlayer, matchId, profile]);
+
 
   // Timer - only runs when playing and not finished
   useEffect(() => {

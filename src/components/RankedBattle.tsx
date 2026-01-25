@@ -311,6 +311,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
   const [opponentFinalScore, setOpponentFinalScore] = useState<number | null>(null); // Opponent's final score from realtime
   const [opponentProgress, setOpponentProgress] = useState(0); // Opponent's current question index (0-10)
   const [isRealPlayer, setIsRealPlayer] = useState(false); // Track if playing against real player
+  const [opponentAbandoned, setOpponentAbandoned] = useState(false); // Track if opponent abandoned the match
   
   // Cancel reason for display
   const [cancelReason, setCancelReason] = useState<string | null>(null);
@@ -397,6 +398,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     setOpponentFinalScore(null);
     setOpponentProgress(0);
     setIsRealPlayer(false);
+    setOpponentAbandoned(false);
     setQuizTypes([]);
     setOptions([]);
     setWordOptions([]);
@@ -1975,7 +1977,11 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
         setMatchFinished(true);
         setMatchStatus("finished");
         setIsWinner(true);
+        setOpponentAbandoned(true); // Mark that opponent abandoned
         setOpponentScore(actualOpponentScore);
+        
+        // Show toast notification
+        toast.success("🏆 对手已放弃比赛，你获得胜利！");
         
         // Award rewards for win by abandonment using updateProfileWithXp
         if (profile) {
@@ -2538,12 +2544,12 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
                 size="sm" 
                 onClick={async () => {
                   if (confirm("确定要放弃比赛吗？放弃将判负")) {
-                    // Update match in database as abandoned
+                    // Update match in database as cancelled so opponent gets notified
                     if (matchId) {
                       await supabase
                         .from("ranked_matches")
                         .update({
-                          status: "completed",
+                          status: "cancelled", // Use cancelled so opponent detects abandonment
                           winner_id: opponent?.id || null,
                           ended_at: new Date().toISOString(),
                         })
@@ -2808,8 +2814,24 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
             {isWinner ? "🎉 胜利！🎉" : myScore === opponentScore ? "⚔️ 平局" : "惜败"}
           </h2>
           <p className="text-muted-foreground mb-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            {isWinner ? "恭喜你赢得比赛！" : myScore === opponentScore ? "势均力敌！" : "再接再厉，下次一定赢！"}
+            {opponentAbandoned 
+              ? "对方已放弃比赛，你自动获胜！" 
+              : isWinner 
+                ? "恭喜你赢得比赛！" 
+                : myScore === opponentScore 
+                  ? "势均力敌！" 
+                  : "再接再厉，下次一定赢！"}
           </p>
+          
+          {/* Opponent abandoned notice */}
+          {opponentAbandoned && (
+            <div className="mb-4 px-4 py-2 bg-amber-500/20 border border-amber-500/40 rounded-xl animate-slide-up" style={{ animationDelay: '0.15s' }}>
+              <p className="text-amber-500 font-medium text-sm flex items-center justify-center gap-2">
+                <XCircle className="w-4 h-4" />
+                对手中途退出了比赛
+              </p>
+            </div>
+          )}
 
           {/* Rank Change Display */}
           {rankChangeResult && (

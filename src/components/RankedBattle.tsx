@@ -976,6 +976,15 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
       addMatchDebugLog("清理旧的卡住对局...", "info");
       await cancelPlayerStaleMatches(profile.id, profile.grade);
       addMatchDebugLog("旧对局清理完成", "success");
+      
+      // CRITICAL: Also clean up any stale match_queue entries (matched or waiting) before starting new search
+      addMatchDebugLog("清理旧的匹配队列条目...", "info");
+      await supabase
+        .from("match_queue")
+        .delete()
+        .eq("profile_id", profile.id)
+        .eq("match_type", "ranked");
+      addMatchDebugLog("队列清理完成", "success");
 
       // ===== NEW: USE SERVER-SIDE MATCH QUEUE =====
       // This ensures atomic matching at the database level

@@ -2055,9 +2055,44 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
                 {timeLeft}s
               </Badge>
               
-              <span className="text-xs text-muted-foreground">
-                {currentWordIndex + 1}/{words.length}
-              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-amber-500 border-amber-500/50 hover:bg-amber-500/10"
+                onClick={async () => {
+                  if (confirm("确定要脱离卡死状态吗？这将退出当前比赛")) {
+                    // Clean up match_queue
+                    if (profile?.id) {
+                      await supabase
+                        .from("match_queue")
+                        .delete()
+                        .eq("profile_id", profile.id);
+                    }
+                    // Cancel current match
+                    if (matchId) {
+                      await supabase
+                        .from("ranked_matches")
+                        .update({
+                          status: "cancelled",
+                          ended_at: new Date().toISOString(),
+                        })
+                        .eq("id", matchId);
+                    }
+                    toast.success("已脱离卡死状态");
+                    setMatchStatus("idle");
+                    setMatchId(null);
+                    setOpponent(null);
+                    setWords([]);
+                    setCurrentWordIndex(0);
+                    setMyScore(0);
+                    setOpponentScore(0);
+                    setTimeLeft(60);
+                  }
+                }}
+              >
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                脱离卡死
+              </Button>
             </div>
             
             <div className="flex items-center justify-between mb-2">

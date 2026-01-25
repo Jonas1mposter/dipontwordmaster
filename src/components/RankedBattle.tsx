@@ -2594,17 +2594,35 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
               </div>
               
               <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8 text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  if (confirm("如果游戏卡住，点击确定重置游戏状态")) {
+                variant="outline"
+                size="sm"
+                className="text-amber-500 border-amber-500/50 hover:bg-amber-500/10"
+                onClick={async () => {
+                  if (confirm("确定要脱离卡死状态吗？这将退出当前比赛")) {
+                    // Clean up match_queue
+                    if (profile?.id) {
+                      await supabase
+                        .from("match_queue")
+                        .delete()
+                        .eq("profile_id", profile.id);
+                    }
+                    // Cancel current match
+                    if (matchId) {
+                      await supabase
+                        .from("ranked_matches")
+                        .update({
+                          status: "cancelled",
+                          ended_at: new Date().toISOString(),
+                        })
+                        .eq("id", matchId);
+                    }
+                    toast.success("已脱离卡死状态");
                     manualReset();
                   }
                 }}
-                title="重置游戏"
               >
-                <RefreshCw className="w-4 h-4" />
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                脱离卡死
               </Button>
             </div>
             

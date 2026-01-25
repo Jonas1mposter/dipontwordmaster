@@ -2390,38 +2390,53 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
           ))}
         </div>
 
-        <div className="text-center relative z-10 px-4">
-          {/* Player cards */}
-          <div className="flex items-center justify-center gap-4 sm:gap-8 mb-8">
-            {/* Me */}
-            <div className="flex flex-col items-center animate-slide-in-left">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-primary to-neon-pink flex items-center justify-center text-2xl sm:text-3xl font-gaming text-primary-foreground shadow-2xl mb-3">
-                {profile?.username.charAt(0).toUpperCase()}
-              </div>
-              <p className="font-gaming text-lg sm:text-xl text-primary">{profile?.username}</p>
-              <p className="text-xs text-muted-foreground">Lv.{profile?.level}</p>
-            </div>
+        <div className="text-center relative z-10 px-4 w-full max-w-4xl mx-auto">
+          {/* Player cards with full info */}
+          <div className="flex items-stretch justify-center gap-2 sm:gap-4 mb-6">
+            {/* Me - PlayerBattleCard */}
+            <PlayerBattleCard
+              profile={profile ? {
+                id: profile.id,
+                username: profile.username,
+                level: profile.level,
+                rank_tier: profile.rank_tier,
+                rank_stars: profile.rank_stars,
+                wins: profile.wins,
+                losses: profile.losses,
+                avatar_url: profile.avatar_url,
+              } : null}
+              variant="left"
+              className="flex-1 max-w-[200px] sm:max-w-[280px]"
+            />
 
-            {/* VS */}
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl animate-pulse">
-                <span className="font-gaming text-2xl sm:text-3xl text-white">VS</span>
+            {/* VS Badge & Countdown */}
+            <div className="flex flex-col items-center justify-center px-2 sm:px-4">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-2xl animate-pulse mb-2">
+                <span className="font-gaming text-xl sm:text-3xl text-white">VS</span>
               </div>
-              <div className="mt-3 px-4 py-2 bg-secondary/50 rounded-xl">
-                <span className="font-gaming text-2xl sm:text-3xl text-primary animate-countdown-pop" key={vsCountdown}>
+              <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-secondary/50 rounded-xl border border-primary/30">
+                <span className="font-gaming text-xl sm:text-3xl text-primary animate-countdown-pop" key={vsCountdown}>
                   {vsCountdown}
                 </span>
               </div>
             </div>
 
-            {/* Opponent */}
-            <div className="flex flex-col items-center animate-slide-in-right">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-cyan flex items-center justify-center text-2xl sm:text-3xl font-gaming text-primary-foreground shadow-2xl mb-3">
-                {opponent?.username?.charAt(0).toUpperCase() || "?"}
-              </div>
-              <p className="font-gaming text-lg sm:text-xl text-neon-blue">{opponent?.username || "对手"}</p>
-              <p className="text-xs text-muted-foreground">Lv.{opponent?.level || "?"}</p>
-            </div>
+            {/* Opponent - PlayerBattleCard */}
+            <PlayerBattleCard
+              profile={opponent ? {
+                id: opponent.id || 'ai-opponent',
+                username: opponent.username || '对手',
+                level: opponent.level || 1,
+                rank_tier: opponent.rank_tier || 'bronze',
+                rank_stars: opponent.rank_stars || 0,
+                wins: opponent.wins || 0,
+                losses: opponent.losses || 0,
+                avatar_url: opponent.avatar_url,
+                isAI: !isRealPlayer,
+              } : null}
+              variant="right"
+              className="flex-1 max-w-[200px] sm:max-w-[280px]"
+            />
           </div>
 
           {/* Match info */}
@@ -2434,6 +2449,16 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
               <Badge variant="secondary" className="text-xs">
                 10道题
               </Badge>
+              {isRealPlayer ? (
+                <Badge variant="success" className="text-xs">
+                  <Users className="w-3 h-3 mr-1" />
+                  真人对战
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-xs">
+                  🤖 AI对战
+                </Badge>
+              )}
             </div>
           </div>
         </div>

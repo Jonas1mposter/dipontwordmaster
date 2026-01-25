@@ -2554,6 +2554,15 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
                           ended_at: new Date().toISOString(),
                         })
                         .eq("id", matchId);
+                      
+                      // CRITICAL: Clean up match_queue entry to allow future matches
+                      if (profile?.id) {
+                        await supabase
+                          .from("match_queue")
+                          .delete()
+                          .eq("profile_id", profile.id)
+                          .eq("match_type", "ranked");
+                      }
                     }
                     toast.info("你已放弃比赛");
                     setMatchStatus("finished");

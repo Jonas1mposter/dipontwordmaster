@@ -209,15 +209,77 @@ if (Test-Path $dockerdPath) {
     
     # 启动服务
     Log "启动 Docker 服务..."
-    Start-Service Docker
-    Start-Sleep -Seconds 5
-    
-    $svc = Get-Service -Name Docker
-    if ($svc.Status -eq "Running") {
-        Ok "Docker 服务运行中"
-    } else {
-        Warn "Docker 服务状态: $($svc.Status)"
-        Warn "尝试查看日志: Get-EventLog -LogName Application -Source Docker -Newest 10"
+    try {
+        Start-Service Docker -ErrorAction Stop
+        Start-Sleep -Seconds 5
+        
+        $svc = Get-Service -Name Docker
+        if ($svc.Status -eq "Running") {
+            Ok "Docker 服务运行中"
+        } else {
+            Warn "Docker 服务状态: $($svc.Status)"
+        }
+    } catch {
+        Err "Docker 服务启动失败: $_"
+        Write-Host ""
+        Write-Host "========== 诊断信息 ==========" -ForegroundColor Yellow
+        
+        # 检查 Windows 功能
+        $containers = Get-WindowsFeature -Name Containers -ErrorAction SilentlyContinue
+        if ($containers) {
+            Write-Host "  Containers 功能: $(if($containers.Installed){'已安装'}else{'未安装'})" -ForegroundColor Cyan
+        }
+        
+        $hyperv = Get-WindowsFeature -Name Hyper-V -ErrorAction SilentlyContinue
+        if ($hyperv) {
+            Write-Host "  Hyper-V 功能: $(if($hyperv.Installed){'已安装'}else{'未安装'})" -ForegroundColor Cyan
+        }
+        
+        # 尝试手动启动查看错误
+        Write-Host ""
+        Write-Host "  尝试手动启动 Docker 守护进程..." -ForegroundColor Yellow
+        $testResult = & "$dockerdPath" --version 2>&1
+        Write-Host "  Docker 版本: $testResult" -ForegroundColor Cyan
+        
+        # 检查事件日志
+        Write-Host ""
+        Write-Host "  最近的 Docker 事件日志:" -ForegroundColor Yellow
+        try {
+            $events = Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Docker'; Level=1,2,3} -MaxEvents 5 -ErrorAction SilentlyContinue
+            if ($events) {
+                foreach ($e in $events) {
+                    Write-Host "    [$($e.TimeCreated)] $($e.Message)" -ForegroundColor Gray
+                }
+            } else {
+                Write-Host "    无 Docker 相关日志" -ForegroundColor Gray
+            }
+        } catch {
+            Write-Host "    无法读取事件日志" -ForegroundColor Gray
+        }
+        
+        Write-Host ""
+        Write-Host "========== 解决方案 ==========" -ForegroundColor Green
+        Write-Host "  1. 重启服务器后再试:" -ForegroundColor White
+        Write-Host "     Restart-Computer -Force" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  2. 手动启动 Docker 查看详细错误:" -ForegroundColor White
+        Write-Host "     & '$dockerdPath' --debug" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  3. 确保 Containers 功能已安装:" -ForegroundColor White
+        Write-Host "     Install-WindowsFeature -Name Containers -Restart" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  4. 如果是 Windows Server 2019+，尝试启用 Hyper-V:" -ForegroundColor White
+        Write-Host "     Install-WindowsFeature -Name Hyper-V -IncludeManagementTools -Restart" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  5. 检查防火墙/杀毒软件是否阻止了 Docker" -ForegroundColor White
+        Write-Host ""
+        
+        $retry = Read-Host "是否在安装 Containers 功能后重启? (y/N)"
+        if ($retry -eq "y") {
+            Install-WindowsFeature -Name Containers -Restart
+        }
+        
+        exit 1
     }
 } else {
     Err "找不到 dockerd.exe: $dockerdPath"

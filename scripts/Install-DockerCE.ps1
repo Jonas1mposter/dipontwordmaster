@@ -143,18 +143,21 @@ if ($needsRestart) {
 # ========== 步骤3: 检查现有 Docker ==========
 Log "步骤 3/7: 检查现有 Docker 安装..."
 
-# 只检查服务状态，不调用 docker 命令（避免服务未运行时报错）
-$dockerService = Get-Service -Name Docker -ErrorAction SilentlyContinue
 $dockerExe = "$InstallPath\docker.exe"
 $dockerdExe = "$InstallPath\dockerd.exe"
+$dockerPipe = "\\.\pipe\docker_engine"
 
-if ($dockerService -and $dockerService.Status -eq "Running") {
-    # 服务正在运行，尝试获取版本
+# 先检查 Docker named pipe 是否存在（这是判断 Docker daemon 是否运行的最可靠方式）
+$pipeExists = Test-Path $dockerPipe -ErrorAction SilentlyContinue
+
+if ($pipeExists) {
+    # Docker daemon 正在运行，可以安全调用 docker 命令
+    Log "检测到 Docker daemon 正在运行"
     if (Test-Path $dockerExe) {
         try {
-            $currentVersion = & $dockerExe version --format "{{.Server.Version}}" 2>$null
-            if ($currentVersion) {
-                Log "Docker 已安装且正在运行: v$currentVersion"
+            $currentVersion = & $dockerExe version --format "{{.Server.Version}}" 2>&1 | Out-String
+            if ($currentVersion -and $currentVersion -notmatch "error") {
+                Log "Docker 已安装且正在运行: v$($currentVersion.Trim())"
                 $reinstall = Read-Host "是否重新安装? (y/N)"
                 if ($reinstall -ne "y") {
                     Ok "跳过 Docker 安装，继续安装 Compose"
@@ -162,24 +165,29 @@ if ($dockerService -and $dockerService.Status -eq "Running") {
                 }
             }
         } catch {
-            Log "无法获取版本，将继续安装"
+            Log "无法获取版本信息，将继续安装"
         }
     }
 } elseif (Test-Path $dockerdExe) {
-    # Docker 文件存在但服务未运行
-    Log "发现 Docker 文件但服务未运行"
+    # Docker 文件存在但 daemon 未运行
+    Log "发现 Docker 文件但 daemon 未运行"
+    $dockerService = Get-Service -Name Docker -ErrorAction SilentlyContinue
     if ($dockerService) {
-        Log "尝试启动现有 Docker 服务..."
+        Log "尝试启动 Docker 服务..."
         try {
             Start-Service Docker -ErrorAction Stop
-            Start-Sleep -Seconds 5
-            $svc = Get-Service -Name Docker
-            if ($svc.Status -eq "Running") {
+            Start-Sleep -Seconds 8
+            
+            # 再次检查 pipe
+            if (Test-Path $dockerPipe -ErrorAction SilentlyContinue) {
                 Ok "Docker 服务已启动"
                 $SkipDockerInstall = $true
+            } else {
+                Log "服务启动但 daemon 未响应，将重新安装"
             }
         } catch {
-            Log "服务启动失败，将重新安装: $_"
+            Log "服务启动失败: $($_.Exception.Message)"
+            Log "将继续重新安装流程"
         }
     } else {
         Log "Docker 服务未注册，将继续安装流程"

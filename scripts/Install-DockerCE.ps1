@@ -299,22 +299,36 @@ if (-not $SkipDockerInstall) {
     $existingService = Get-Service -Name Docker -ErrorAction SilentlyContinue
     if ($existingService) {
         Log "移除旧的 Docker 服务..."
+        Stop-Service Docker -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
         sc.exe delete Docker 2>$null | Out-Null
         Start-Sleep -Seconds 3
     }
     
-    # 注册新服务
+    # 注册新服务（忽略 registry key already exists 警告）
     Log "注册 Docker 服务..."
-    $regResult = & $dockerdPath --register-service 2>&1
-    
-    if ($LASTEXITCODE -ne 0) {
-        Log "使用 sc.exe 注册服务..."
-        sc.exe create Docker binPath= "`"$dockerdPath`" --run-service" start= auto 2>$null | Out-Null
+    try {
+        $output = & $dockerdPath --register-service 2>&1 | Out-String
+        # 检查是否是已知的非致命警告
+        if ($output -match "registry key already exists") {
+            Log "检测到已有注册表项，继续..."
+        }
+    } catch {
+        Log "dockerd 注册返回信息: $($_.Exception.Message)"
     }
     
-    # 验证服务是否注册成功
+    # 检查服务是否已注册（无论上面是否报错）
     Start-Sleep -Seconds 2
     $newService = Get-Service -Name Docker -ErrorAction SilentlyContinue
+    
+    if (-not $newService) {
+        # 使用 sc.exe 作为备用方案
+        Log "使用 sc.exe 注册服务..."
+        sc.exe create Docker binPath= "`"$dockerdPath`" --run-service" start= auto 2>$null | Out-Null
+        Start-Sleep -Seconds 2
+        $newService = Get-Service -Name Docker -ErrorAction SilentlyContinue
+    }
+    
     if ($newService) {
         Ok "Docker 服务已注册"
         Set-Service -Name Docker -StartupType Automatic -ErrorAction SilentlyContinue

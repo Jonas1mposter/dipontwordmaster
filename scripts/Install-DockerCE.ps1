@@ -143,21 +143,49 @@ if ($needsRestart) {
 # ========== 步骤3: 检查现有 Docker ==========
 Log "步骤 3/7: 检查现有 Docker 安装..."
 
+# 只检查服务状态，不调用 docker 命令（避免服务未运行时报错）
 $dockerService = Get-Service -Name Docker -ErrorAction SilentlyContinue
+$dockerExe = "$InstallPath\docker.exe"
+$dockerdExe = "$InstallPath\dockerd.exe"
+
 if ($dockerService -and $dockerService.Status -eq "Running") {
-    try {
-        $currentVersion = & "$InstallPath\docker.exe" version --format "{{.Server.Version}}" 2>$null
-        if ($currentVersion) {
-            Log "Docker 已安装且正在运行: v$currentVersion"
-            $reinstall = Read-Host "是否重新安装? (y/N)"
-            if ($reinstall -ne "y") {
-                Ok "跳过 Docker 安装，继续安装 Compose"
+    # 服务正在运行，尝试获取版本
+    if (Test-Path $dockerExe) {
+        try {
+            $currentVersion = & $dockerExe version --format "{{.Server.Version}}" 2>$null
+            if ($currentVersion) {
+                Log "Docker 已安装且正在运行: v$currentVersion"
+                $reinstall = Read-Host "是否重新安装? (y/N)"
+                if ($reinstall -ne "y") {
+                    Ok "跳过 Docker 安装，继续安装 Compose"
+                    $SkipDockerInstall = $true
+                }
+            }
+        } catch {
+            Log "无法获取版本，将继续安装"
+        }
+    }
+} elseif (Test-Path $dockerdExe) {
+    # Docker 文件存在但服务未运行
+    Log "发现 Docker 文件但服务未运行"
+    if ($dockerService) {
+        Log "尝试启动现有 Docker 服务..."
+        try {
+            Start-Service Docker -ErrorAction Stop
+            Start-Sleep -Seconds 5
+            $svc = Get-Service -Name Docker
+            if ($svc.Status -eq "Running") {
+                Ok "Docker 服务已启动"
                 $SkipDockerInstall = $true
             }
+        } catch {
+            Log "服务启动失败，将重新安装: $_"
         }
-    } catch {
-        Log "Docker 服务存在但无法获取版本，将重新安装"
+    } else {
+        Log "Docker 服务未注册，将继续安装流程"
     }
+} else {
+    Ok "未检测到现有 Docker 安装"
 }
 
 if (-not $SkipDockerInstall) {

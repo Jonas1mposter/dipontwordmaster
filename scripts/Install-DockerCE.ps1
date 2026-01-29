@@ -276,8 +276,8 @@ if (-not $SkipDockerInstall) {
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
     }
     
+    # Windows Docker 不需要 storage-driver，只保留日志配置
     $daemonConfig = @{
-        "storage-driver" = "windowsfilter"
         "log-driver" = "json-file"
         "log-opts" = @{
             "max-size" = "10m"

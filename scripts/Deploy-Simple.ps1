@@ -127,27 +127,48 @@ if (-not $dockerCmd) {
 # ========== 步骤4: 安装 Docker Compose ==========
 Log "步骤 4/8: 检查 Docker Compose..."
 $composePath = "$env:ProgramFiles\Docker\docker-compose.exe"
-if (-not (Test-Path $composePath)) {
-    Log "下载 Docker Compose..."
-    $url = "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-windows-x86_64.exe"
-    
-    $dockerDir = "$env:ProgramFiles\Docker"
-    if (-not (Test-Path $dockerDir)) {
-        New-Item -ItemType Directory -Path $dockerDir -Force | Out-Null
-    }
-    
-    Invoke-WebRequest -Uri $url -OutFile $composePath -UseBasicParsing
-    
-    # 添加到 PATH
-    $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    if ($path -notlike "*$dockerDir*") {
-        [Environment]::SetEnvironmentVariable("Path", "$path;$dockerDir", "Machine")
-        $env:Path = "$env:Path;$dockerDir"
-    }
-    
-    Ok "Docker Compose 已安装"
-} else {
+$useStandaloneCompose = $false
+
+if (Test-Path $composePath) {
     Ok "Docker Compose 已存在"
+    $useStandaloneCompose = $true
+} else {
+    # 检查 docker compose (内置插件版本)
+    $hasBuiltinCompose = $false
+    try {
+        $composeTest = docker compose version 2>&1 | Out-String
+        if ($composeTest -match "version") {
+            Ok "使用 Docker 内置 compose 命令"
+            $hasBuiltinCompose = $true
+        }
+    } catch {}
+    
+    if (-not $hasBuiltinCompose) {
+        Log "尝试下载 Docker Compose..."
+        $url = "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-windows-x86_64.exe"
+        
+        $dockerDir = "$env:ProgramFiles\Docker"
+        if (-not (Test-Path $dockerDir)) {
+            New-Item -ItemType Directory -Path $dockerDir -Force | Out-Null
+        }
+        
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $url -OutFile $composePath -UseBasicParsing -TimeoutSec 60
+            $useStandaloneCompose = $true
+            
+            # 添加到 PATH
+            $path = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            if ($path -notlike "*$dockerDir*") {
+                [Environment]::SetEnvironmentVariable("Path", "$path;$dockerDir", "Machine")
+                $env:Path = "$env:Path;$dockerDir"
+            }
+            Ok "Docker Compose 已安装"
+        } catch {
+            Warn "Docker Compose 下载失败，将使用 docker compose 命令"
+            $useStandaloneCompose = $false
+        }
+    }
 }
 
 # ========== 步骤5: 启动 Docker 服务 ==========
@@ -223,12 +244,23 @@ ENABLE_EMAIL_AUTOCONFIRM=true
 $envFile | Out-File -FilePath ".env" -Encoding ASCII -Force
 Ok "环境配置已创建"
 
+# 定义 compose 命令函数
+function Invoke-Compose {
+    param([string]$Args)
+    if ($useStandaloneCompose) {
+        $cmd = "docker-compose $Args"
+    } else {
+        $cmd = "docker compose $Args"
+    }
+    Invoke-Expression $cmd
+}
+
 # 启动服务
 Log "拉取 Docker 镜像（可能需要几分钟）..."
-docker-compose pull
+Invoke-Compose "pull"
 
 Log "启动 Supabase 服务..."
-docker-compose up -d
+Invoke-Compose "up -d"
 
 Pop-Location
 

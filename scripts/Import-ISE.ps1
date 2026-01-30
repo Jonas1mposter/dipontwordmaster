@@ -1,5 +1,5 @@
 # Dipont Word Master - ISE Compatible Import Script
-# Usage: .\Import-ISE.ps1 -CSVDir "C:\path\to\csv"
+# Usage: .\Import-ISE.ps1 -CSVDir "C:/Users/Administrator/Downloads/Dipont"
 
 param(
     [Parameter(Mandatory = $true)]

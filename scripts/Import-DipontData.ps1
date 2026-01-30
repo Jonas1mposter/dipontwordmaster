@@ -232,7 +232,7 @@ function Get-TableRowCount {
 function Get-CSVRowCount {
     param([string]$FilePath)
     
-    if (-not (Test-Path $FilePath)) {
+    if (-not (Test-Path -LiteralPath $FilePath)) {
         return 0
     }
     
@@ -262,7 +262,7 @@ function Import-CSVToTable {
     Write-Log "导入 $TableName ($Description)..." -Level "STEP"
     
     # 检查 CSV 文件是否存在
-    if (-not (Test-Path $CSVPath)) {
+    if (-not (Test-Path -LiteralPath $CSVPath)) {
         Write-Log "CSV 文件不存在: $CSVPath" -Level "WARNING"
         return @{ Status = "SKIPPED"; Reason = "文件不存在" }
     }
@@ -332,7 +332,7 @@ function Import-ProfilesWithAuth {
     
     Write-Log "导入用户档案（特殊处理）..." -Level "STEP"
     
-    if (-not (Test-Path $CSVPath)) {
+    if (-not (Test-Path -LiteralPath $CSVPath)) {
         Write-Log "profiles.csv 不存在" -Level "WARNING"
         return @{ Status = "SKIPPED"; Reason = "文件不存在" }
     }
@@ -407,8 +407,8 @@ function Main {
     Write-Host ""
     
     # 创建日志目录
-    if (-not (Test-Path $LogDir)) {
-        New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $LogDir)) {
+        New-Item -ItemType Directory -LiteralPath $LogDir -Force | Out-Null
     }
     
     Write-Log "数据导入开始" -Level "STEP"
@@ -421,7 +421,7 @@ function Main {
     }
     
     # 检查 CSV 目录
-    if (-not (Test-Path $CSVDir)) {
+    if (-not (Test-Path -LiteralPath $CSVDir)) {
         Write-Log "CSV 目录不存在: $CSVDir" -Level "ERROR"
         exit 1
     }

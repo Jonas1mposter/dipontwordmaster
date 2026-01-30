@@ -291,15 +291,37 @@ function Invoke-Compose {
 
 # 启动服务
 Log "拉取 Docker 镜像（可能需要几分钟）..."
-Invoke-Compose "pull"
+try {
+    Invoke-Compose "pull"
+} catch {
+    Warn "镜像拉取出现问题: $_"
+}
 
 Log "启动 Supabase 服务..."
-Invoke-Compose "up -d"
+try {
+    Invoke-Compose "up -d"
+} catch {
+    Err "服务启动失败: $_"
+}
 
 Pop-Location
 
-Start-Sleep -Seconds 10
-Ok "Supabase 服务已启动"
+# 等待容器启动
+Log "等待容器启动（30秒）..."
+Start-Sleep -Seconds 30
+
+# 检查容器状态
+$runningContainers = docker ps --format "{{.Names}}" 2>$null | Out-String
+if ($runningContainers -match "supabase") {
+    Ok "Supabase 容器运行中"
+} else {
+    Warn "容器可能未完全启动，请运行: docker ps 检查状态"
+    Write-Host ""
+    Write-Host "如需手动启动，请执行:" -ForegroundColor Yellow
+    Write-Host "  cd $dockerPath" -ForegroundColor Cyan
+    Write-Host "  docker compose up -d" -ForegroundColor Cyan
+    Write-Host ""
+}
 
 # ========== 步骤7: 配置防火墙 ==========
 Log "步骤 7/8: 配置防火墙..."
@@ -325,10 +347,33 @@ foreach ($r in $ports) {
 
 # ========== 步骤8: 启用 Realtime ==========
 Log "步骤 8/8: 启用 Realtime..."
-$tables = @("ranked_matches", "match_queue", "team_messages", "messages")
-foreach ($t in $tables) {
-    docker exec supabase-db psql -U postgres -d postgres -c "ALTER PUBLICATION supabase_realtime ADD TABLE public.$t;" 2>$null
-    Ok $t
+
+# 等待数据库容器就绪
+$dbReady = $false
+for ($i = 1; $i -le 6; $i++) {
+    $dbContainer = docker ps --filter "name=supabase-db" --format "{{.Names}}" 2>$null | Out-String
+    if ($dbContainer -match "supabase") {
+        $dbReady = $true
+        break
+    }
+    Log "等待数据库容器... ($i/6)"
+    Start-Sleep -Seconds 10
+}
+
+if ($dbReady) {
+    $tables = @("ranked_matches", "match_queue", "team_messages", "messages")
+    foreach ($t in $tables) {
+        $result = docker exec supabase-db psql -U postgres -d postgres -c "ALTER PUBLICATION supabase_realtime ADD TABLE public.$t;" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Ok $t
+        } else {
+            Warn "$t (稍后手动配置)"
+        }
+    }
+} else {
+    Warn "数据库容器未就绪，请稍后手动启用 Realtime"
+    Write-Host "  手动命令示例:" -ForegroundColor Yellow
+    Write-Host "  docker exec supabase-db psql -U postgres -d postgres -c `"ALTER PUBLICATION supabase_realtime ADD TABLE public.ranked_matches;`"" -ForegroundColor Cyan
 }
 
 # ========== 完成 ==========

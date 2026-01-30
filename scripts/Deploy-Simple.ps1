@@ -204,14 +204,48 @@ if ([string]::IsNullOrEmpty($JwtSecret)) {
     Log "已生成 JWT 密钥"
 }
 
-# 克隆 Supabase
+# 下载 Supabase Docker 配置（不依赖 Git）
 $supabaseDir = Join-Path $WorkDir "supabase"
-if (-not (Test-Path $supabaseDir)) {
-    Log "克隆 Supabase 仓库..."
-    Push-Location $WorkDir
-    git clone --depth 1 https://github.com/supabase/supabase.git
-    Pop-Location
-    Ok "Supabase 已克隆"
+$dockerPath = Join-Path $supabaseDir "docker"
+
+if (-not (Test-Path $dockerPath)) {
+    Log "下载 Supabase Docker 配置..."
+    
+    # 创建目录
+    New-Item -ItemType Directory -Path $dockerPath -Force | Out-Null
+    New-Item -ItemType Directory -Path "$dockerPath\volumes\db" -Force | Out-Null
+    
+    # 下载必需文件
+    $baseUrl = "https://raw.githubusercontent.com/supabase/supabase/master/docker"
+    $files = @(
+        "docker-compose.yml",
+        ".env.example"
+    )
+    
+    foreach ($file in $files) {
+        $destFile = Join-Path $dockerPath $file
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri "$baseUrl/$file" -OutFile $destFile -UseBasicParsing -TimeoutSec 120
+            Ok "已下载: $file"
+        } catch {
+            Err "下载 $file 失败: $_"
+            exit 1
+        }
+    }
+    
+    # 下载数据库初始化脚本
+    $initSqlUrl = "https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/init/data.sql"
+    $initSqlDir = Join-Path $dockerPath "volumes\db\init"
+    New-Item -ItemType Directory -Path $initSqlDir -Force | Out-Null
+    try {
+        Invoke-WebRequest -Uri $initSqlUrl -OutFile "$initSqlDir\data.sql" -UseBasicParsing -TimeoutSec 120
+        Ok "已下载: data.sql"
+    } catch {
+        Warn "数据库初始化脚本下载失败，将使用默认配置"
+    }
+    
+    Ok "Supabase Docker 配置已下载"
 } else {
     Ok "Supabase 目录已存在"
 }

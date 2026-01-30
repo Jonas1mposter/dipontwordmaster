@@ -51,16 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [string]$DBHost = "10.20.2.20",
-    
-    [Parameter()]
-    [int]$DBPort = 5432,
-    
-    [Parameter()]
     [string]$DBUser = "postgres",
-    
-    [Parameter()]
-    [string]$DBPassword = "",
     
     [Parameter()]
     [string]$DBName = "postgres",
@@ -76,9 +67,6 @@ param(
     
     [Parameter()]
     [switch]$DryRun,
-    
-    [Parameter()]
-    [switch]$UseDocker,
     
     [Parameter()]
     [string]$DockerContainer = "supabase-db"
@@ -211,12 +199,15 @@ function Write-Log {
 function Test-PostgresConnection {
     Write-Log "测试数据库连接..." -Level "STEP"
     
-    if ($UseDocker) {
-        $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c "SELECT 1" 2>&1
-    } else {
-        $env:PGPASSWORD = $DBPassword
-        $result = psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -c "SELECT 1" 2>&1
+    # 检查 Docker 容器是否运行
+    $containerRunning = docker ps --filter "name=$DockerContainer" --format "{{.Names}}" 2>$null
+    if (-not $containerRunning) {
+        Write-Log "Docker 容器 '$DockerContainer' 未运行" -Level "ERROR"
+        Write-Log "请确保 Supabase Docker 已启动: docker-compose up -d" -Level "INFO"
+        return $false
     }
+    
+    $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c "SELECT 1" 2>&1
     
     if ($LASTEXITCODE -eq 0) {
         Write-Log "数据库连接成功" -Level "SUCCESS"
@@ -230,11 +221,7 @@ function Test-PostgresConnection {
 function Get-TableRowCount {
     param([string]$TableName)
     
-    if ($UseDocker) {
-        $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -t -c "SELECT COUNT(*) FROM $TableName" 2>$null
-    } else {
-        $result = psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -t -c "SELECT COUNT(*) FROM $TableName" 2>$null
-    }
+    $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -t -c "SELECT COUNT(*) FROM $TableName" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
         return [int]($result.Trim())
@@ -308,24 +295,21 @@ function Import-CSVToTable {
     # 执行导入
     $startTime = Get-Date
     
-    # 将 CSV 路径转换为 Unix 风格（用于 Docker）
-    $unixPath = $CSVPath -replace '\\', '/'
+    # 复制 CSV 文件到容器
+    $containerPath = "/tmp/$TableName.csv"
+    docker cp $CSVPath "${DockerContainer}:$containerPath" 2>&1 | Out-Null
     
-    if ($UseDocker) {
-        # 复制 CSV 文件到容器
-        $containerPath = "/tmp/$TableName.csv"
-        docker cp $CSVPath "${DockerContainer}:$containerPath"
-        
-        # 执行导入
-        $sql = "\COPY $TableName FROM '$containerPath' WITH CSV HEADER"
-        $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c $sql 2>&1
-        
-        # 清理临时文件
-        docker exec $DockerContainer rm -f $containerPath 2>$null
-    } else {
-        $sql = "\COPY $TableName FROM '$CSVPath' WITH CSV HEADER"
-        $result = psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -c $sql 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "无法复制文件到容器" -Level "ERROR"
+        return @{ Status = "FAILED"; Error = "复制文件失败" }
     }
+    
+    # 执行导入
+    $sql = "\COPY $TableName FROM '$containerPath' WITH CSV HEADER"
+    $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c $sql 2>&1
+    
+    # 清理临时文件
+    docker exec $DockerContainer rm -f $containerPath 2>$null
     
     $endTime = Get-Date
     $duration = ($endTime - $startTime).TotalSeconds
@@ -371,11 +355,7 @@ function Import-ProfilesWithAuth {
         # 检查用户是否已存在
         $checkSql = "SELECT COUNT(*) FROM profiles WHERE user_id = '$($profile.user_id)'"
         
-        if ($UseDocker) {
-            $exists = docker exec $DockerContainer psql -U $DBUser -d $DBName -t -c $checkSql 2>$null
-        } else {
-            $exists = psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -t -c $checkSql 2>$null
-        }
+        $exists = docker exec $DockerContainer psql -U $DBUser -d $DBName -t -c $checkSql 2>$null
         
         if ([int]($exists.Trim()) -gt 0) {
             $skipCount++
@@ -392,11 +372,7 @@ function Import-ProfilesWithAuth {
         
         $insertSql = "INSERT INTO profiles ($columns) VALUES ($valuesStr) ON CONFLICT (user_id) DO NOTHING"
         
-        if ($UseDocker) {
-            $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c $insertSql 2>&1
-        } else {
-            $result = psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -c $insertSql 2>&1
-        }
+        $result = docker exec $DockerContainer psql -U $DBUser -d $DBName -c $insertSql 2>&1
         
         if ($LASTEXITCODE -eq 0) {
             $successCount++
@@ -414,12 +390,7 @@ function Clear-TableData {
     param([string]$TableName)
     
     $sql = "TRUNCATE TABLE $TableName CASCADE"
-    
-    if ($UseDocker) {
-        docker exec $DockerContainer psql -U $DBUser -d $DBName -c $sql 2>$null
-    } else {
-        psql -h $DBHost -p $DBPort -U $DBUser -d $DBName -c $sql 2>$null
-    }
+    docker exec $DockerContainer psql -U $DBUser -d $DBName -c $sql 2>$null
 }
 
 # ============================================
@@ -441,7 +412,7 @@ function Main {
     }
     
     Write-Log "数据导入开始" -Level "STEP"
-    Write-Log "数据库: $DBHost`:$DBPort/$DBName" -Level "INFO"
+    Write-Log "Docker 容器: $DockerContainer" -Level "INFO"
     Write-Log "CSV 目录: $CSVDir" -Level "INFO"
     Write-Log "日志文件: $LogFile" -Level "INFO"
     
@@ -453,11 +424,6 @@ function Main {
     if (-not (Test-Path $CSVDir)) {
         Write-Log "CSV 目录不存在: $CSVDir" -Level "ERROR"
         exit 1
-    }
-    
-    # 设置密码环境变量
-    if (-not $UseDocker -and $DBPassword) {
-        $env:PGPASSWORD = $DBPassword
     }
     
     # 测试数据库连接

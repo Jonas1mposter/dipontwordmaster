@@ -116,6 +116,51 @@ export type Database = {
           },
         ]
       }
+      class_assignments: {
+        Row: {
+          assignment_type: string
+          class_name: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          grade: number
+          id: string
+          is_active: boolean
+          target_data: Json
+          teacher_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_type?: string
+          class_name: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          grade: number
+          id?: string
+          is_active?: boolean
+          target_data?: Json
+          teacher_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_type?: string
+          class_name?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          grade?: number
+          id?: string
+          is_active?: boolean
+          target_data?: Json
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       class_challenges: {
         Row: {
           class_name: string
@@ -171,6 +216,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      class_competitions: {
+        Row: {
+          class_name: string
+          competition_type: string
+          created_at: string
+          description: string | null
+          end_time: string
+          grade: number
+          id: string
+          is_active: boolean
+          reward_coins: number
+          start_time: string
+          teacher_id: string
+          title: string
+        }
+        Insert: {
+          class_name: string
+          competition_type?: string
+          created_at?: string
+          description?: string | null
+          end_time: string
+          grade: number
+          id?: string
+          is_active?: boolean
+          reward_coins?: number
+          start_time: string
+          teacher_id: string
+          title: string
+        }
+        Update: {
+          class_name?: string
+          competition_type?: string
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          grade?: number
+          id?: string
+          is_active?: boolean
+          reward_coins?: number
+          start_time?: string
+          teacher_id?: string
+          title?: string
+        }
+        Relationships: []
       }
       combo_records: {
         Row: {
@@ -1284,6 +1374,30 @@ export type Database = {
         }
         Relationships: []
       }
+      teacher_classes: {
+        Row: {
+          class_name: string
+          created_at: string
+          grade: number
+          id: string
+          teacher_id: string
+        }
+        Insert: {
+          class_name: string
+          created_at?: string
+          grade: number
+          id?: string
+          teacher_id: string
+        }
+        Update: {
+          class_name?: string
+          created_at?: string
+          grade?: number
+          id?: string
+          teacher_id?: string
+        }
+        Relationships: []
+      }
       team_announcements: {
         Row: {
           author_id: string
@@ -2219,7 +2333,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "teacher"
       rank_tier:
         | "bronze"
         | "silver"
@@ -2354,7 +2468,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "teacher"],
       rank_tier: [
         "bronze",
         "silver",

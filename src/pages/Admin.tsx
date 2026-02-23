@@ -39,6 +39,7 @@ interface UserProfile {
   coins: number;
   created_at: string;
   isAdmin?: boolean;
+  isTeacher?: boolean;
 }
 
 export default function Admin() {
@@ -100,10 +101,12 @@ export default function Admin() {
       if (rolesError) throw rolesError;
 
       const adminUserIds = new Set(roles?.filter(r => r.role === 'admin').map(r => r.user_id) || []);
+      const teacherUserIds = new Set(roles?.filter(r => r.role === 'teacher').map(r => r.user_id) || []);
 
       const usersWithRoles = profiles?.map(p => ({
         ...p,
-        isAdmin: adminUserIds.has(p.user_id)
+        isAdmin: adminUserIds.has(p.user_id),
+        isTeacher: teacherUserIds.has(p.user_id)
       })) || [];
 
       setUsers(usersWithRoles);
@@ -232,6 +235,31 @@ export default function Admin() {
       fetchUsers();
     } catch (err) {
       console.error('Error toggling admin:', err);
+      toast.error('操作失败');
+    }
+  };
+
+  // Toggle teacher role
+  const toggleTeacher = async (userId: string, currentIsTeacher: boolean) => {
+    try {
+      if (currentIsTeacher) {
+        const { error } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId)
+          .eq('role', 'teacher');
+        if (error) throw error;
+        toast.success('已移除教师权限');
+      } else {
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: 'teacher' });
+        if (error) throw error;
+        toast.success('已授予教师权限');
+      }
+      fetchUsers();
+    } catch (err) {
+      console.error('Error toggling teacher:', err);
       toast.error('操作失败');
     }
   };
@@ -561,13 +589,20 @@ export default function Admin() {
                           </Select>
                           {u.user_id !== user?.id && (
                             <>
-                              <Button
-                                variant={u.isAdmin ? "destructive" : "outline"}
-                                size="sm"
-                                onClick={() => toggleAdmin(u.user_id, !!u.isAdmin)}
-                              >
-                                {u.isAdmin ? '移除管理员' : '设为管理员'}
-                              </Button>
+                               <Button
+                                 variant={u.isAdmin ? "destructive" : "outline"}
+                                 size="sm"
+                                 onClick={() => toggleAdmin(u.user_id, !!u.isAdmin)}
+                               >
+                                 {u.isAdmin ? '移除管理员' : '设为管理员'}
+                               </Button>
+                               <Button
+                                 variant={u.isTeacher ? "destructive" : "outline"}
+                                 size="sm"
+                                 onClick={() => toggleTeacher(u.user_id, !!u.isTeacher)}
+                               >
+                                 {u.isTeacher ? '移除教师' : '设为教师'}
+                               </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button

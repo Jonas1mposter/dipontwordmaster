@@ -16,6 +16,7 @@ import {
   ArrowLeft, Users, BookOpen, Trophy, BarChart3, Shield,
   GraduationCap, Target, Calendar, Plus, Trash2, Eye
 } from 'lucide-react';
+import StudentProgressDashboard from '@/components/teacher/StudentProgressDashboard';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -88,6 +89,9 @@ export default function Teacher() {
   const [newAssignment, setNewAssignment] = useState({ title: '', description: '', type: 'levels', targetUnit: '1' });
   const [creatingAssignment, setCreatingAssignment] = useState(false);
 
+  // Level progress state
+  const [levelProgressData, setLevelProgressData] = useState<Map<string, { profile_id: string; level_id: string; stars: number; best_score: number; status: string; attempts: number }[]>>(new Map());
+
   // Competitions state
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [newCompetition, setNewCompetition] = useState({
@@ -150,15 +154,24 @@ export default function Teacher() {
       // Fetch learning data for these students
       if (data && data.length > 0) {
         const profileIds = data.map(s => s.id);
-        const { data: progressData } = await supabase
-          .from('learning_progress')
-          .select('profile_id, mastery_level, correct_count, incorrect_count')
-          .in('profile_id', profileIds);
+        
+        // Fetch learning progress and level progress in parallel
+        const [learningResult, levelResult] = await Promise.all([
+          supabase
+            .from('learning_progress')
+            .select('profile_id, mastery_level, correct_count, incorrect_count')
+            .in('profile_id', profileIds),
+          supabase
+            .from('level_progress')
+            .select('profile_id, level_id, stars, best_score, status, attempts')
+            .in('profile_id', profileIds)
+            .order('created_at', { ascending: true }),
+        ]);
 
-        if (progressData) {
+        if (learningResult.data) {
           const dataMap = new Map<string, StudentLearningData>();
           for (const pid of profileIds) {
-            const records = progressData.filter(p => p.profile_id === pid);
+            const records = learningResult.data.filter(p => p.profile_id === pid);
             const total = records.length;
             const mastered = records.filter(r => r.mastery_level >= 3).length;
             const totalCorrect = records.reduce((s, r) => s + (r.correct_count || 0), 0);
@@ -171,6 +184,14 @@ export default function Teacher() {
             });
           }
           setLearningData(dataMap);
+        }
+
+        if (levelResult.data) {
+          const levelMap = new Map<string, typeof levelResult.data>();
+          for (const pid of profileIds) {
+            levelMap.set(pid, levelResult.data.filter(l => l.profile_id === pid));
+          }
+          setLevelProgressData(levelMap);
         }
       }
     } catch (err) {
@@ -467,53 +488,13 @@ export default function Teacher() {
               </Card>
             </TabsContent>
 
-            {/* Learning Data Tab */}
             <TabsContent value="data">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5" />
-                    学习数据概览
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedClass} 班英语词汇学习数据
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {students.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground">暂无数据</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {students.map((s) => {
-                        const data = learningData.get(s.id);
-                        const masteryPercent = data && data.total_words > 0
-                          ? Math.round((data.mastered_words / data.total_words) * 100)
-                          : 0;
-                        return (
-                          <div key={s.id} className="flex items-center gap-4 p-3 rounded-lg border border-border/50 hover:bg-muted/30">
-                            <div className="w-24 font-medium truncate">{s.username}</div>
-                            <div className="flex-1 space-y-1">
-                              <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>掌握进度: {data?.mastered_words || 0}/{data?.total_words || 0} 词</span>
-                                <span>{masteryPercent}%</span>
-                              </div>
-                              <Progress value={masteryPercent} className="h-2" />
-                            </div>
-                            <div className="text-center min-w-[60px]">
-                              <div className="text-sm font-bold">{data?.accuracy || 0}%</div>
-                              <div className="text-xs text-muted-foreground">正确率</div>
-                            </div>
-                            <div className="text-center min-w-[50px]">
-                              <div className="text-sm font-bold">{s.total_xp}</div>
-                              <div className="text-xs text-muted-foreground">XP</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <StudentProgressDashboard
+                students={students}
+                learningData={learningData}
+                levelProgressData={levelProgressData}
+                selectedClass={selectedClass}
+              />
             </TabsContent>
 
             {/* Assignments Tab */}

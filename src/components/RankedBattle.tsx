@@ -361,11 +361,28 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
       return;
     }
 
+    // Validate that we have the data needed before transitioning
+    if (!opponent || words.length === 0) {
+      console.log("[VS] Waiting for match data - opponent:", !!opponent, "words:", words.length);
+      return;
+    }
+
     // Countdown timer
     const timer = setInterval(() => {
       setVsCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
+          // Update match status in DB to "playing" before transitioning
+          if (matchId) {
+            supabase
+              .from("ranked_matches")
+              .update({ status: "playing", started_at: new Date().toISOString() })
+              .eq("id", matchId)
+              .in("status", ["in_progress", "waiting"])
+              .then(({ error }) => {
+                if (error) console.error("Failed to update match status to playing:", error);
+              });
+          }
           setMatchStatus("playing");
           return 0;
         }
@@ -374,7 +391,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [matchStatus]);
+  }, [matchStatus, opponent, words.length, matchId]);
 
   const resetGameState = useCallback(() => {
     console.log("[RankedBattle] Resetting all game state for recovery");
@@ -1146,15 +1163,29 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
                 const isPlayer1 = matchData.player1_id === profile.id;
                 const opponentData = isPlayer1 ? matchData.player2 : matchData.player1;
                 
-                // Get words
+                // Get words - wait for them with retries since the other player may be setting them
                 let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
                 if (matchWords.length === 0) {
-                  matchWords = await fetchMatchWords();
-                  if (matchWords.length > 0) {
-                    await supabase
+                  // Wait briefly for the other player to set words first
+                  for (let wordRetry = 0; wordRetry < 3; wordRetry++) {
+                    await new Promise(r => setTimeout(r, 500));
+                    const { data: refreshed } = await supabase
                       .from("ranked_matches")
-                      .update({ words: matchWords })
-                      .eq("id", status.match_id);
+                      .select("words")
+                      .eq("id", status.match_id)
+                      .single();
+                    matchWords = (refreshed?.words as any[])?.filter(w => w && w.word) || [];
+                    if (matchWords.length > 0) break;
+                  }
+                  // If still empty, we set them
+                  if (matchWords.length === 0) {
+                    matchWords = await fetchMatchWords();
+                    if (matchWords.length > 0) {
+                      await supabase
+                        .from("ranked_matches")
+                        .update({ words: matchWords })
+                        .eq("id", status.match_id);
+                    }
                   }
                 }
                 
@@ -1344,17 +1375,31 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
             const opponentData = isPlayer1 ? matchData.player2 : matchData.player1;
             addMatchDebugLog(`我是${isPlayer1 ? 'Player1' : 'Player2'}, 对手: ${opponentData?.username}`, "info");
             
-            // If words are empty, fetch them
+            // If words are empty, wait for other player to set them first
             let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
             if (matchWords.length === 0) {
-              addMatchDebugLog("对局没有词汇，正在获取...", "info");
-              matchWords = await fetchMatchWords();
-              if (matchWords.length > 0) {
-                await supabase
+              for (let wordRetry = 0; wordRetry < 3; wordRetry++) {
+                await new Promise(r => setTimeout(r, 500));
+                const { data: refreshed } = await supabase
                   .from("ranked_matches")
-                  .update({ words: matchWords })
-                  .eq("id", status.match_id);
-                addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
+                  .select("words")
+                  .eq("id", status.match_id)
+                  .single();
+                matchWords = (refreshed?.words as any[])?.filter(w => w && w.word) || [];
+                if (matchWords.length > 0) break;
+              }
+              if (matchWords.length === 0) {
+                addMatchDebugLog("对局没有词汇，正在获取...", "info");
+                matchWords = await fetchMatchWords();
+                if (matchWords.length > 0) {
+                  await supabase
+                    .from("ranked_matches")
+                    .update({ words: matchWords })
+                    .eq("id", status.match_id);
+                  addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
+                }
+              } else {
+                addMatchDebugLog(`从对手处获取到${matchWords.length}个词汇`, "success");
               }
             } else {
               addMatchDebugLog(`对局已有${matchWords.length}个词汇`, "info");

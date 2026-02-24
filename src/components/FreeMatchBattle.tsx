@@ -162,11 +162,29 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
       return;
     }
 
+    // Validate that we have the data needed before transitioning
+    if (!opponent || words.length === 0) {
+      console.log("[VS] Waiting for match data - opponent:", !!opponent, "words:", words.length);
+      // Don't start countdown until data is ready
+      return;
+    }
+
     // Countdown timer
     const timer = setInterval(() => {
       setVsCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer);
+          // Update match status in DB to "playing" before transitioning
+          if (matchId && matchId !== "queue-waiting") {
+            supabase
+              .from("ranked_matches")
+              .update({ status: "playing", started_at: new Date().toISOString() })
+              .eq("id", matchId)
+              .in("status", ["in_progress", "waiting"])
+              .then(({ error }) => {
+                if (error) console.error("Failed to update match status to playing:", error);
+              });
+          }
           setMatchStatus("playing");
           return 0;
         }
@@ -175,7 +193,7 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [matchStatus]);
+  }, [matchStatus, opponent, words.length, matchId]);
 
   const reconnectInitialized = useRef(false);
   
@@ -979,17 +997,33 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
             const opponentData = isPlayer1Matched ? matchData.player2 : matchData.player1;
             addMatchDebugLog(`我是${isPlayer1Matched ? 'Player1' : 'Player2'}, 对手: ${opponentData?.username}`, "info");
             
-            // If words are empty, fetch them
+            // If words are empty, wait for the other player to set them first
             let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
             if (matchWords.length === 0) {
-              addMatchDebugLog("对局没有词汇，正在获取...", "info");
-              matchWords = await fetchMatchWords();
-              if (matchWords.length > 0) {
-                await supabase
+              // Wait briefly for the other player to set words
+              for (let wordRetry = 0; wordRetry < 3; wordRetry++) {
+                await new Promise(r => setTimeout(r, 500));
+                const { data: refreshed } = await supabase
                   .from("ranked_matches")
-                  .update({ words: matchWords })
-                  .eq("id", status.match_id);
-                addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
+                  .select("words")
+                  .eq("id", status.match_id)
+                  .single();
+                matchWords = (refreshed?.words as any[])?.filter(w => w && w.word) || [];
+                if (matchWords.length > 0) break;
+              }
+              // If still empty, we set them
+              if (matchWords.length === 0) {
+                addMatchDebugLog("对局没有词汇，正在获取...", "info");
+                matchWords = await fetchMatchWords();
+                if (matchWords.length > 0) {
+                  await supabase
+                    .from("ranked_matches")
+                    .update({ words: matchWords })
+                    .eq("id", status.match_id);
+                  addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
+                }
+              } else {
+                addMatchDebugLog(`从对手处获取到${matchWords.length}个词汇`, "success");
               }
             } else {
               addMatchDebugLog(`对局已有${matchWords.length}个词汇`, "info");
@@ -1632,7 +1666,8 @@ const FreeMatchBattle = ({ onBack, initialMatchId, subject = "mixed" }: FreeMatc
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [matchStatus, matchId, profile, isRealPlayer, isPlayer1, opponentProgress]);
+  // FIXED: Removed opponentProgress from deps - it caused channel reconnection on every opponent answer
+  }, [matchStatus, matchId, profile?.id, isRealPlayer, isPlayer1]);
 
 
   // Timer

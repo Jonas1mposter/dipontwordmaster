@@ -980,8 +980,8 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     // Clear any previous cancel reason
     setCancelReason(null);
 
-    // Warmup audio system before starting match
-    await audioManager.warmup();
+    // Warmup audio in background - don't block search
+    audioManager.warmup();
     
     addMatchDebugLog(`开始搜索匹配 (玩家: ${profile.username}, ELO: ${profile.elo_rating || 1000}, 年级: ${profile.grade})`, "info");
     setMatchStatus("searching");
@@ -989,23 +989,12 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     setShowAIOption(false);
 
     try {
-      // CRITICAL: First cancel ALL stale matches (waiting AND in_progress that are 10+ minutes old)
-      addMatchDebugLog("清理旧的卡住对局...", "info");
-      await cancelPlayerStaleMatches(profile.id, profile.grade);
-      addMatchDebugLog("旧对局清理完成", "success");
+      // Run cleanup and queue join in parallel for faster start
+      // find_match_in_queue already cancels existing waiting entries internally
+      addMatchDebugLog("清理旧对局 + 加入匹配池...", "info");
       
-      // CRITICAL: Also clean up any stale match_queue entries (matched or waiting) before starting new search
-      addMatchDebugLog("清理旧的匹配队列条目...", "info");
-      await supabase
-        .from("match_queue")
-        .delete()
-        .eq("profile_id", profile.id)
-        .eq("match_type", "ranked");
-      addMatchDebugLog("队列清理完成", "success");
-
-      // ===== NEW: USE SERVER-SIDE MATCH QUEUE =====
-      // This ensures atomic matching at the database level
-      addMatchDebugLog("加入服务器匹配池...", "info");
+      // Start stale match cleanup in background (non-blocking)
+      cancelPlayerStaleMatches(profile.id, profile.grade);
       
       const { data: queueResult, error: queueError } = await supabase.rpc('find_match_in_queue', {
         p_profile_id: profile.id,
@@ -1046,7 +1035,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
           
           addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
           if (retry < 4) {
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 200));
           }
         }
 
@@ -1155,7 +1144,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
                 
                 if (retry < 4) {
                   addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
-                  await new Promise(r => setTimeout(r, 400));
+                  await new Promise(r => setTimeout(r, 200));
                 }
               }
               
@@ -1168,7 +1157,7 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
                 if (matchWords.length === 0) {
                   // Wait briefly for the other player to set words first
                   for (let wordRetry = 0; wordRetry < 3; wordRetry++) {
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, 300));
                     const { data: refreshed } = await supabase
                       .from("ranked_matches")
                       .select("words")
@@ -1252,192 +1241,20 @@ const RankedBattle = ({ onBack, initialMatchId, subject = "mixed" }: RankedBattl
     }
   }, [matchStatus]);
 
-  // Simplified matchmaking: Realtime + Polling only (NO creation in polling!)
-  // CRITICAL: Use waitingMatchId directly (not ref) to ensure effect re-runs when it changes
+  // Search time tracker and AI fallback timeout
+  // Polling is handled by startImmediatePolling in startSearch - no duplicate polling needed
   useEffect(() => {
-    // Check conditions inside effect, not as dependencies
     if (matchStatus !== "searching") return;
-    
-    const currentProfile = profileRef.current;
-    if (!currentProfile) return;
-    
-    const currentProfileId = currentProfile.id;
-    const currentGrade = currentProfile.grade;
-    // CRITICAL FIX: Use waitingMatchId directly from state, not ref
-    // This ensures we use the latest value when the effect runs
-    const currentWaitingId = waitingMatchId;
-
-    // If no waiting marker yet, wait for startSearch to set it
-    if (!currentWaitingId) {
-      addMatchDebugLog("等待加入队列...", "info");
-      return;
-    }
-
-    console.log("Setting up queue polling for matchmaking");
-    addMatchDebugLog(`开始队列轮询模式`, "info");
-    
-    let isActive = true;
-    let matchJoinedLock = false;
-    
-    // Function to handle successful match found
-    const onMatchJoined = async (matchData: any, opponentData: any, matchWords: Word[]) => {
-      if (!isActive || matchJoinedLock) {
-        addMatchDebugLog("已锁定或不活跃，跳过", "warn");
-        return;
-      }
-      matchJoinedLock = true;
-      isActive = false;
-      
-      console.log("Match joined successfully:", matchData.id);
-      addMatchDebugLog(`匹配成功: ${matchData.id.slice(0, 8)}...`, "success");
-
-      const types = generateQuizTypes();
-      setQuizTypes(types);
-      
-      setMatchId(matchData.id);
-      setOpponent(opponentData);
-      setIsRealPlayer(true);
-      setWords(matchWords);
-      if (matchWords.length > 0) {
-        setupQuizForWord(matchWords[0], types[0], matchWords);
-      }
-      setWaitingMatchId(null);
-      setMatchStatus("found");
-      sounds.playMatchFound();
-    };
-
-    // PURE QUEUE-BASED POLLING - No Realtime subscription needed
-    // The match_queue table is the source of truth
-    let pollCount = 0;
-    addMatchDebugLog(`🔄 useEffect轮询启动: profile=${currentProfileId.slice(0, 8)}..., waitingId=${currentWaitingId?.slice(0, 8) || 'null'}`, "success");
-    
-    const pollInterval = setInterval(async () => {
-      pollCount++;
-      if (!isActive || matchJoinedLock) {
-        addMatchDebugLog(`[useEffect]轮询#${pollCount}: 跳过 (isActive=${isActive}, locked=${matchJoinedLock})`, "warn");
-        return;
-      }
-      
-      addMatchDebugLog(`[useEffect]轮询#${pollCount}: 检查队列状态...`, "info");
-      
-      try {
-        const { data: queueStatus, error: queueError } = await supabase.rpc('check_queue_status', {
-          p_profile_id: currentProfileId,
-          p_match_type: 'ranked',
-        });
-
-        if (queueError) {
-          addMatchDebugLog(`[useEffect]轮询#${pollCount}: RPC错误 - ${queueError.message}`, "error");
-          return;
-        }
-
-        if (!queueStatus || queueStatus.length === 0) {
-          addMatchDebugLog(`[useEffect]轮询#${pollCount}: 队列中无条目 (可能被清理或从未加入)`, "warn");
-          return;
-        }
-
-        const status = queueStatus[0];
-        addMatchDebugLog(`[useEffect]轮询#${pollCount}: 状态=${status.queue_status}, match_id=${status.match_id?.slice(0, 8) || 'null'}`, "info");
-        
-        if (status.queue_status === 'matched' && status.match_id && !matchJoinedLock) {
-          addMatchDebugLog(`🎉🎉 [useEffect]轮询#${pollCount}: 发现匹配! ${status.match_id.slice(0, 8)}...`, "success");
-          matchJoinedLock = true;
-          isActive = false;
-          clearInterval(pollInterval); // Stop polling immediately
-          
-          // Fetch full match data with retry for consistency
-          let matchData = null;
-          for (let retry = 0; retry < 5; retry++) {
-            const { data, error: fetchError } = await supabase
-              .from("ranked_matches")
-              .select("*, player1:profiles!ranked_matches_player1_id_fkey(*), player2:profiles!ranked_matches_player2_id_fkey(*)")
-              .eq("id", status.match_id)
-              .single();
-            
-            if (fetchError) {
-              addMatchDebugLog(`获取对局数据错误: ${fetchError.message}`, "error");
-            }
-            
-            if (data && data.player1 && data.player2) {
-              matchData = data;
-              addMatchDebugLog(`对局数据获取成功! p1=${data.player1?.username}, p2=${data.player2?.username}`, "success");
-              break;
-            }
-            
-            addMatchDebugLog(`等待对局数据完整... 重试 ${retry + 1}/5`, "info");
-            if (retry < 4) {
-              await new Promise(r => setTimeout(r, 400));
-            }
-          }
-
-          if (matchData) {
-            const isPlayer1 = matchData.player1_id === currentProfileId;
-            const opponentData = isPlayer1 ? matchData.player2 : matchData.player1;
-            addMatchDebugLog(`我是${isPlayer1 ? 'Player1' : 'Player2'}, 对手: ${opponentData?.username}`, "info");
-            
-            // If words are empty, wait for other player to set them first
-            let matchWords = (matchData.words as any[])?.filter(w => w && w.word) || [];
-            if (matchWords.length === 0) {
-              for (let wordRetry = 0; wordRetry < 3; wordRetry++) {
-                await new Promise(r => setTimeout(r, 500));
-                const { data: refreshed } = await supabase
-                  .from("ranked_matches")
-                  .select("words")
-                  .eq("id", status.match_id)
-                  .single();
-                matchWords = (refreshed?.words as any[])?.filter(w => w && w.word) || [];
-                if (matchWords.length > 0) break;
-              }
-              if (matchWords.length === 0) {
-                addMatchDebugLog("对局没有词汇，正在获取...", "info");
-                matchWords = await fetchMatchWords();
-                if (matchWords.length > 0) {
-                  await supabase
-                    .from("ranked_matches")
-                    .update({ words: matchWords })
-                    .eq("id", status.match_id);
-                  addMatchDebugLog(`已更新${matchWords.length}个词汇到对局`, "success");
-                }
-              } else {
-                addMatchDebugLog(`从对手处获取到${matchWords.length}个词汇`, "success");
-              }
-            } else {
-              addMatchDebugLog(`对局已有${matchWords.length}个词汇`, "info");
-            }
-            
-            const formattedWords = matchWords.map((w: any) => ({
-              id: w.id,
-              word: w.word,
-              meaning: w.meaning,
-              phonetic: w.phonetic,
-            }));
-            
-            await onMatchJoined(matchData, opponentData, formattedWords as Word[]);
-            return;
-          } else {
-            addMatchDebugLog("❌ 5次重试后仍无法获取完整对局数据", "error");
-            matchJoinedLock = false;
-            isActive = true;
-          }
-        }
-      } catch (err) {
-        console.error("Queue status check error:", err);
-        addMatchDebugLog(`轮询#${pollCount}: 异常 - ${err}`, "error");
-      }
-    }, 1000); // Poll every 1 second for better responsiveness
 
     // Show AI option after 15 seconds
     const aiTimeout = setTimeout(() => {
       setShowAIOption(true);
     }, 15000);
-    
+
     return () => {
-      console.log("Cleaning up matchmaking polling");
-      isActive = false;
-      clearInterval(pollInterval);
       clearTimeout(aiTimeout);
     };
-  }, [matchStatus, waitingMatchId]); // Only re-run when matchStatus or waitingMatchId changes
+  }, [matchStatus]);
 
   // Cancel search - also releases the search lock and cleans up queue
   const cancelSearch = async () => {

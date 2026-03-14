@@ -30,7 +30,7 @@ export const useMatchQueue = ({
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const matchFoundRef = useRef(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Join the match queue and try to find a match

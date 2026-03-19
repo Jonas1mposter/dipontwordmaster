@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Sparkles, Zap, Trophy, Users, Target, Shield, BarChart3, Cloud, Smartphone, Gamepad2, BookOpen, Swords, Award, MessageCircle, Calendar } from "lucide-react";
+import { ArrowLeft, Printer, Download, Sparkles, Zap, Trophy, Users, Target, Shield, BarChart3, Cloud, Smartphone, Gamepad2, BookOpen, Swords, Award, MessageCircle, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import interstellarPagerImg from "@/assets/interstellar-pager.jpg";

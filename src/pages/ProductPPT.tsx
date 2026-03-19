@@ -55,10 +55,18 @@ const ProductPPT = () => {
           <ArrowLeft className="h-4 w-4 mr-2" />
           返回
         </Button>
-        <Button onClick={handlePrint} className="gap-2">
-          <Printer className="h-4 w-4" />
-          打印/导出PDF
-        </Button>
+        <div className="flex gap-2">
+          <a href="/dipont-word-master-presentation.pptx" download="狄邦单词通_全校介绍.pptx">
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              下载PPTX
+            </Button>
+          </a>
+          <Button onClick={handlePrint} className="gap-2">
+            <Printer className="h-4 w-4" />
+            打印/导出PDF
+          </Button>
+        </div>
       </div>
 
       {/* PPT Content */}
